@@ -12,8 +12,8 @@ def get_building_annotations(building_id: UUID):
     """
     try:
         response = supabase.table("annotations") \
-            .select("*, audit_results(*, audit_criteria(*))") \
-            .eq("building_id", str(building_id)) \
+            .select("*, scenes!inner(*), audit_results(*, audit_criteria(*))") \
+            .eq("scenes.building_id", str(building_id)) \
             .execute()
         return response.data
     except Exception as e:

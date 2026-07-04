@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel
 from app.db import supabase
 from app.agents.graph import run_audit_pipeline
+from app.agents.panorama_agent import run_panorama_agent
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
 
@@ -45,10 +46,11 @@ async def submit_building(
     address: Optional[str] = Form(None),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
-    photos: List[UploadFile] = File(...)
+    photos: List[UploadFile] = File(...),
+    panorama: Optional[UploadFile] = File(None)
 ):
     """
-    Public endpoint to submit a building with photo evidence.
+    Public endpoint to submit a building with photo evidence and optional panorama.
     Runs the multi-agent audit pipeline immediately.
     """
     # 1. Validation: at least one photo is required
@@ -59,6 +61,10 @@ async def submit_building(
     for photo in photos:
         if not photo.content_type or not photo.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="Semua berkas yang diunggah harus berupa file gambar.")
+
+    if panorama:
+        if not panorama.content_type or not panorama.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Berkas panorama yang diunggah harus berupa file gambar.")
 
     # 3. Create the building record (community, unverified, status='pending')
     try:
@@ -99,15 +105,6 @@ async def submit_building(
             public_url = supabase.storage.from_("photos").get_public_url(unique_filename)
             photo_urls.append(public_url)
             
-            # Save annotation record in database for history
-            supabase.table("annotations").insert({
-                "building_id": building_id,
-                "label": "evidence",
-                "pitch": 0.0,
-                "yaw": 0.0,
-                "photo_url": public_url
-            }).execute()
-            
         except Exception as upload_err:
             # Clean up created building if upload fails to keep DB clean
             try:
@@ -125,9 +122,102 @@ async def submit_building(
             detail=f"Gedung berhasil disimpan namun terjadi kegagalan audit: {str(audit_err)}"
         )
 
+    # 6. Process optional 360 panorama upload and run panorama agent detection
+    scene_id = None
+    if panorama:
+        try:
+            # Ensure bucket exists
+            try:
+                supabase.storage.create_bucket("panoramas", {"public": True})
+            except Exception:
+                pass
+
+            # Upload panorama file to Supabase storage
+            file_extension = panorama.filename.split(".")[-1] if "." in panorama.filename else "jpg"
+            unique_filename = f"{uuid.uuid4()}.{file_extension}"
+            file_content = await panorama.read()
+            
+            supabase.storage.from_("panoramas").upload(
+                path=unique_filename,
+                file=file_content,
+                file_options={"content-type": panorama.content_type}
+            )
+            
+            # Get public url of panorama
+            panorama_url = supabase.storage.from_("panoramas").get_public_url(unique_filename)
+            
+            # Insert into scenes
+            scene_response = supabase.table("scenes").insert({
+                "building_id": building_id,
+                "type": "panorama_360",
+                "file_url": panorama_url,
+                "label": panorama.filename
+            }).execute()
+            
+            if scene_response.data:
+                scene_id = scene_response.data[0]["id"]
+                
+                # Run panorama detection agent
+                features = run_panorama_agent(panorama_url)
+                
+                if features:
+                    # Query newly created audit results for keyword mapping
+                    audit_results_response = supabase.table("audit_results") \
+                        .select("*, audit_criteria(*)") \
+                        .eq("building_id", building_id) \
+                        .execute()
+                    results = audit_results_response.data or []
+                    
+                    # Helper matching function
+                    def find_matching_audit_result(lbl: str, audit_results: list) -> Optional[str]:
+                        lbl_lower = lbl.lower()
+                        for r in audit_results:
+                            criteria = r.get("audit_criteria")
+                            if not criteria:
+                                continue
+                            desc = criteria.get("description", "").lower()
+                            code = criteria.get("code", "").lower()
+                            # Check keywords
+                            if "toilet" in lbl_lower and "toilet" in desc:
+                                return r["id"]
+                            if "ramp" in lbl_lower and "ramp" in desc:
+                                return r["id"]
+                            if "tangga" in lbl_lower and "tangga" in desc:
+                                return r["id"]
+                            if ("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc:
+                                return r["id"]
+                            if "pintu" in lbl_lower and "pintu" in desc:
+                                return r["id"]
+                            if lbl_lower in desc or lbl_lower in code:
+                                return r["id"]
+                        return None
+
+                    # Format annotations
+                    annotations_to_insert = []
+                    for item in features:
+                        yaw = (item["x_percent"] / 100) * 360 - 180
+                        pitch = 90 - (item["y_percent"] / 100) * 180
+                        match_id = find_matching_audit_result(item["label"], results)
+                        
+                        annotations_to_insert.append({
+                            "scene_id": scene_id,
+                            "label": item["label"],
+                            "pitch": pitch,
+                            "yaw": yaw,
+                            "audit_result_id": match_id
+                        })
+                    
+                    if annotations_to_insert:
+                        supabase.table("annotations").insert(annotations_to_insert).execute()
+                        
+        except Exception as panorama_err:
+            # We don't fail the entire building creation if only panorama fails, but we print/raise
+            print(f"Gagal memproses panorama: {str(panorama_err)}")
+
     return {
         "building": new_building,
-        "audit_summary": audit_summary
+        "audit_summary": audit_summary,
+        "scene_id": scene_id
     }
 
 @router.get("", response_model=List[dict])

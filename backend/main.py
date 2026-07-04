@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
-from app.routers import buildings, audit, geocode, annotations
+from app.routers import buildings, audit, geocode, annotations, scenes
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,6 +20,7 @@ app.include_router(buildings.router)
 app.include_router(audit.router)
 app.include_router(geocode.router)
 app.include_router(annotations.router)
+app.include_router(scenes.router)
 
 def custom_openapi():
     if app.openapi_schema:
