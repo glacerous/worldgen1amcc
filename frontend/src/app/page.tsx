@@ -1,4 +1,5 @@
 import Navbar from "@/components/Navbar";
+import CardMarquee from "@/components/CardMarquee";
 
 export default function Home() {
   return (
@@ -26,7 +27,7 @@ export default function Home() {
             {/* CTA Buttons */}
             <div className="flex flex-wrap gap-4 mb-10">
               <a
-                href="/audit"
+                href="/buildings/submit"
                 className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-sm font-semibold px-6 py-3 rounded transition-all cursor-pointer"
               >
                 Mulai Audit Baru
@@ -54,24 +55,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right Column: Sample Criteria Citation Card (Phase 4.5 Styling) */}
-          <div className="flex justify-center lg:justify-end">
-            <div className="bg-surface border border-line rounded-md p-6 max-w-sm w-full shadow-sm">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-line/50">
-                <span className="font-mono text-xs text-ink-muted tracking-wider">SNI-8201-M1</span>
-                <span className="px-2.5 py-0.5 bg-status-met/10 text-status-met rounded text-[10px] font-sans font-semibold uppercase tracking-wider">
-                  Met
-                </span>
-              </div>
-              
-              <p className="font-display italic text-lg text-ink leading-relaxed mb-6">
-                "Ramp dengan kemiringan wajar (maksimal 8 derajat) dan dilengkapi dengan handrail."
-              </p>
-              
-              <div className="flex items-center justify-between text-[11px] font-sans text-ink-muted pt-1">
-                <span>Evaluasi Agen</span>
-                <span className="font-semibold text-accent font-mono">visual_agent</span>
-              </div>
+          {/* Right Column: Animated Scrolling Cards Marquee */}
+          <div className="flex justify-center lg:justify-end w-full">
+            <div className="w-full max-w-sm">
+              <CardMarquee />
             </div>
           </div>
 

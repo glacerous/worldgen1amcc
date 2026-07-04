@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors - Refined to match the warm, elegant Pasal.id palette */
+  /* Colors */
   --color-bg: #F5F2EB;
   --color-surface: #FFFFFF;
   --color-ink: #2C2B29;
@@ -18,11 +18,18 @@
   --font-display: var(--font-newsreader), serif;
   --font-sans: var(--font-inter), sans-serif;
   --font-mono: var(--font-ibm-plex-mono), monospace;
+
+  /* Animations — registered as Tailwind utility via CSS custom property */
+  --animate-marquee-down: marquee-down 28s linear infinite;
+}
+
+@keyframes marquee-down {
+  from { transform: translateY(-50%); }
+  to   { transform: translateY(0%);   }
 }
 
 /* Global Reset & Base Styles */
-html,
-body {
+html, body {
   height: 100%;
   margin: 0;
   padding: 0;
