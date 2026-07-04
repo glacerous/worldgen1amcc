@@ -22,6 +22,7 @@ export default function SubmitBuildingPage() {
   const [address, setAddress] = useState("");
   const [mapCenter, setMapCenter] = useState<[number, number]>([-6.2088, 106.8456]); // Default: Jakarta center
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [panoramaFile, setPanoramaFile] = useState<File | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -115,6 +116,10 @@ export default function SubmitBuildingPage() {
     selectedFiles.forEach((file) => {
       formData.append("photos", file);
     });
+
+    if (panoramaFile) {
+      formData.append("panorama", panoramaFile);
+    }
 
     try {
       const res = await fetch("http://localhost:8000/buildings/submit", {
@@ -274,6 +279,60 @@ export default function SubmitBuildingPage() {
                 </div>
               )}
             </div>
+
+            {/* Panorama 360 File Picker (Optional) */}
+            <div className="space-y-2">
+              <label className="block text-xs font-sans font-semibold text-ink-muted">
+                Foto 360° (opsional)
+              </label>
+              
+              <div 
+                onClick={() => document.getElementById("panorama-picker")?.click()}
+                className="border border-dashed border-line hover:border-accent/40 rounded-md p-4 text-center cursor-pointer transition-colors bg-surface/40"
+              >
+                <svg className="w-6 h-6 text-ink-muted/70 mx-auto mb-1.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h1.5A1.5 1.5 0 0118 13.5v1a1.5 1.5 0 001.5 1.5h1.365M15 18a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                <p className="font-sans text-[11px] text-ink-muted">
+                  {panoramaFile ? `Terpilih: ${panoramaFile.name}` : "Tambahkan foto 360° untuk tur virtual dengan penanda otomatis oleh AI"}
+                </p>
+              </div>
+
+              <input
+                type="file"
+                id="panorama-picker"
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    if (!file.type.startsWith("image/")) {
+                      setError("Berkas panorama harus berupa file gambar.");
+                      return;
+                    }
+                    setPanoramaFile(file);
+                    setError(null);
+                  }
+                }}
+                className="hidden"
+              />
+
+              {panoramaFile && (
+                <div className="flex items-center justify-between text-[10px] font-sans text-ink-muted bg-surface border border-line rounded-md px-3 py-1.5">
+                  <span className="truncate max-w-[80%]">{panoramaFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPanoramaFile(null);
+                    }}
+                    className="text-status-not-met font-semibold hover:underline cursor-pointer"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              )}
+            </div>
+
 
             {/* AI analysis disclaimer text */}
             <p className="font-sans text-[10px] text-ink-muted leading-relaxed">

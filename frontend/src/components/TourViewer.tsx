@@ -17,12 +17,11 @@ interface AuditResult {
 
 interface Annotation {
   id: string;
-  building_id: string;
+  scene_id: string;
   audit_result_id: string | null;
   label: string;
   pitch: number;
   yaw: number;
-  photo_url: string;
   audit_results: AuditResult | null;
 }
 
@@ -54,8 +53,7 @@ export default function TourViewer({ annotations, fallbackImageUrl }: TourViewer
     },
   };
 
-  // Determine dynamic panorama URL or hardcoded fallback
-  const panoramaUrl = annotations.length > 0 ? annotations[0].photo_url : fallbackImageUrl;
+  const panoramaUrl = fallbackImageUrl;
 
   return (
     <div className="relative w-full h-[65vh] border border-line rounded-md overflow-hidden bg-bg/20">
