@@ -21,6 +21,8 @@ interface Building {
   longitude: number | null;
   status: string;
   audit_results: AuditResult[];
+  source?: string;
+  verified?: boolean;
 }
 
 export default function BuildingsPage() {
@@ -100,10 +102,10 @@ export default function BuildingsPage() {
             </p>
           </div>
           <Link
-            href="/buildings/suggest"
+            href="/buildings/submit"
             className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2.5 rounded-md transition-all w-fit cursor-pointer"
           >
-            Usulkan Gedung
+            Audit Gedung Baru
           </Link>
         </div>
 
@@ -206,10 +208,10 @@ export default function BuildingsPage() {
               Kami belum memiliki data untuk kriteria pencarian ini. Bantu kami melengkapi database dengan mengusulkan gedung baru.
             </p>
             <Link
-              href="/buildings/suggest"
+              href="/buildings/submit"
               className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-5 py-2.5 rounded-md transition-all cursor-pointer"
             >
-              Usulkan Gedung Baru
+              Audit Gedung Pertama
             </Link>
           </div>
         ) : (
@@ -232,8 +234,18 @@ export default function BuildingsPage() {
                     </p>
                   </div>
 
-                  {/* Compliance badge */}
-                  <div className="flex-shrink-0">
+                  {/* Compliance & Provenance badges */}
+                  <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0 sm:flex-col sm:items-end sm:gap-1.5">
+                    {/* Provenance Badge */}
+                    <span className={`px-2 py-0.5 border rounded-md text-[9px] font-sans font-semibold uppercase tracking-wider ${
+                      building.verified 
+                        ? "bg-accent/10 text-accent border-accent/20" 
+                        : "bg-bg text-ink-muted border-line"
+                    }`}>
+                      {building.verified ? "Diverifikasi Tim" : "Kontribusi Komunitas"}
+                    </span>
+
+                    {/* Compliance Badge */}
                     {compliance !== null ? (
                       compliance === "N/A" ? (
                         <span className="px-2.5 py-0.5 bg-status-na/10 text-status-na border border-status-na/20 rounded-md text-xs font-sans font-bold">
@@ -241,7 +253,7 @@ export default function BuildingsPage() {
                         </span>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span className="font-sans text-xs text-ink-muted">Compliance Score:</span>
+                          <span className="font-sans text-xs text-ink-muted hidden md:inline">Compliance:</span>
                           <span className="px-2.5 py-0.5 bg-status-met/10 text-status-met border border-status-met/20 rounded-md text-xs font-sans font-bold">
                             {compliance}%
                           </span>

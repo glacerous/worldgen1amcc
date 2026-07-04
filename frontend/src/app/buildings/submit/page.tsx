@@ -1,0 +1,305 @@
+"use client";
+
+import { useState } from "react";
+import Navbar from "@/components/Navbar";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+// Dynamically import Leaflet Map to bypass SSR window issues
+const Map = dynamic(() => import("@/components/Map"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 bg-bg/50 border border-line rounded-md flex items-center justify-center font-sans text-xs text-ink-muted animate-pulse">
+      Memuat peta...
+    </div>
+  ),
+});
+
+export default function SubmitBuildingPage() {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [mapCenter, setMapCenter] = useState<[number, number]>([-6.2088, 106.8456]); // Default: Jakarta center
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Geocoding query to resolve address coordinates
+  const handleGeocode = async () => {
+    if (!address.trim()) {
+      setError("Masukkan alamat terlebih dahulu untuk mencari lokasi.");
+      return;
+    }
+    setIsGeocoding(true);
+    setError(null);
+
+    try {
+      const res = await fetch("http://localhost:8000/geocode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ address: address.trim() }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new Error("Lokasi tidak ditemukan. Coba perjelas nama jalan atau kota.");
+        }
+        throw new Error("Gagal melakukan pencarian lokasi.");
+      }
+
+      const data = await res.json();
+      setMapCenter([data.latitude, data.longitude]);
+    } catch (err: any) {
+      setError(err.message || "Terjadi kesalahan saat mencari lokasi.");
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  const handleMapMarkerChange = (lat: number, lng: number) => {
+    setMapCenter([lat, lng]);
+  };
+
+  // Handle file picking and validation
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      
+      // Validate image types
+      const invalidFiles = filesArray.some((file) => !file.type.startsWith("image/"));
+      if (invalidFiles) {
+        setError("Hanya berkas gambar (image/*) yang diperbolehkan.");
+        return;
+      }
+
+      setSelectedFiles((prev) => [...prev, ...filesArray]);
+      setError(null);
+    }
+  };
+
+  // Remove a selected file from the preview list
+  const removeFile = (indexToRemove: number) => {
+    setSelectedFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    // Form validation checks
+    if (!name.trim() || !address.trim()) {
+      setError("Nama gedung dan alamat lengkap wajib diisi.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (selectedFiles.length === 0) {
+      setError("Minimal 1 foto bukti fisik wajib diunggah.");
+      setIsLoading(false);
+      return;
+    }
+
+    // Build Form Data payload
+    const formData = new FormData();
+    formData.append("name", name.trim());
+    formData.append("address", address.trim());
+    formData.append("latitude", mapCenter[0].toString());
+    formData.append("longitude", mapCenter[1].toString());
+    
+    selectedFiles.forEach((file) => {
+      formData.append("photos", file);
+    });
+
+    try {
+      const res = await fetch("http://localhost:8000/buildings/submit", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Gagal melakukan registrasi gedung.");
+      }
+
+      const data = await res.json();
+      const newBuildingId = data.building?.id;
+
+      if (!newBuildingId) {
+        throw new Error("Gagal memperoleh ID gedung hasil submit.");
+      }
+
+      // Success redirect to the detail results page immediately
+      router.push(`/buildings/${newBuildingId}`);
+    } catch (err: any) {
+      setError(err.message || "Terjadi kesalahan koneksi server.");
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-bg">
+      <Navbar />
+
+      <main className="flex-1 px-6 py-12 md:py-16 max-w-xl mx-auto w-full flex flex-col justify-center">
+        <div className="bg-surface border border-line rounded-md p-6 md:p-8 shadow-sm">
+          <h1 className="font-display text-2xl font-normal text-ink mb-2">
+            Audit Gedung Baru
+          </h1>
+          <p className="font-sans text-xs text-ink-muted mb-6">
+            Daftarkan gedung publik dan unggah foto bukti fisik untuk memulai audit standar aksesibilitas berbasis AI.
+          </p>
+
+          {error && (
+            <div className="mb-6 p-4 bg-status-not-met/10 border border-status-not-met/20 rounded-md text-xs text-status-not-met font-sans font-medium">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Building Name Input */}
+            <div>
+              <label htmlFor="name" className="block text-xs font-sans font-semibold text-ink-muted mb-1.5">
+                Nama Gedung <span className="text-status-not-met">*</span>
+              </label>
+              <input
+                type="text"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Contoh: Gedung Sate Bandung"
+                className="w-full bg-transparent border border-line rounded-md px-3 py-2 text-sm font-sans text-ink placeholder-ink-muted/50 focus:outline-none focus:border-accent/40"
+                required
+              />
+            </div>
+
+            {/* Address & Geocode Search Input */}
+            <div>
+              <label htmlFor="address" className="block text-xs font-sans font-semibold text-ink-muted mb-1.5">
+                Alamat Lengkap <span className="text-status-not-met">*</span>
+              </label>
+              <div className="flex gap-2">
+                <textarea
+                  id="address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Contoh: Jl. Diponegoro No. 22, Bandung"
+                  rows={2}
+                  className="w-full bg-transparent border border-line rounded-md px-3 py-2 text-sm font-sans text-ink placeholder-ink-muted/50 focus:outline-none focus:border-accent/40"
+                  required
+                />
+                <button
+                  type="button"
+                  disabled={isGeocoding}
+                  onClick={handleGeocode}
+                  className="flex-shrink-0 inline-flex items-center justify-center border border-line hover:bg-bg/40 font-sans text-xs font-semibold px-4 rounded-md text-ink transition-all disabled:opacity-50 h-auto cursor-pointer"
+                >
+                  {isGeocoding ? "Mencari..." : "Cari Lokasi"}
+                </button>
+              </div>
+            </div>
+
+            {/* Leaflet Dynamic Map */}
+            <div className="space-y-2">
+              <label className="block text-xs font-sans font-semibold text-ink-muted">
+                Titik Lokasi Gedung (Geser pin jika kurang akurat)
+              </label>
+              <Map center={mapCenter} onChange={handleMapMarkerChange} />
+              <p className="text-[10px] font-sans text-ink-muted italic">
+                Koordinat terpilih: {mapCenter[0].toFixed(6)}, {mapCenter[1].toFixed(6)}
+              </p>
+            </div>
+
+            {/* Multiple Photo Picker & Preview Thumbnails */}
+            <div className="space-y-2">
+              <label className="block text-xs font-sans font-semibold text-ink-muted">
+                Foto Bukti Fisik Aksesibilitas <span className="text-status-not-met">*</span>
+              </label>
+              
+              {/* Fake file pick area */}
+              <div 
+                onClick={() => document.getElementById("photo-picker")?.click()}
+                className="border border-dashed border-line hover:border-accent/40 rounded-md p-6 text-center cursor-pointer transition-colors"
+              >
+                <svg className="w-8 h-8 text-ink-muted/70 mx-auto mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p className="font-sans text-[11px] text-ink-muted">
+                  Klik untuk memilih foto-foto bukti standar gedung (Ramp, Pintu, Toilet, dll.)
+                </p>
+              </div>
+              
+              <input
+                type="file"
+                id="photo-picker"
+                multiple
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+
+              {/* Thumbnails list */}
+              {selectedFiles.length > 0 && (
+                <div className="pt-2">
+                  <span className="block text-[10px] font-sans font-semibold text-ink-muted mb-2">
+                    Foto terpilih ({selectedFiles.length}):
+                  </span>
+                  <div className="flex flex-wrap gap-3">
+                    {selectedFiles.map((file, idx) => {
+                      const objectUrl = URL.createObjectURL(file);
+                      return (
+                        <div key={idx} className="relative w-16 h-16 border border-line rounded-md overflow-hidden bg-bg">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={objectUrl}
+                            alt={`Preview ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeFile(idx)}
+                            className="absolute top-0 right-0 bg-ink-muted text-white w-4 h-4 flex items-center justify-center text-[9px] hover:bg-status-not-met transition-colors focus:outline-none cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* AI analysis disclaimer text */}
+            <p className="font-sans text-[10px] text-ink-muted leading-relaxed">
+              * Hasil akan dianalisis otomatis oleh AI dan langsung tayang, ditandai sebagai kontribusi komunitas hingga diverifikasi tim kami.
+            </p>
+
+            {/* Footer buttons */}
+            <div className="pt-4 flex items-center justify-between gap-4 border-t border-line/50">
+              <Link
+                href="/buildings"
+                className="font-sans text-xs font-semibold text-ink hover:text-accent transition-colors"
+              >
+                Batal
+              </Link>
+              
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-6 py-2.5 rounded-md transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {isLoading ? "Memproses Audit..." : "Kirim & Mulai Audit"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </main>
+    </div>
+  );
+}

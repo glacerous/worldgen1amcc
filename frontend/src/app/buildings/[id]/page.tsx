@@ -9,6 +9,8 @@ interface Building {
   latitude: number | null;
   longitude: number | null;
   status: string;
+  source?: string;
+  verified?: boolean;
 }
 
 interface AuditResult {
@@ -115,21 +117,46 @@ export default async function BuildingDetailPage({
       
       <main className="flex-1 px-6 py-12 md:py-16 max-w-4xl mx-auto w-full">
         {/* Header Section */}
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div>
+            <Link
+              href="/buildings"
+              className="inline-flex items-center text-xs font-sans text-ink-muted hover:text-accent transition-colors mb-4"
+            >
+              <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"></path>
+              </svg>
+              Kembali ke Daftar Gedung
+            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="font-display text-3xl md:text-5xl font-normal text-ink leading-tight">
+                {building.name}
+              </h1>
+              <span className={`inline-flex px-2 py-0.5 border rounded-md text-[9px] font-sans font-semibold uppercase tracking-wider ${
+                building.verified 
+                  ? "bg-accent/10 text-accent border-accent/20" 
+                  : "bg-bg text-ink-muted border-line"
+              }`}>
+                {building.verified ? "Diverifikasi Tim" : "Kontribusi Komunitas"}
+              </span>
+            </div>
+            <p className="font-sans text-sm text-ink-muted mt-2">
+              {building.address || "Alamat belum ditambahkan."}
+            </p>
+          </div>
+
           <Link
-            href="/buildings"
-            className="inline-flex items-center text-xs font-sans text-ink-muted hover:text-accent transition-colors mb-4"
+            href={`/buildings/${building.id}/tour`}
+            className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2.5 rounded-md transition-all w-fit cursor-pointer md:mt-8"
           >
-            <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"></path>
-            </svg>
-            Kembali ke Daftar Gedung
+            Lihat Tur 360°
           </Link>
-          <h1 className="font-display text-3xl md:text-5xl font-normal text-ink leading-tight">
-            {building.name}
-          </h1>
-          <p className="font-sans text-sm text-ink-muted mt-2">
-            {building.address || "Alamat belum ditambahkan."}
+        </div>
+
+        {/* Disclaimer Banner */}
+        <div className="bg-surface border-l-2 border-line/90 p-4 mb-6 rounded-r-md">
+          <p className="font-sans text-xs text-ink-muted leading-relaxed">
+            Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
           </p>
         </div>
 
