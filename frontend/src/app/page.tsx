@@ -1,63 +1,80 @@
-import Image from "next/image";
+import Navbar from "@/components/Navbar";
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+    <div className="min-h-screen flex flex-col bg-bg">
+      <Navbar />
+      
+      <main className="flex-1 flex items-center justify-center px-6 py-12 md:py-20 max-w-5xl mx-auto w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center w-full">
+          
+          {/* Left Column: Headline and CTAs */}
+          <div className="flex flex-col text-left">
+            <span className="font-sans text-xs tracking-widest text-accent bg-accent/10 px-3 py-1 rounded-full mb-6 w-fit lowercase font-normal">
+              sistem audit aksesibilitas gedung
+            </span>
+            
+            <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-normal text-ink tracking-tight mb-4">
+              Audit aksesibilitas <br className="hidden md:inline" />
+              ruang publik Anda
+            </h1>
+            
+            <p className="font-display italic text-lg md:text-xl text-ink-muted mb-8 leading-relaxed">
+              Analisis cerdas fasilitas gedung, ramah disabilitas untuk semua.
+            </p>
+            
+            {/* CTA Buttons */}
+            <div className="flex flex-wrap gap-4 mb-10">
+              <a
+                href="/audit"
+                className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-sm font-semibold px-6 py-3 rounded transition-all cursor-pointer"
+              >
+                Mulai Audit Baru
+              </a>
+              <a
+                href="/buildings"
+                className="inline-flex items-center justify-center bg-surface text-ink hover:bg-bg border border-line font-sans text-sm font-semibold px-6 py-3 rounded transition-all cursor-pointer"
+              >
+                Lihat Daftar Gedung
+              </a>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2 pt-6 border-t border-line/45">
+              <span className="font-sans text-xs text-ink-muted mr-1">Kategori:</span>
+              <button className="px-3 py-1 bg-surface border border-line hover:border-accent hover:text-accent rounded text-xs font-sans text-ink transition-colors cursor-pointer">
+                Mobilitas
+              </button>
+              <button className="px-3 py-1 bg-surface border border-line hover:border-accent hover:text-accent rounded text-xs font-sans text-ink transition-colors cursor-pointer">
+                Netra
+              </button>
+              <button className="px-3 py-1 bg-surface border border-line hover:border-accent hover:text-accent rounded text-xs font-sans text-ink transition-colors cursor-pointer">
+                Rungu
+              </button>
+            </div>
+          </div>
+
+          {/* Right Column: Sample Criteria Citation Card (Phase 4.5 Styling) */}
+          <div className="flex justify-center lg:justify-end">
+            <div className="bg-surface border border-line rounded-md p-6 max-w-sm w-full shadow-sm">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-line/50">
+                <span className="font-mono text-xs text-ink-muted tracking-wider">SNI-8201-M1</span>
+                <span className="px-2.5 py-0.5 bg-status-met/10 text-status-met rounded text-[10px] font-sans font-semibold uppercase tracking-wider">
+                  Met
+                </span>
+              </div>
+              
+              <p className="font-display italic text-lg text-ink leading-relaxed mb-6">
+                "Ramp dengan kemiringan wajar (maksimal 8 derajat) dan dilengkapi dengan handrail."
+              </p>
+              
+              <div className="flex items-center justify-between text-[11px] font-sans text-ink-muted pt-1">
+                <span>Evaluasi Agen</span>
+                <span className="font-semibold text-accent font-mono">visual_agent</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </main>
     </div>
