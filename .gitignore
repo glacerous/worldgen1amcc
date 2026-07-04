@@ -1,0 +1,8 @@
+# Monorepo .gitignore
+node_modules/
+.env
+__pycache__/
+.next/
+venv/
+.venv/
+*.pyc
