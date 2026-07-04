@@ -140,3 +140,18 @@ def run_audit(request: AuditRequest):
             for r in final_results
         ]
     }
+
+@router.get("/results/{building_id}", response_model=List[dict])
+def get_audit_results(building_id: UUID):
+    """
+    Returns all audit results for a specific building, joined with audit_criteria.
+    """
+    try:
+        response = supabase.table("audit_results") \
+            .select("*, audit_criteria(code, description, category)") \
+            .eq("building_id", str(building_id)) \
+            .execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
