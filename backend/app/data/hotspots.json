@@ -58,5 +58,25 @@
       "yaw": 0.0,
       "label": "baba"
     }
+  ],
+  "dd8ae46a-9996-4a43-8ce0-d849fa5dc5e9": [
+    {
+      "id": "598371d0-4326-4a87-a01c-70c626096841",
+      "source_scene_id": "dd8ae46a-9996-4a43-8ce0-d849fa5dc5e9",
+      "target_scene_id": "0fd7ddab-76af-4d55-8c73-073a017e5d05",
+      "pitch": 0.8787961798115369,
+      "yaw": 28.86791952394851,
+      "label": "ke salju"
+    }
+  ],
+  "0fd7ddab-76af-4d55-8c73-073a017e5d05": [
+    {
+      "id": "5663c2d4-4199-4638-b24c-58460ed61537",
+      "source_scene_id": "0fd7ddab-76af-4d55-8c73-073a017e5d05",
+      "target_scene_id": "dd8ae46a-9996-4a43-8ce0-d849fa5dc5e9",
+      "pitch": 3.745440458470064,
+      "yaw": -2.5526106229146217,
+      "label": "ke pancingan"
+    }
   ]
 }

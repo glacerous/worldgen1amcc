@@ -181,8 +181,8 @@ export default function TourViewer({
       });
 
       // 3. Render or transition scenes
-      const currentPanorama = viewer.getPanorama();
-      if (currentPanorama !== fallbackImageUrl) {
+      const currentScene = viewer.getScene();
+      if (currentScene !== fallbackImageUrl) {
         const sceneId = fallbackImageUrl; // Unique ID based on the URL
         
         // Register the scene configuration dynamically
