@@ -392,6 +392,16 @@ export default function BuildingTourPage() {
       <Navbar />
 
       <main className="flex-1 px-6 py-10 md:py-12 max-w-7xl mx-auto w-full">
+        <Link
+          href={`/buildings/${building.id}`}
+          className="inline-flex items-center text-xs font-sans text-ink-muted hover:text-accent transition-colors mb-4"
+        >
+          <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Kembali ke Detail Gedung
+        </Link>
+
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 pb-5 border-b border-line/45">
           <div>

@@ -43,7 +43,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom navigation hotspot style for 360 virtual tour - 3D Street View style */
+/* Custom navigation hotspot style for 360 virtual tour - Premium 3D Street View style */
 .custom-hotspot-nav {
   height: 48px !important;
   width: 48px !important;
@@ -56,68 +56,114 @@ body {
   justify-content: center !important;
 }
 
-/* Inner visual container - handles 3D perspective and hover scaling without clashing with positioning */
+/* Inner visual container - handles 3D perspective and hover scaling */
 .custom-hotspot-inner {
+  position: relative !important;
   height: 100% !important;
   width: 100% !important;
-  background: rgba(15, 92, 92, 0.5) !important; /* Semi-transparent accent color */
-  border: 2.5px solid rgba(255, 255, 255, 0.85) !important;
-  border-radius: 50% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
   /* Perspective projection to make it lie flat on the virtual floor */
-  transform: perspective(100px) rotateX(65deg) !important;
+  transform: perspective(200px) rotateX(60deg) !important;
   transform-origin: center center !important;
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
-              background-color 0.25s ease, 
-              border-color 0.25s ease, 
-              box-shadow 0.25s ease !important;
   pointer-events: none !important;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
+/* Tilt up slightly and scale on hover */
 .custom-hotspot-nav:hover .custom-hotspot-inner {
-  transform: perspective(100px) rotateX(60deg) scale(1.15) !important; /* Tilt up slightly and scale on hover */
-  background: rgba(15, 92, 92, 0.85) !important;
-  border-color: #FFFFFF !important;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3) !important;
+  transform: perspective(200px) rotateX(48deg) scale(1.15) !important;
 }
 
-/* Arrow inside the hotspot */
-.custom-hotspot-arrow {
-  color: #FFFFFF !important;
-  font-size: 15px !important;
-  font-weight: bold !important;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
-  margin-top: -2px !important; /* Visual center correction */
-  transition: transform 0.25s ease !important;
+/* Base pulse/glow ring on the floor */
+.custom-hotspot-pulse {
+  position: absolute !important;
+  inset: 4px !important;
+  border-radius: 50% !important;
+  border: 2px solid var(--color-accent) !important;
+  background: rgba(15, 92, 92, 0.15) !important;
+  box-shadow: 0 0 12px var(--color-accent), inset 0 0 8px var(--color-accent) !important;
   pointer-events: none !important;
+  animation: hotspot-pulse-wave 2s infinite ease-out !important;
 }
 
-.custom-hotspot-nav:hover .custom-hotspot-arrow {
-  transform: translateY(-2px) !important; /* Move forward slightly on hover */
+@keyframes hotspot-pulse-wave {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.85;
+    box-shadow: 0 0 8px var(--color-accent), inset 0 0 4px var(--color-accent);
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 1;
+    box-shadow: 0 0 16px var(--color-accent), inset 0 0 10px var(--color-accent);
+  }
+  100% {
+    transform: scale(0.92);
+    opacity: 0.85;
+    box-shadow: 0 0 8px var(--color-accent), inset 0 0 4px var(--color-accent);
+  }
+}
+
+/* Arrow wrapper for bobbing (up and down float) */
+.custom-hotspot-arrow-wrapper {
+  position: absolute !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #FFFFFF !important;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.4)) !important;
+  animation: hotspot-bob 2s infinite ease-in-out !important;
+  pointer-events: none !important;
+  transition: color 0.3s ease !important;
+}
+
+/* Beautiful Bobbing animation for the floating arrow */
+@keyframes hotspot-bob {
+  0%, 100% {
+    transform: translateY(0px) scale(0.95);
+  }
+  50% {
+    transform: translateY(-5px) scale(1.05); /* Floating up */
+  }
+}
+
+/* The SVG Chevron Arrow */
+.custom-hotspot-arrow-svg {
+  width: 22px !important;
+  height: 22px !important;
+  transform: rotate(0deg) !important; /* Points forward/up */
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+.custom-hotspot-nav:hover .custom-hotspot-arrow-wrapper {
+  color: #E2FFF8 !important; /* Glow accent color on hover */
 }
 
 /* Modern hover label / tooltip (remains vertical and clean, not tilted) */
 .custom-hotspot-label {
   position: absolute !important;
-  bottom: 125% !important; /* Show above the hotspot container */
+  bottom: 130% !important; /* Show above the hotspot container */
   left: 50% !important;
-  transform: translate3d(-50%, 5px, 0) scale(0.9) !important;
-  background: rgba(18, 18, 18, 0.95) !important;
+  transform: translate3d(-50%, 8px, 0) scale(0.9) !important;
+  background: rgba(44, 43, 41, 0.88) !important; /* Sleek dark slate */
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
   color: #FFFFFF !important;
   font-family: var(--font-sans), sans-serif !important;
   font-size: 11px !important;
-  font-weight: 500 !important;
-  padding: 4px 8px !important;
-  border-radius: 4px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.025em !important;
+  padding: 5px 10px !important;
+  border-radius: 6px !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   white-space: nowrap !important;
   opacity: 0 !important;
   pointer-events: none !important;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25) !important;
-  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
   z-index: 9999 !important;
 }
 

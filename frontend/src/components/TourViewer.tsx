@@ -65,6 +65,128 @@ export default function TourViewer({
     }
   });
 
+  // Inject premium hotspot styles dynamically to override any cached CSS
+  useEffect(() => {
+    const styleId = "tour-viewer-hotspot-upgraded-styles";
+    if (document.getElementById(styleId)) return;
+
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.innerHTML = `
+      .custom-hotspot-nav {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      
+      .custom-hotspot-inner-upgraded {
+        position: relative !important;
+        height: 100% !important;
+        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        transform: perspective(200px) rotateX(60deg) !important;
+        transform-origin: center center !important;
+        pointer-events: none !important;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+      }
+
+      .custom-hotspot-pulse {
+        position: absolute !important;
+        inset: 4px !important;
+        border-radius: 50% !important;
+        border: 2px solid #14B8A6 !important;
+        background: rgba(20, 184, 166, 0.2) !important;
+        box-shadow: 0 0 12px #14B8A6, inset 0 0 8px #14B8A6 !important;
+        pointer-events: none !important;
+        animation: hotspot-pulse-wave 2s infinite ease-out !important;
+      }
+
+      @keyframes hotspot-pulse-wave {
+        0% {
+          transform: scale(0.92);
+          opacity: 0.85;
+          box-shadow: 0 0 8px #14B8A6, inset 0 0 4px #14B8A6;
+        }
+        50% {
+          transform: scale(1.03);
+          opacity: 1;
+          box-shadow: 0 0 16px #14B8A6, inset 0 0 10px #14B8A6;
+        }
+        100% {
+          transform: scale(0.92);
+          opacity: 0.85;
+          box-shadow: 0 0 8px #14B8A6, inset 0 0 4px #14B8A6;
+        }
+      }
+
+      .custom-hotspot-arrow-wrapper {
+        position: absolute !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: #FFFFFF !important;
+        filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.4)) !important;
+        animation: hotspot-bob 2s infinite ease-in-out !important;
+        pointer-events: none !important;
+        transition: color 0.3s ease !important;
+      }
+
+      @keyframes hotspot-bob {
+        0%, 100% {
+          transform: translateY(0px) scale(0.95);
+        }
+        50% {
+          transform: translateY(-5px) scale(1.05);
+        }
+      }
+
+      .custom-hotspot-arrow-svg {
+        width: 22px !important;
+        height: 22px !important;
+      }
+
+      .custom-hotspot-nav:hover .custom-hotspot-arrow-wrapper {
+        color: #E2FFF8 !important;
+      }
+
+      .custom-hotspot-label-upgraded {
+        position: absolute !important;
+        bottom: 130% !important;
+        left: 50% !important;
+        transform: translate3d(-50%, 8px, 0) scale(0.9) !important;
+        background: rgba(44, 43, 41, 0.88) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+        color: #FFFFFF !important;
+        font-family: var(--font-sans), sans-serif !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.025em !important;
+        padding: 5px 10px !important;
+        border-radius: 6px !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        white-space: nowrap !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+        transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+                    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+        z-index: 9999 !important;
+      }
+
+      .custom-hotspot-nav:hover .custom-hotspot-label-upgraded {
+        opacity: 1 !important;
+        transform: translate3d(-50%, 0, 0) scale(1) !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
+
   // Status tokens styling
   const statusMap = {
     met: {
@@ -153,20 +275,56 @@ export default function TourViewer({
           type: "custom",
           cssClass: "custom-hotspot-nav",
           createTooltipFunc: (hotSpotDiv: HTMLElement) => {
-            if (hotSpotDiv.querySelector(".custom-hotspot-inner")) return;
-            
-            const inner = document.createElement("div");
-            inner.className = "custom-hotspot-inner";
-            
-            const arrow = document.createElement("span");
-            arrow.className = "custom-hotspot-arrow";
-            arrow.innerText = "▲";
-            inner.appendChild(arrow);
-            
-            hotSpotDiv.appendChild(inner);
+            if (hotSpotDiv.querySelector(".custom-hotspot-inner-upgraded")) return;
 
+            // Force precise dimensions, offsets, and centering inline to prevent top-left shifting
+            hotSpotDiv.style.setProperty("width", "48px", "important");
+            hotSpotDiv.style.setProperty("height", "48px", "important");
+            hotSpotDiv.style.setProperty("margin-left", "-24px", "important");
+            hotSpotDiv.style.setProperty("margin-top", "-24px", "important");
+            hotSpotDiv.style.setProperty("background", "transparent", "important");
+            hotSpotDiv.style.setProperty("border", "none", "important");
+            hotSpotDiv.style.setProperty("box-shadow", "none", "important");
+            hotSpotDiv.style.setProperty("display", "flex", "important");
+            hotSpotDiv.style.setProperty("align-items", "center", "important");
+            hotSpotDiv.style.setProperty("justify-content", "center", "important");
+
+            const inner = document.createElement("div");
+            inner.className = "custom-hotspot-inner-upgraded";
+            
+            // JavaScript-driven hover effect to ensure perfect responsive transition even if style injection has slight delay
+            hotSpotDiv.addEventListener("mouseenter", () => {
+              inner.style.setProperty("transform", "perspective(200px) rotateX(48deg) scale(1.15)", "important");
+            });
+            hotSpotDiv.addEventListener("mouseleave", () => {
+              inner.style.setProperty("transform", "perspective(200px) rotateX(60deg)", "important");
+            });
+            
+            // Pulse circle (bottom ring)
+            const pulse = document.createElement("div");
+            pulse.className = "custom-hotspot-pulse";
+            inner.appendChild(pulse);
+            
+            // SVG Arrow wrapper
+            const arrowWrapper = document.createElement("div");
+            arrowWrapper.className = "custom-hotspot-arrow-wrapper";
+            
+            // Create SVG Arrow pointing forward
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("viewBox", "0 0 24 24");
+            svg.setAttribute("class", "custom-hotspot-arrow-svg");
+            
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", "M12 3l8 16-8-4-8 16z");
+            path.setAttribute("fill", "currentColor");
+            svg.appendChild(path);
+            
+            arrowWrapper.appendChild(svg);
+            inner.appendChild(arrowWrapper);
+            hotSpotDiv.appendChild(inner);
+            
             const label = document.createElement("span");
-            label.className = "custom-hotspot-label";
+            label.className = "custom-hotspot-label-upgraded";
             label.innerText = hotspot.label || "Ke titik selanjutnya";
             hotSpotDiv.appendChild(label);
           },
