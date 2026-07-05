@@ -147,21 +147,21 @@ export default function BuildingTourPage() {
 
   async function loadActiveSceneData(sceneId: string) {
     try {
-      const [annotationsRes, hotspotsRes] = await Promise.all([
+      const [annotationsRes, sceneLinksRes] = await Promise.all([
         fetch(`http://localhost:8000/scenes/${sceneId}/annotations`),
-        fetch(`http://localhost:8000/scenes/${sceneId}/hotspots`),
+        fetch(`http://localhost:8000/scenes/${sceneId}/scene-links`),
       ]);
 
       if (annotationsRes.ok) {
         const annotationsData = await annotationsRes.json();
         setAnnotations(annotationsData);
       }
-      if (hotspotsRes.ok) {
-        const hotspotsData = await hotspotsRes.json();
-        setHotspots(hotspotsData);
+      if (sceneLinksRes.ok) {
+        const sceneLinksData = await sceneLinksRes.json();
+        setHotspots(sceneLinksData);
       }
     } catch (err) {
-      console.error("Gagal memuat detail anotasi/hotspot untuk scene:", err);
+      console.error("Gagal memuat detail anotasi/scene links untuk scene:", err);
     }
   }
 
@@ -270,7 +270,7 @@ export default function BuildingTourPage() {
     setIsAddingHotspot(true);
 
     try {
-      const res = await fetch(`http://localhost:8000/scenes/${activeScene.id}/hotspots`, {
+      const res = await fetch(`http://localhost:8000/scenes/${activeScene.id}/scene-links`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -285,16 +285,16 @@ export default function BuildingTourPage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "Gagal membuat hotspot.");
+        throw new Error(errData.detail || "Gagal membuat penanda navigasi.");
       }
 
       // Reset input
       setTargetSceneId("");
       setHotspotLabel("");
 
-      // Reload hotspots for active scene
+      // Reload scene links for active scene
       await loadActiveSceneData(activeScene.id);
-      alert("Hotspot berhasil ditambahkan ke arah bidikan kamera!");
+      alert("Penanda navigasi berhasil ditambahkan ke arah bidikan kamera!");
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     } finally {
@@ -310,18 +310,18 @@ export default function BuildingTourPage() {
     }
 
     try {
-      const res = await fetch(`http://localhost:8000/scenes/hotspots/${hotspotId}`, {
+      const res = await fetch(`http://localhost:8000/scenes/scene-links/${hotspotId}`, {
         method: "DELETE",
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "Gagal menghapus hotspot.");
+        throw new Error(errData.detail || "Gagal menghapus penanda navigasi.");
       }
 
-      // Reload hotspots for active scene
+      // Reload scene links for active scene
       await loadActiveSceneData(activeScene.id);
-      alert("Hotspot berhasil dihapus.");
+      alert("Penanda navigasi berhasil dihapus.");
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     }
