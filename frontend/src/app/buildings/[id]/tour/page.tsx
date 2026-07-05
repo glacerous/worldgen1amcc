@@ -189,9 +189,19 @@ export default function BuildingTourPage() {
     formData.append("label", uploadLabel.trim());
     formData.append("file", uploadFile);
 
+    const token = typeof window !== "undefined" ? sessionStorage.getItem("admin_token") : null;
+    if (!token) {
+      alert("Akses ditolak. Silakan login terlebih dahulu.");
+      window.location.href = "/login";
+      return;
+    }
+
     try {
       const res = await fetch("http://localhost:8000/scenes", {
         method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
         body: formData,
       });
 
@@ -225,9 +235,19 @@ export default function BuildingTourPage() {
       return;
     }
 
+    const token = typeof window !== "undefined" ? sessionStorage.getItem("admin_token") : null;
+    if (!token) {
+      alert("Akses ditolak. Silakan login terlebih dahulu.");
+      window.location.href = "/login";
+      return;
+    }
+
     try {
       const res = await fetch(`http://localhost:8000/scenes/${activeScene.id}`, {
         method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
       });
 
       if (!res.ok) {

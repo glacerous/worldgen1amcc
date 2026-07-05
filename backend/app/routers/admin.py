@@ -170,9 +170,24 @@ def get_admin_disputed(token: str = Depends(require_admin)):
                     has_dispute = True
                     break
                     
-            if has_dispute:
-                disputed_buildings.append(b)
-                
         return disputed_buildings
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal memproses daftar gedung bersengketa: {str(e)}")
+
+@admin_router.post("/reports/{report_id}/resolve", response_model=dict)
+def resolve_report(report_id: UUID, token: str = Depends(require_admin)):
+    """
+    Protected endpoint to mark a report as resolved.
+    """
+    try:
+        response = supabase.table("reports") \
+            .update({"status": "resolved"}) \
+            .eq("id", str(report_id)) \
+            .execute()
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Laporan tidak ditemukan.")
+        return response.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal menyelesaikan laporan: {str(e)}")

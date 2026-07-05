@@ -394,6 +394,8 @@ def get_building_consensus(id: UUID):
             if total_runs == 0:
                 final_status = "unknown"
                 is_disputed = False
+                agree_count = 0
+                audit_result_id = None
             else:
                 status_counts = {}
                 statuses = []
@@ -415,13 +417,23 @@ def get_building_consensus(id: UUID):
                     # Tie-breaker based on priority map
                     final_status = max(candidates, key=lambda st: priority_map.get(st.lower(), 0))
 
+                agree_count = max_count
+                # Get the ID of one of the audit results that matches the consensus status
+                matching_res = [r for r in crit_results if r["status"] == final_status]
+                audit_result_id = matching_res[0]["id"] if matching_res else None
+
             consensus_list.append({
                 "criteria_code": code,
                 "category": c["category"],
                 "description": c["description"],
                 "status": final_status,
                 "is_disputed": is_disputed,
-                "total_runs": total_runs
+                "total_runs": total_runs,
+                "agree_count": agree_count,
+                "audit_result_id": str(audit_result_id) if audit_result_id else None,
+                "reasoning": matching_res[0].get("reasoning") if matching_res else None,
+                "evidence_url": matching_res[0].get("evidence_url") if matching_res else None,
+                "source_agent": matching_res[0].get("source_agent") if matching_res else None,
             })
 
         return consensus_list

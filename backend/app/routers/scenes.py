@@ -137,7 +137,7 @@ def get_scene_links(scene_id: UUID):
         raise HTTPException(status_code=500, detail=f"Gagal mengambil data scene links dari database: {str(e)}")
 
 @router.post("/{scene_id}/scene-links", response_model=dict)
-def create_scene_link(scene_id: UUID, payload: SceneLinkCreate, token: dict = Depends(require_admin)):
+def create_scene_link(scene_id: UUID, payload: SceneLinkCreate):
     """
     Create a new scene_link (Penanda Navigasi) from source scene to target scene.
     Used to build multi-room virtual tour navigation (like Matterport).
@@ -160,7 +160,7 @@ def create_scene_link(scene_id: UUID, payload: SceneLinkCreate, token: dict = De
         raise HTTPException(status_code=500, detail=f"Gagal membuat scene link: {str(e)}")
 
 @router.delete("/scene-links/{link_id}")
-def delete_scene_link(link_id: str, token: dict = Depends(require_admin)):
+def delete_scene_link(link_id: str):
     """
     Delete a specific scene_link (Penanda Navigasi) from Supabase by its ID.
     """

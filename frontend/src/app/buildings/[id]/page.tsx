@@ -14,18 +14,17 @@ interface Building {
 }
 
 interface AuditResult {
-  id: string;
-  building_id: string;
-  criteria_id: string;
+  criteria_code: string;
+  category: string;
+  description: string;
   status: "met" | "not_met" | "unknown" | "na";
-  source_agent: string;
+  is_disputed: boolean;
+  total_runs: number;
+  agree_count: number;
+  audit_result_id: string | null;
+  reasoning: string | null;
   evidence_url: string | null;
-  reasoning: string;
-  audit_criteria: {
-    code: string;
-    description: string;
-    category: string;
-  };
+  source_agent: string | null;
 }
 
 async function fetchBuildingDetails(id: string): Promise<Building | null> {
@@ -46,7 +45,7 @@ async function fetchBuildingDetails(id: string): Promise<Building | null> {
 
 async function fetchAuditResults(id: string): Promise<AuditResult[]> {
   try {
-    const res = await fetch(`http://localhost:8000/audit/results/${id}`, {
+    const res = await fetch(`http://localhost:8000/buildings/${id}/consensus`, {
       cache: "no-store",
     });
     if (!res.ok) {

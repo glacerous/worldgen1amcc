@@ -19,6 +19,7 @@ const Map = dynamic(() => import("@/components/Map"), {
 export default function SubmitBuildingPage() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [contributorName, setContributorName] = useState("");
   const [address, setAddress] = useState("");
   const [mapCenter, setMapCenter] = useState<[number, number]>([-6.2088, 106.8456]); // Default: Jakarta center
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -113,6 +114,10 @@ export default function SubmitBuildingPage() {
     formData.append("latitude", mapCenter[0].toString());
     formData.append("longitude", mapCenter[1].toString());
     
+    if (contributorName.trim()) {
+      formData.append("contributor_name", contributorName.trim());
+    }
+
     selectedFiles.forEach((file) => {
       formData.append("photos", file);
     });
@@ -180,6 +185,21 @@ export default function SubmitBuildingPage() {
                 placeholder="Contoh: Gedung Sate Bandung"
                 className="w-full bg-transparent border border-line rounded-md px-3 py-2 text-sm font-sans text-ink placeholder-ink-muted/50 focus:outline-none focus:border-accent/40"
                 required
+              />
+            </div>
+
+            {/* Contributor Name Input */}
+            <div>
+              <label htmlFor="contributor_name" className="block text-xs font-sans font-semibold text-ink-muted mb-1.5">
+                Nama/Institusi Anda (opsional)
+              </label>
+              <input
+                type="text"
+                id="contributor_name"
+                value={contributorName}
+                onChange={(e) => setContributorName(e.target.value)}
+                placeholder="Contoh: Universitas Gadjah Mada / Budi"
+                className="w-full bg-transparent border border-line rounded-md px-3 py-2 text-sm font-sans text-ink placeholder-ink-muted/50 focus:outline-none focus:border-accent/40"
               />
             </div>
 
