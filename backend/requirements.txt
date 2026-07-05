@@ -8,3 +8,5 @@ langchain-groq
 pydantic
 Pillow
 python-multipart
+bcrypt
+PyJWT

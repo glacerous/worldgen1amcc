@@ -1,37 +1,77 @@
+import jwt
+import bcrypt
+import datetime
 from fastapi import APIRouter, HTTPException, Header, Depends, Body
 from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel
 from app.db import supabase
+from app.config import settings
 
 # 1. Router definitions
 # admin_router for protected /admin routes
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 
-# public_router for public /audit-results routes
+# public_router for public endpoints (/login, /audit-results)
 public_router = APIRouter(tags=["reports"])
 
 # 2. Schemas
 class ReportRequest(BaseModel):
     reason: Optional[str] = None
 
-# 3. Token Verification Dependency (Placeholder - Full implementation in Step 5)
-def verify_admin_token(authorization: Optional[str] = Header(None)):
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+# 3. Token Verification Dependency
+def require_admin(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
-            detail="Kredensial tidak valid atau tidak disediakan (Missing Bearer Token)."
+            detail="Akses ditolak. Token otentikasi tidak disediakan atau tidak valid."
         )
     token = authorization.split(" ")[1]
-    # For now, check if token is empty. Step 5 will verify the signature.
-    if not token.strip():
-        raise HTTPException(
-            status_code=401,
-            detail="Token kosong tidak diperbolehkan."
-        )
-    return token
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token telah kedaluwarsa.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token tidak valid.")
 
 # ── Public Endpoints ────────────────────────────────────────────────────────
+
+@public_router.post("/login", response_model=dict)
+def login(body: LoginRequest = Body(...)):
+    """
+    Public endpoint for admin login.
+    Checks the admins table, verifies password, and returns a JWT token.
+    """
+    try:
+        response = supabase.table("admins").select("*").eq("email", body.email).execute()
+        if not response.data:
+            raise HTTPException(status_code=401, detail="Email atau password salah.")
+            
+        admin = response.data[0]
+        hashed_pwd = admin["password_hash"].encode('utf-8')
+        input_pwd = body.password.encode('utf-8')
+        
+        if not bcrypt.checkpw(input_pwd, hashed_pwd):
+            raise HTTPException(status_code=401, detail="Email atau password salah.")
+            
+        # Generate JWT
+        payload = {
+            "sub": str(admin["id"]),
+            "email": admin["email"],
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
+        }
+        token = jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
+        
+        return {"access_token": token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal melakukan login: {str(e)}")
 
 @public_router.post("/audit-results/{audit_result_id}/report", response_model=dict)
 def report_audit_result(audit_result_id: UUID, body: ReportRequest = Body(...)):
@@ -71,7 +111,7 @@ def report_audit_result(audit_result_id: UUID, body: ReportRequest = Body(...)):
 # ── Protected Admin Endpoints ───────────────────────────────────────────────
 
 @admin_router.get("/reports", response_model=List[dict])
-def get_admin_reports(token: str = Depends(verify_admin_token)):
+def get_admin_reports(token: str = Depends(require_admin)):
     """
     Protected endpoint to retrieve all reports.
     """
@@ -85,7 +125,7 @@ def get_admin_reports(token: str = Depends(verify_admin_token)):
         raise HTTPException(status_code=500, detail=f"Gagal mengambil daftar laporan: {str(e)}")
 
 @admin_router.get("/disputed", response_model=List[dict])
-def get_admin_disputed(token: str = Depends(verify_admin_token)):
+def get_admin_disputed(token: str = Depends(require_admin)):
     """
     Protected endpoint to retrieve all buildings that have at least one criteria
     with disputed consensus status (is_disputed = True).

@@ -11,5 +11,7 @@ class Settings:
     SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", "")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "super-secret-key-aksesibel")
 
 settings = Settings()
+

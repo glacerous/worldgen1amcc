@@ -1,8 +1,10 @@
-﻿from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from typing import List
 from uuid import UUID, uuid4
 from pydantic import BaseModel
 from app.db import supabase
+from app.routers.admin import require_admin
+
 
 router = APIRouter(prefix="/scenes", tags=["scenes"])
 
@@ -42,7 +44,8 @@ def get_scenes(building_id: UUID):
 async def create_scene(
     building_id: UUID = Form(...),
     label: str = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    token: dict = Depends(require_admin)
 ):
     """
     Upload a new 360 panorama scene for a building (without running AI detection).
@@ -53,21 +56,21 @@ async def create_scene(
             supabase.storage.create_bucket("panoramas", {"public": True})
         except Exception:
             pass
-
+ 
         # 2. Upload file to Supabase storage
         file_extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
         unique_filename = f"{uuid4()}.{file_extension}"
         file_content = await file.read()
-
+ 
         supabase.storage.from_("panoramas").upload(
             path=unique_filename,
             file=file_content,
             file_options={"content-type": file.content_type}
         )
-
+ 
         # 3. Get public URL
         panorama_url = supabase.storage.from_("panoramas").get_public_url(unique_filename)
-
+ 
         # 4. Save scene metadata to Supabase 'scenes' table
         scene_response = supabase.table("scenes").insert({
             "building_id": str(building_id),
@@ -75,17 +78,17 @@ async def create_scene(
             "file_url": panorama_url,
             "label": label
         }).execute()
-
+ 
         if not scene_response.data:
             raise HTTPException(status_code=500, detail="Gagal menyimpan metadata scene ke database.")
-
+ 
         return scene_response.data[0]
-
+ 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengunggah scene: {str(e)}")
-
+ 
 @router.delete("/{scene_id}")
-def delete_scene(scene_id: UUID):
+def delete_scene(scene_id: UUID, token: dict = Depends(require_admin)):
     """
     Delete a specific scene.
     All scene_links (Penanda Navigasi) and annotations (Penanda Info) referencing
@@ -134,7 +137,7 @@ def get_scene_links(scene_id: UUID):
         raise HTTPException(status_code=500, detail=f"Gagal mengambil data scene links dari database: {str(e)}")
 
 @router.post("/{scene_id}/scene-links", response_model=dict)
-def create_scene_link(scene_id: UUID, payload: SceneLinkCreate):
+def create_scene_link(scene_id: UUID, payload: SceneLinkCreate, token: dict = Depends(require_admin)):
     """
     Create a new scene_link (Penanda Navigasi) from source scene to target scene.
     Used to build multi-room virtual tour navigation (like Matterport).
@@ -157,7 +160,7 @@ def create_scene_link(scene_id: UUID, payload: SceneLinkCreate):
         raise HTTPException(status_code=500, detail=f"Gagal membuat scene link: {str(e)}")
 
 @router.delete("/scene-links/{link_id}")
-def delete_scene_link(link_id: str):
+def delete_scene_link(link_id: str, token: dict = Depends(require_admin)):
     """
     Delete a specific scene_link (Penanda Navigasi) from Supabase by its ID.
     """
