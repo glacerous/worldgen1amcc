@@ -6,4 +6,5 @@ langgraph
 langchain-google-genai
 langchain-groq
 pydantic
+Pillow
 python-multipart

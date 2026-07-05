@@ -170,7 +170,13 @@ def ensure_criteria_seeded() -> Dict[str, str]:
             detail=f"Gagal memverifikasi / menyemai kriteria audit di database: {str(e)}"
         )
 
-def run_audit_pipeline(building_id: str, photos: List[str]) -> Dict[str, Any]:
+def run_audit_pipeline(
+    building_id: str,
+    photos: List[str],
+    contributor_name: Optional[str] = None,
+    gps_mismatch: bool = False,
+    gps_distance_meters: Optional[float] = None
+) -> Dict[str, Any]:
     """
     Runs the full LangGraph multi-agent audit pipeline for a building and stores results.
     """
@@ -210,16 +216,25 @@ def run_audit_pipeline(building_id: str, photos: List[str]) -> Dict[str, Any]:
             detail=f"Terjadi kesalahan saat menjalankan analisis multi-agent: {str(e)}"
         )
 
-    # 4. Clear previous audit results for this building to prevent duplicates
+    # 4. Insert a new record in audit_runs
     try:
-        supabase.table("audit_results").delete().eq("building_id", building_id).execute()
+        audit_run_response = supabase.table("audit_runs").insert({
+            "building_id": building_id,
+            "contributor_name": contributor_name,
+            "gps_mismatch": gps_mismatch,
+            "gps_distance_meters": gps_distance_meters
+        }).execute()
+        
+        if not audit_run_response.data:
+            raise Exception("Failed to insert audit run")
+        audit_run_id = audit_run_response.data[0]["id"]
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Gagal membersihkan data audit lama untuk gedung ini: {str(e)}"
+            detail=f"Gagal mencatat audit run baru ke database: {str(e)}"
         )
 
-    # 5. Insert new audit results to database
+    # 5. Insert new audit results to database linked to the audit_run_id
     rows_to_insert = []
     for r in final_results:
         crit_id = criteria_map.get(r.criteria_code)
@@ -231,6 +246,7 @@ def run_audit_pipeline(building_id: str, photos: List[str]) -> Dict[str, Any]:
         
         rows_to_insert.append({
             "building_id": building_id,
+            "audit_run_id": audit_run_id,
             "criteria_id": crit_id,
             "status": r.status,
             "source_agent": r.source_agent,
@@ -251,6 +267,7 @@ def run_audit_pipeline(building_id: str, photos: List[str]) -> Dict[str, Any]:
     return {
         "building_id": building_id,
         "building_name": building["name"],
+        "audit_run_id": audit_run_id,
         "photos_analyzed": len(photos),
         "results": [
             {
@@ -262,4 +279,5 @@ def run_audit_pipeline(building_id: str, photos: List[str]) -> Dict[str, Any]:
             for r in final_results
         ]
     }
+
 

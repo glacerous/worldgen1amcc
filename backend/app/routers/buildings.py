@@ -1,4 +1,8 @@
 import uuid
+import math
+import io
+from PIL import Image
+from PIL.ExifTags import TAGS, GPSTAGS
 from fastapi import APIRouter, HTTPException, Form, File, UploadFile
 from typing import Optional, List
 from uuid import UUID
@@ -6,6 +10,73 @@ from pydantic import BaseModel
 from app.db import supabase
 from app.agents.graph import run_audit_pipeline
 from app.agents.panorama_agent import run_panorama_agent
+
+def get_exif_gps(image_bytes: bytes) -> Optional[tuple]:
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        exif = img._getexif()
+        if not exif:
+            return None
+            
+        gps_info = {}
+        for key, val in exif.items():
+            tag = TAGS.get(key, key)
+            if tag == "GPSInfo":
+                for g_key, g_val in val.items():
+                    g_tag = GPSTAGS.get(g_key, g_key)
+                    gps_info[g_tag] = g_val
+                break
+                
+        if not gps_info:
+            return None
+            
+        def convert_to_degrees(value):
+            d = float(value[0])
+            m = float(value[1])
+            s = float(value[2])
+            return d + (m / 60.0) + (s / 3600.0)
+            
+        gps_latitude = gps_info.get("GPSLatitude")
+        gps_latitude_ref = gps_info.get("GPSLatitudeRef")
+        gps_longitude = gps_info.get("GPSLongitude")
+        gps_longitude_ref = gps_info.get("GPSLongitudeRef")
+        
+        if gps_latitude and gps_latitude_ref and gps_longitude and gps_longitude_ref:
+            if hasattr(gps_latitude_ref, "decode"):
+                gps_latitude_ref = gps_latitude_ref.decode("utf-8", errors="ignore")
+            if hasattr(gps_longitude_ref, "decode"):
+                gps_longitude_ref = gps_longitude_ref.decode("utf-8", errors="ignore")
+            
+            lat_ref = str(gps_latitude_ref).strip().upper()
+            lon_ref = str(gps_longitude_ref).strip().upper()
+
+            lat = convert_to_degrees(gps_latitude)
+            if lat_ref != "N":
+                lat = -lat
+            lon = convert_to_degrees(gps_longitude)
+            if lon_ref != "E":
+                lon = -lon
+            return lat, lon
+    except Exception as e:
+        print(f"Error parsing GPS EXIF: {e}")
+    return None
+
+def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    # Radius of the Earth in meters
+    R = 6371000.0
+    
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_phi / 2.0) ** 2 + \
+        math.cos(phi1) * math.cos(phi2) * \
+        math.sin(delta_lambda / 2.0) ** 2
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    
+    distance = R * c
+    return distance
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
 
@@ -47,7 +118,8 @@ async def submit_building(
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
     photos: List[UploadFile] = File(...),
-    panorama: Optional[UploadFile] = File(None)
+    panorama: Optional[UploadFile] = File(None),
+    contributor_name: Optional[str] = Form(None)
 ):
     """
     Public endpoint to submit a building with photo evidence and optional panorama.
@@ -86,6 +158,26 @@ async def submit_building(
 
     building_id = new_building["id"]
 
+    # GPS EXIF check from the first photo
+    gps_mismatch = False
+    gps_distance_meters = None
+    if photos:
+        first_photo = photos[0]
+        try:
+            first_photo_content = await first_photo.read()
+            # Seek back to 0 so the file content can be read again for upload
+            await first_photo.seek(0)
+            
+            gps_coords = get_exif_gps(first_photo_content)
+            if gps_coords and latitude is not None and longitude is not None:
+                photo_lat, photo_lon = gps_coords
+                distance = calculate_haversine_distance(latitude, longitude, photo_lat, photo_lon)
+                gps_distance_meters = distance
+                if distance > 500.0:
+                    gps_mismatch = True
+        except Exception as e:
+            print(f"Error checking EXIF GPS: {e}")
+
     # 4. Upload photo files to Supabase Storage bucket "photos"
     photo_urls = []
     for photo in photos:
@@ -115,7 +207,13 @@ async def submit_building(
 
     # 5. Run the multi-agent audit pipeline using the uploaded photo URLs
     try:
-        audit_summary = run_audit_pipeline(building_id, photo_urls)
+        audit_summary = run_audit_pipeline(
+            building_id,
+            photo_urls,
+            contributor_name=contributor_name,
+            gps_mismatch=gps_mismatch,
+            gps_distance_meters=gps_distance_meters
+        )
     except Exception as audit_err:
         raise HTTPException(
             status_code=500,
@@ -247,3 +345,87 @@ def get_building(id: UUID):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{id}/consensus", response_model=List[dict])
+def get_building_consensus(id: UUID):
+    """
+    Returns the majority vote consensus status of audit criteria for a specific building,
+    indicating if there are conflicting evaluations (disputes) and how many runs contributed.
+    """
+    try:
+        # 1. Fetch all audit criteria from database
+        criteria_response = supabase.table("audit_criteria").select("*").execute()
+        criteria_list = criteria_response.data or []
+
+        # 2. Fetch all audit results for the building
+        results_response = supabase.table("audit_results") \
+            .select("*, audit_criteria(code, category, description)") \
+            .eq("building_id", str(id)) \
+            .execute()
+        results = results_response.data or []
+
+        # 3. Group results by criteria code
+        results_by_criteria = {}
+        for r in results:
+            crit = r.get("audit_criteria")
+            if not crit:
+                continue
+            code = crit.get("code")
+            if not code:
+                continue
+            if code not in results_by_criteria:
+                results_by_criteria[code] = []
+            results_by_criteria[code].append(r)
+
+        # 4. Compute consensus for each criteria
+        consensus_list = []
+        priority_map = {
+            "met": 4,
+            "not_met": 3,
+            "unknown": 2,
+            "na": 1
+        }
+
+        for c in criteria_list:
+            code = c["code"]
+            crit_results = results_by_criteria.get(code, [])
+            total_runs = len(crit_results)
+
+            if total_runs == 0:
+                final_status = "unknown"
+                is_disputed = False
+            else:
+                status_counts = {}
+                statuses = []
+                for r in crit_results:
+                    st = r["status"]
+                    statuses.append(st)
+                    status_counts[st] = status_counts.get(st, 0) + 1
+                
+                unique_statuses = set(statuses)
+                is_disputed = len(unique_statuses) > 1
+
+                # Find the status with maximum count
+                max_count = max(status_counts.values())
+                candidates = [st for st, count in status_counts.items() if count == max_count]
+
+                if len(candidates) == 1:
+                    final_status = candidates[0]
+                else:
+                    # Tie-breaker based on priority map
+                    final_status = max(candidates, key=lambda st: priority_map.get(st.lower(), 0))
+
+            consensus_list.append({
+                "criteria_code": code,
+                "category": c["category"],
+                "description": c["description"],
+                "status": final_status,
+                "is_disputed": is_disputed,
+                "total_runs": total_runs
+            })
+
+        return consensus_list
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal memproses konsensus: {str(e)}")
+

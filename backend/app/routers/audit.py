@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from uuid import UUID
 from app.db import supabase
 from app.agents.graph import run_audit_pipeline
@@ -10,6 +10,7 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 # Schema for Audit Request body
 class AuditRequest(BaseModel):
     building_id: UUID
+    contributor_name: Optional[str] = None
 
 @router.post("/run")
 def run_audit(request: AuditRequest):
@@ -23,7 +24,7 @@ def run_audit(request: AuditRequest):
         photos = []
 
     # Delegate core logic to run_audit_pipeline helper
-    return run_audit_pipeline(building_id_str, photos)
+    return run_audit_pipeline(building_id_str, photos, contributor_name=request.contributor_name)
 
 
 @router.get("/results/{building_id}", response_model=List[dict])
