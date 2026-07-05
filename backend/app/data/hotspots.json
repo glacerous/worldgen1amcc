@@ -1,0 +1,62 @@
+{
+  "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f": [
+    {
+      "id": "8bda7b5b-3a20-4388-aaee-8615800f58bb",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.34339041459456254,
+      "yaw": 110.9823675481605,
+      "label": "Wimbo"
+    },
+    {
+      "id": "2970671d-76e3-4584-a72a-16ed594b7e69",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    },
+    {
+      "id": "3aba3f76-ef40-46d6-8637-f85744a784b4",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    },
+    {
+      "id": "3d555810-a28b-49cf-a174-83f407cf215f",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "caca"
+    },
+    {
+      "id": "2dcc284e-4702-47fc-aa3b-9035a74a678f",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    }
+  ],
+  "f758e850-6e9c-47e8-b007-f1611559dcfe": [
+    {
+      "id": "9c0f6154-5174-4a96-af26-f81ed554b138",
+      "source_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "target_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    },
+    {
+      "id": "9d14bcdf-332d-4f08-a544-82f08e74bfc7",
+      "source_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "target_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    }
+  ]
+}
