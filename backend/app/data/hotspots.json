@@ -1,0 +1,82 @@
+{
+  "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f": [
+    {
+      "id": "8bda7b5b-3a20-4388-aaee-8615800f58bb",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.34339041459456254,
+      "yaw": 110.9823675481605,
+      "label": "Wimbo"
+    },
+    {
+      "id": "2970671d-76e3-4584-a72a-16ed594b7e69",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    },
+    {
+      "id": "3aba3f76-ef40-46d6-8637-f85744a784b4",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    },
+    {
+      "id": "3d555810-a28b-49cf-a174-83f407cf215f",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "caca"
+    },
+    {
+      "id": "2dcc284e-4702-47fc-aa3b-9035a74a678f",
+      "source_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "target_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    }
+  ],
+  "f758e850-6e9c-47e8-b007-f1611559dcfe": [
+    {
+      "id": "9c0f6154-5174-4a96-af26-f81ed554b138",
+      "source_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "target_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    },
+    {
+      "id": "9d14bcdf-332d-4f08-a544-82f08e74bfc7",
+      "source_scene_id": "f758e850-6e9c-47e8-b007-f1611559dcfe",
+      "target_scene_id": "7f25e9d2-f9f6-4b72-abbc-7395dcdb304f",
+      "pitch": 0.0,
+      "yaw": 0.0,
+      "label": "baba"
+    }
+  ],
+  "dd8ae46a-9996-4a43-8ce0-d849fa5dc5e9": [
+    {
+      "id": "598371d0-4326-4a87-a01c-70c626096841",
+      "source_scene_id": "dd8ae46a-9996-4a43-8ce0-d849fa5dc5e9",
+      "target_scene_id": "0fd7ddab-76af-4d55-8c73-073a017e5d05",
+      "pitch": 0.8787961798115369,
+      "yaw": 28.86791952394851,
+      "label": "ke salju"
+    }
+  ],
+  "0fd7ddab-76af-4d55-8c73-073a017e5d05": [
+    {
+      "id": "5663c2d4-4199-4638-b24c-58460ed61537",
+      "source_scene_id": "0fd7ddab-76af-4d55-8c73-073a017e5d05",
+      "target_scene_id": "dd8ae46a-9996-4a43-8ce0-d849fa5dc5e9",
+      "pitch": 3.745440458470064,
+      "yaw": -2.5526106229146217,
+      "label": "ke pancingan"
+    }
+  ]
+}

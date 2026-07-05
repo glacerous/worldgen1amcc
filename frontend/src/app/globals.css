@@ -42,3 +42,94 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Custom navigation hotspot style for 360 virtual tour - 3D Street View style */
+.custom-hotspot-nav {
+  height: 48px !important;
+  width: 48px !important;
+  margin-left: -24px !important; /* Offset by half size to center on coordinate */
+  margin-top: -24px !important;  /* Offset by half size to center on coordinate */
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Inner visual container - handles 3D perspective and hover scaling without clashing with positioning */
+.custom-hotspot-inner {
+  height: 100% !important;
+  width: 100% !important;
+  background: rgba(15, 92, 92, 0.5) !important; /* Semi-transparent accent color */
+  border: 2.5px solid rgba(255, 255, 255, 0.85) !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+  /* Perspective projection to make it lie flat on the virtual floor */
+  transform: perspective(100px) rotateX(65deg) !important;
+  transform-origin: center center !important;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+              background-color 0.25s ease, 
+              border-color 0.25s ease, 
+              box-shadow 0.25s ease !important;
+  pointer-events: none !important;
+}
+
+.custom-hotspot-nav:hover .custom-hotspot-inner {
+  transform: perspective(100px) rotateX(60deg) scale(1.15) !important; /* Tilt up slightly and scale on hover */
+  background: rgba(15, 92, 92, 0.85) !important;
+  border-color: #FFFFFF !important;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Arrow inside the hotspot */
+.custom-hotspot-arrow {
+  color: #FFFFFF !important;
+  font-size: 15px !important;
+  font-weight: bold !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+  margin-top: -2px !important; /* Visual center correction */
+  transition: transform 0.25s ease !important;
+  pointer-events: none !important;
+}
+
+.custom-hotspot-nav:hover .custom-hotspot-arrow {
+  transform: translateY(-2px) !important; /* Move forward slightly on hover */
+}
+
+/* Modern hover label / tooltip (remains vertical and clean, not tilted) */
+.custom-hotspot-label {
+  position: absolute !important;
+  bottom: 125% !important; /* Show above the hotspot container */
+  left: 50% !important;
+  transform: translate3d(-50%, 5px, 0) scale(0.9) !important;
+  background: rgba(18, 18, 18, 0.95) !important;
+  color: #FFFFFF !important;
+  font-family: var(--font-sans), sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  white-space: nowrap !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25) !important;
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  z-index: 9999 !important;
+}
+
+/* Show label on hover */
+.custom-hotspot-nav:hover .custom-hotspot-label {
+  opacity: 1 !important;
+  transform: translate3d(-50%, 0, 0) scale(1) !important;
+}
+
+/* Hide Pannellum's default loading box and spinner for seamless transitions */
+.pnlm-load-box {
+  display: none !important;
+}
+
+
