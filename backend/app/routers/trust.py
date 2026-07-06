@@ -24,7 +24,7 @@ class VoteType(str, Enum):
     DOWN = "down"
 
 class VoteRequest(BaseModel):
-    vote_type: VoteType
+    vote_type: Optional[VoteType] = None
 
 class ReportRequest(BaseModel):
     reason: str
@@ -165,12 +165,32 @@ def get_user_vote_status(id: UUID, anonymous_id: str = Depends(get_anonymous_id)
             .eq("building_id", building_id) \
             .eq("anonymous_id", anonymous_id) \
             .execute()
+        has_voted = False
+        vote_type = None
         if res.data:
-            return {"has_voted": True, "vote_type": res.data[0]["vote_type"]}
+            has_voted = True
+            vote_type = res.data[0]["vote_type"]
+
+        # Fetch building trust stats from Supabase
+        build_res = supabase.table("buildings") \
+            .select("trust_score_cache, vote_count_cache") \
+            .eq("id", building_id) \
+            .execute()
+        
+        trust_score = None
+        vote_count = 0
+        if build_res.data:
+            trust_score = build_res.data[0].get("trust_score_cache")
+            vote_count = build_res.data[0].get("vote_count_cache") or 0
+
+        return {
+            "has_voted": has_voted,
+            "vote_type": vote_type,
+            "trust_score": trust_score,
+            "vote_count": vote_count
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil status vote: {str(e)}")
-
-    return {"has_voted": False, "vote_type": None}
 
 
 @router.post("/{id}/vote", response_model=dict)
@@ -197,17 +217,24 @@ def vote_building(
             .eq("anonymous_id", anonymous_id) \
             .execute()
             
-        if existing_vote.data:
-            supabase.table("votes") \
-                .update({"vote_type": body.vote_type.value}) \
-                .eq("id", existing_vote.data[0]["id"]) \
-                .execute()
+        if body.vote_type is None:
+            if existing_vote.data:
+                supabase.table("votes") \
+                    .delete() \
+                    .eq("id", existing_vote.data[0]["id"]) \
+                    .execute()
         else:
-            supabase.table("votes").insert({
-                "building_id": building_id,
-                "anonymous_id": anonymous_id,
-                "vote_type": body.vote_type.value
-            }).execute()
+            if existing_vote.data:
+                supabase.table("votes") \
+                    .update({"vote_type": body.vote_type.value}) \
+                    .eq("id", existing_vote.data[0]["id"]) \
+                    .execute()
+            else:
+                supabase.table("votes").insert({
+                    "building_id": building_id,
+                    "anonymous_id": anonymous_id,
+                    "vote_type": body.vote_type.value
+                }).execute()
             
     except HTTPException:
         raise

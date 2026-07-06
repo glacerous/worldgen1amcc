@@ -9,6 +9,7 @@ interface VoteButtonsProps {
 
 export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsProps) {
   const [activeVote, setActiveVote] = useState<"up" | "down" | null>(null);
+  const [voteStats, setVoteStats] = useState<{ trustScore: number | null; voteCount: number } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Fetch initial vote status for this user
@@ -24,6 +25,10 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
           if (data.has_voted) {
             setActiveVote(data.vote_type);
           }
+          setVoteStats({
+            trustScore: data.trust_score !== undefined ? data.trust_score : null,
+            voteCount: data.vote_count !== undefined ? data.vote_count : 0,
+          });
         }
       } catch (err) {
         console.error("Failed to load user vote status:", err);
@@ -36,13 +41,16 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
     if (isLoading) return;
     setIsLoading(true);
 
+    const isUnselecting = activeVote === type;
+    const targetVoteType = isUnselecting ? null : type;
+
     try {
       const res = await fetch(`http://localhost:8000/buildings/${buildingId}/vote`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ vote_type: type }),
+        body: JSON.stringify({ vote_type: targetVoteType }),
         credentials: "include", // Ensure session cookies are sent/received
       });
 
@@ -50,7 +58,16 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
         throw new Error("Gagal mengirim vote.");
       }
 
-      setActiveVote(type);
+      const data = await res.json();
+      setActiveVote(targetVoteType);
+
+      if (data.building) {
+        setVoteStats({
+          trustScore: data.building.trust_score_cache ?? null,
+          voteCount: data.building.vote_count_cache ?? 0,
+        });
+      }
+
       if (onVoteSuccess) {
         onVoteSuccess();
       }
@@ -61,9 +78,20 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
     }
   };
 
+  const percentage = voteStats && voteStats.trustScore !== null && voteStats.voteCount > 0
+    ? Math.round(voteStats.trustScore * 100)
+    : null;
+
   return (
     <div className="flex items-center gap-2">
-      <span className="font-sans text-xs text-ink-muted mr-1">Apakah gedung ini aksesibel?</span>
+      <span className="font-sans text-xs text-ink-muted mr-1">
+        Apakah hasil ini akurat?
+        {percentage !== null && (
+          <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-sans font-semibold rounded bg-accent/10 text-accent border border-accent/20">
+            {percentage}% Akurat
+          </span>
+        )}
+      </span>
       
       {/* Upvote Button */}
       <button
@@ -74,12 +102,13 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
             ? "bg-status-met/10 text-status-met border-status-met/40 shadow-sm"
             : "bg-surface border-line hover:bg-bg/40 text-ink hover:text-status-met hover:border-status-met/30"
         } disabled:opacity-50`}
-        title="Ya, gedung ini aksesibel"
+        title="Ya, hasil ini akurat"
       >
         <svg className="w-4 h-4" fill={activeVote === "up" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.25c.896 0 1.7-.33 2.312-.872l.224-.197c.18-.158.375-.303.585-.436.438-.278.96-.341 1.442-.236l.24.05c.465.097.943.047 1.378-.146A3.486 3.486 0 0015.75 7.5V4.75a.75.75 0 011.096-.666l4.032 2.16c.866.464 1.402 1.36 1.402 2.336V11.25c0 1.24-.808 2.31-1.984 2.658l-.545.161c-.29.086-.57.247-.811.467L15.75 17.5V20.25a2.25 2.25 0 01-2.25 2.25h-3.375a2.25 2.25 0 01-2.25-2.25V14.5m-3 0H2.25A2.25 2.25 0 010 12.25v-4.5A2.25 2.25 0 012.25 5.5h3" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 10v12" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
         </svg>
-        <span>Aksesibel</span>
+        <span>Akurat</span>
       </button>
 
       {/* Downvote Button */}
@@ -91,12 +120,13 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
             ? "bg-status-not-met/10 text-status-not-met border-status-not-met/40 shadow-sm"
             : "bg-surface border-line hover:bg-bg/40 text-ink hover:text-status-not-met hover:border-status-not-met/30"
         } disabled:opacity-50`}
-        title="Tidak, gedung ini tidak aksesibel"
+        title="Tidak, hasil ini tidak akurat"
       >
         <svg className="w-4 h-4" fill={activeVote === "down" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 9.75V4.75A2.25 2.25 0 019.75 2.5h3.375a2.25 2.25 0 012.25 2.25V10.25m3 0h3.75A2.25 2.25 0 0124 12.5v4.5a2.25 2.25 0 01-2.25 2.25h-3m-3 0c-.896 0-1.7.33-2.312.872l-.224.197c-.18.158-.375.303-.585.436-.438.278-.96.341-1.442.236l-.24-.05c-.465-.097-.943-.047-1.378.146A3.486 3.486 0 018.25 17v-2.75a.75.75 0 00-1.096-.666l-4.032-2.16A2.25 2.25 0 011.72 9.088V5.5c0-1.24.808-2.31 1.984-2.658l.545-.161c.29-.086.57-.247.811-.467L8.25 1z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M17 14V2" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
         </svg>
-        <span>Tidak Aksesibel</span>
+        <span>Tidak Akurat</span>
       </button>
     </div>
   );
