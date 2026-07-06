@@ -237,3 +237,74 @@ async def rerun_audit(
         "message": "Audit berhasil diperbarui",
         "audit_run_id": audit_run_id
     }
+
+
+@router.get("/runs/{audit_run_id}/results", response_model=List[dict])
+def get_run_results(audit_run_id: UUID):
+    """
+    Returns the audit results for a specific audit run, structured as AuditResult list.
+    """
+    try:
+        # 1. Fetch all audit criteria from database
+        criteria_response = supabase.table("audit_criteria").select("*").execute()
+        criteria_list = criteria_response.data or []
+
+        # 2. Fetch audit results for the specific run
+        results_response = supabase.table("audit_results") \
+            .select("*, audit_criteria(code, category, description)") \
+            .eq("audit_run_id", str(audit_run_id)) \
+            .execute()
+        results = results_response.data or []
+
+        # 3. Group results by criteria code
+        results_by_criteria = {}
+        for r in results:
+            crit = r.get("audit_criteria")
+            if not crit:
+                continue
+            code = crit.get("code")
+            if not code:
+                continue
+            # Just take the first result per criteria in the run (should be unique per run anyway)
+            if code not in results_by_criteria:
+                results_by_criteria[code] = r
+
+        # 4. Map criteria to AuditResult schema
+        run_results_list = []
+        for c in criteria_list:
+            code = c["code"]
+            r = results_by_criteria.get(code)
+
+            if r:
+                run_results_list.append({
+                    "criteria_code": code,
+                    "category": c["category"],
+                    "description": c["description"],
+                    "status": r["status"],
+                    "is_disputed": False,
+                    "total_runs": 1,
+                    "agree_count": 1,
+                    "audit_result_id": str(r["id"]),
+                    "reasoning": r.get("reasoning"),
+                    "evidence_url": r.get("evidence_url"),
+                    "source_agent": r.get("source_agent"),
+                })
+            else:
+                run_results_list.append({
+                    "criteria_code": code,
+                    "category": c["category"],
+                    "description": c["description"],
+                    "status": "unknown",
+                    "is_disputed": False,
+                    "total_runs": 0,
+                    "agree_count": 0,
+                    "audit_result_id": None,
+                    "reasoning": None,
+                    "evidence_url": None,
+                    "source_agent": None,
+                })
+
+        return run_results_list
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil hasil audit run: {str(e)}")
+
