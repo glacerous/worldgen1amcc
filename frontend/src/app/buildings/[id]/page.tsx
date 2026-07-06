@@ -263,8 +263,10 @@ export default function BuildingDetailPage({
                     </span>
 
                     {/* Tooltip Disclaimer */}
-                    <div className="group relative cursor-pointer inline-flex items-center text-ink-muted hover:text-accent select-none self-start mt-0.5">
-                      <span className="text-[11px] font-bold font-sans">ⓘ</span>
+                    <div className="group relative cursor-pointer inline-flex items-center select-none self-start mt-0.5">
+                      <span className="w-3.5 h-3.5 rounded-full border border-ink-muted/50 text-ink-muted group-hover:border-accent group-hover:text-accent flex items-center justify-center text-[9px] font-sans font-bold leading-none transition-colors">
+                        i
+                      </span>
                       <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-64 bg-surface border border-line p-3 rounded-md shadow-lg text-[10px] leading-relaxed font-sans font-normal text-ink z-50">
                         Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
                       </div>
