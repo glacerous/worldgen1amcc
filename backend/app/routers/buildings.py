@@ -382,7 +382,7 @@ def get_buildings():
         buildings = buildings_res.data or []
         
         results_res = supabase.table("audit_results") \
-            .select("building_id, status, audit_criteria(code, category)") \
+            .select("building_id, status, evidence_url, audit_criteria(code, category)") \
             .execute()
         results = results_res.data or []
         
