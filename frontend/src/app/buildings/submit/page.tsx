@@ -347,9 +347,15 @@ export default function SubmitBuildingPage() {
                 onClick={() => document.getElementById("panorama-picker")?.click()}
                 className="border border-dashed border-line hover:border-accent/40 rounded-md p-4 text-center cursor-pointer transition-colors bg-surface/40"
               >
-                <svg className="w-6 h-6 text-ink-muted/70 mx-auto mb-1.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h1.5A1.5 1.5 0 0118 13.5v1a1.5 1.5 0 001.5 1.5h1.365M15 18a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <svg className="w-6 h-6 text-accent/70" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+                    <circle cx="12" cy="13" r="3" />
+                  </svg>
+                  <span className="bg-accent/10 text-accent text-[10px] font-bold px-2 py-0.5 rounded-full font-sans tracking-wide">
+                    360°
+                  </span>
+                </div>
                 <p className="font-sans text-[11px] text-ink-muted">
                   {panoramaFile ? `Terpilih: ${panoramaFile.name}` : "Tambahkan foto 360° untuk tur virtual dengan penanda otomatis oleh AI"}
                 </p>
