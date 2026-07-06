@@ -228,7 +228,10 @@ export default function BuildingsPage() {
           <div className="space-y-8">
             {/* Featured Spotlight Card */}
             {featuredBuilding && (
-              <div className="relative bg-surface border-2 border-accent/20 hover:border-accent/50 rounded-lg p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 transition-all group overflow-hidden">
+              <Link
+                href={`/buildings/${featuredBuilding.id}`}
+                className="relative bg-surface border-2 border-accent/20 hover:border-accent/50 rounded-lg p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 transition-all group overflow-hidden block"
+              >
                 {/* Highlight Badge */}
                 <div className="absolute top-4 left-4 bg-accent text-white text-[9px] font-sans font-bold uppercase tracking-widest px-2.5 py-1 rounded shadow-sm z-10">
                   Sorotan Kepatuhan Terbaik
@@ -239,9 +242,8 @@ export default function BuildingsPage() {
                   const firstPhotoResult = featuredBuilding.audit_results?.find((r) => r.evidence_url);
                   const thumbnailUrl = firstPhotoResult?.evidence_url || null;
                   return (
-                    <Link 
-                      href={`/buildings/${featuredBuilding.id}`}
-                      className="w-full md:w-36 h-36 md:h-36 rounded-md bg-bg overflow-hidden flex-shrink-0 relative border border-line/50 cursor-pointer block mt-6 md:mt-0"
+                    <div 
+                      className="w-full md:w-36 h-36 md:h-36 rounded-md bg-bg overflow-hidden flex-shrink-0 relative border border-line/50 mt-6 md:mt-0"
                     >
                       {thumbnailUrl ? (
                         <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="" />
@@ -252,18 +254,16 @@ export default function BuildingsPage() {
                           </svg>
                         </div>
                       )}
-                    </Link>
+                    </div>
                   );
                 })()}
 
                 {/* Content */}
                 <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-6 w-full">
                   <div className="space-y-2">
-                    <Link href={`/buildings/${featuredBuilding.id}`}>
-                      <h2 className="font-display text-2xl font-bold text-ink group-hover:text-accent transition-colors">
-                        {featuredBuilding.name}
-                      </h2>
-                    </Link>
+                    <h2 className="font-display text-2xl font-bold text-ink group-hover:text-accent transition-colors">
+                      {featuredBuilding.name}
+                    </h2>
                     <p className="font-sans text-sm text-ink-muted leading-relaxed">
                       {featuredBuilding.address || "Tidak ada alamat lengkap"}
                     </p>
@@ -280,7 +280,7 @@ export default function BuildingsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             )}
 
             {/* Grid layout for other buildings */}
