@@ -175,7 +175,8 @@ def run_audit_pipeline(
     photos: List[str],
     contributor_name: Optional[str] = None,
     gps_mismatch: bool = False,
-    gps_distance_meters: Optional[float] = None
+    gps_distance_meters: Optional[float] = None,
+    audit_run_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Runs the full LangGraph multi-agent audit pipeline for a building and stores results.
@@ -216,23 +217,31 @@ def run_audit_pipeline(
             detail=f"Terjadi kesalahan saat menjalankan analisis multi-agent: {str(e)}"
         )
 
-    # 4. Insert a new record in audit_runs
+    # 4. Insert or update the record in audit_runs
     try:
-        audit_run_response = supabase.table("audit_runs").insert({
-            "building_id": building_id,
-            "contributor_name": contributor_name,
-            "gps_mismatch": gps_mismatch,
-            "gps_distance_meters": gps_distance_meters
-        }).execute()
-        
-        if not audit_run_response.data:
-            raise Exception("Failed to insert audit run")
-        audit_run_id = audit_run_response.data[0]["id"]
+        if audit_run_id:
+            supabase.table("audit_runs").update({
+                "contributor_name": contributor_name,
+                "gps_mismatch": gps_mismatch,
+                "gps_distance_meters": gps_distance_meters
+            }).eq("id", audit_run_id).execute()
+        else:
+            audit_run_response = supabase.table("audit_runs").insert({
+                "building_id": building_id,
+                "contributor_name": contributor_name,
+                "gps_mismatch": gps_mismatch,
+                "gps_distance_meters": gps_distance_meters
+            }).execute()
+            
+            if not audit_run_response.data:
+                raise Exception("Failed to insert audit run")
+            audit_run_id = audit_run_response.data[0]["id"]
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Gagal mencatat audit run baru ke database: {str(e)}"
+            detail=f"Gagal mencatat atau memperbarui audit run di database: {str(e)}"
         )
+
 
     # 5. Insert new audit results to database linked to the audit_run_id
     rows_to_insert = []

@@ -16,6 +16,10 @@ class Settings:
     MIN_VOTES_FOR_TRUSTED: int = int(os.getenv("MIN_VOTES_FOR_TRUSTED", "5"))
     UPVOTE_RATIO_TRUSTED: float = float(os.getenv("UPVOTE_RATIO_TRUSTED", "0.7"))
     REPORT_THRESHOLD: int = int(os.getenv("REPORT_THRESHOLD", "3"))
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 settings = Settings()
 

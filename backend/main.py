@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
-from app.routers import buildings, audit, geocode, annotations, scenes, trust
+from app.routers import buildings, audit, geocode, annotations, scenes, trust, auth_users
 from app.routers.admin import admin_router, public_router
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +20,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(auth_users.router, prefix="/auth")
 app.include_router(buildings.router)
 app.include_router(audit.router)
 app.include_router(geocode.router)

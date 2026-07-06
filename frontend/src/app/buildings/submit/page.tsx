@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { useAuth } from "@/hooks/useAuth";
 
 // Dynamically import Leaflet Map to bypass SSR window issues
 const Map = dynamic(() => import("@/components/Map"), {
@@ -18,6 +19,7 @@ const Map = dynamic(() => import("@/components/Map"), {
 
 export default function SubmitBuildingPage() {
   const router = useRouter();
+  const { user, token, loading } = useAuth();
   const [name, setName] = useState("");
   const [contributorName, setContributorName] = useState("");
   const [address, setAddress] = useState("");
@@ -29,6 +31,14 @@ export default function SubmitBuildingPage() {
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showWarningModal, setShowWarningModal] = useState(false);
+
+  // Auth guard: redirect to homepage if not logged in
+  useEffect(() => {
+    if (!loading && !user) {
+      alert("Silakan masuk dengan Google untuk berkontribusi audit");
+      router.push("/");
+    }
+  }, [loading, user, router]);
   const [warningDistance, setWarningDistance] = useState<number | null>(null);
  
   // Geocoding query to resolve address coordinates
@@ -136,6 +146,7 @@ export default function SubmitBuildingPage() {
     try {
       const res = await fetch("http://localhost:8000/buildings/submit", {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
 
