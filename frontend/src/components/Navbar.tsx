@@ -23,18 +23,6 @@ export default function Navbar() {
         >
           Cari Gedung
         </Link>
-        <Link 
-          href="/audit" 
-          className="font-sans text-sm font-medium text-ink-muted hover:text-ink transition-colors"
-        >
-          Jelajahi
-        </Link>
-        <Link 
-          href="/about" 
-          className="font-sans text-sm font-medium text-ink-muted hover:text-ink transition-colors"
-        >
-          Panduan
-        </Link>
       </div>
 
       {/* Right: Action button & Auth info */}
