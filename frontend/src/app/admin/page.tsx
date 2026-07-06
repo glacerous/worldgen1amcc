@@ -93,10 +93,10 @@ export default function AdminDashboardPage() {
 
       // Fetch reports, disputed buildings, moderation queue, and building reports in parallel
       const [reportsRes, disputedRes, moderationRes, buildingReportsRes] = await Promise.all([
-        fetch("http://localhost:8000/admin/reports", { headers, cache: "no-store" }),
-        fetch("http://localhost:8000/admin/disputed", { headers, cache: "no-store" }),
-        fetch("http://localhost:8000/admin/moderation-queue", { headers, cache: "no-store" }),
-        fetch("http://localhost:8000/admin/building-reports", { headers, cache: "no-store" }),
+        fetch("http://127.0.0.1:8000/admin/reports", { headers, cache: "no-store" }),
+        fetch("http://127.0.0.1:8000/admin/disputed", { headers, cache: "no-store" }),
+        fetch("http://127.0.0.1:8000/admin/moderation-queue", { headers, cache: "no-store" }),
+        fetch("http://127.0.0.1:8000/admin/building-reports", { headers, cache: "no-store" }),
       ]);
 
       if (!reportsRes.ok || !disputedRes.ok || !moderationRes.ok || !buildingReportsRes.ok) {
@@ -135,7 +135,7 @@ export default function AdminDashboardPage() {
     setResolvingId(reportId);
 
     try {
-      const res = await fetch(`http://localhost:8000/admin/reports/${reportId}/resolve`, {
+      const res = await fetch(`http://127.0.0.1:8000/admin/reports/${reportId}/resolve`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -160,7 +160,7 @@ export default function AdminDashboardPage() {
     if (!token) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/admin/buildings/${buildingId}/trust-status`, {
+      const res = await fetch(`http://127.0.0.1:8000/admin/buildings/${buildingId}/trust-status`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -186,7 +186,7 @@ export default function AdminDashboardPage() {
     if (!token) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/admin/buildings/${buildingId}/reset-to-auto`, {
+      const res = await fetch(`http://127.0.0.1:8000/admin/buildings/${buildingId}/reset-to-auto`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -214,7 +214,7 @@ export default function AdminDashboardPage() {
     
     setIsLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/admin/buildings/${buildingId}`, {
+      const res = await fetch(`http://127.0.0.1:8000/admin/buildings/${buildingId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,

@@ -44,7 +44,7 @@ export default function BuildingsPage() {
   useEffect(() => {
     async function loadBuildings() {
       try {
-        const res = await fetch("http://localhost:8000/buildings", {
+        const res = await fetch("http://127.0.0.1:8000/buildings", {
           cache: "no-store",
         });
         if (!res.ok) {

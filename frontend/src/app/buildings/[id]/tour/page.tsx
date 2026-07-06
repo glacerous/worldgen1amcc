@@ -100,8 +100,8 @@ export default function BuildingTourPage() {
   async function loadBuildingAndScenes() {
     try {
       const [buildingRes, scenesRes] = await Promise.all([
-        fetch(`http://localhost:8000/buildings/${id}`),
-        fetch(`http://localhost:8000/scenes?building_id=${id}`),
+        fetch(`http://127.0.0.1:8000/buildings/${id}`),
+        fetch(`http://127.0.0.1:8000/scenes?building_id=${id}`),
       ]);
 
       if (!buildingRes.ok) {
@@ -148,8 +148,8 @@ export default function BuildingTourPage() {
   async function loadActiveSceneData(sceneId: string) {
     try {
       const [annotationsRes, sceneLinksRes] = await Promise.all([
-        fetch(`http://localhost:8000/scenes/${sceneId}/annotations`),
-        fetch(`http://localhost:8000/scenes/${sceneId}/scene-links`),
+        fetch(`http://127.0.0.1:8000/scenes/${sceneId}/annotations`),
+        fetch(`http://127.0.0.1:8000/scenes/${sceneId}/scene-links`),
       ]);
 
       if (annotationsRes.ok) {
@@ -196,7 +196,7 @@ export default function BuildingTourPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/scenes", {
+      const res = await fetch("http://127.0.0.1:8000/scenes", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -241,7 +241,7 @@ export default function BuildingTourPage() {
     }
 
     try {
-      const res = await fetch(`http://localhost:8000/scenes/${activeScene.id}`, {
+      const res = await fetch(`http://127.0.0.1:8000/scenes/${activeScene.id}`, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -288,7 +288,7 @@ export default function BuildingTourPage() {
     setIsAddingHotspot(true);
 
     try {
-      const res = await fetch(`http://localhost:8000/scenes/${activeScene.id}/scene-links`, {
+      const res = await fetch(`http://127.0.0.1:8000/scenes/${activeScene.id}/scene-links`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -328,7 +328,7 @@ export default function BuildingTourPage() {
     }
 
     try {
-      const res = await fetch(`http://localhost:8000/scenes/scene-links/${hotspotId}`, {
+      const res = await fetch(`http://127.0.0.1:8000/scenes/scene-links/${hotspotId}`, {
         method: "DELETE",
       });
 

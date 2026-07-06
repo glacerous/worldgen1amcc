@@ -16,7 +16,7 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
   useEffect(() => {
     async function fetchVoteStatus() {
       try {
-        const res = await fetch(`http://localhost:8000/buildings/${buildingId}/vote-status`, {
+        const res = await fetch(`http://127.0.0.1:8000/buildings/${buildingId}/vote-status`, {
           // Send cookies for session tracking
           credentials: "include",
         });
@@ -45,7 +45,7 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
     const targetVoteType = isUnselecting ? null : type;
 
     try {
-      const res = await fetch(`http://localhost:8000/buildings/${buildingId}/vote`, {
+      const res = await fetch(`http://127.0.0.1:8000/buildings/${buildingId}/vote`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

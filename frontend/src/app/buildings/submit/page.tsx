@@ -62,7 +62,7 @@ export default function SubmitBuildingPage() {
     setError(null);
 
     try {
-      const res = await fetch("http://localhost:8000/geocode", {
+      const res = await fetch("http://127.0.0.1:8000/geocode", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -155,7 +155,7 @@ export default function SubmitBuildingPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/buildings/submit", {
+      const res = await fetch("http://127.0.0.1:8000/buildings/submit", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
