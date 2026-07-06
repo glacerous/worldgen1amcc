@@ -104,12 +104,46 @@ def get_building_audit_runs(building_id: UUID):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/runs/{audit_run_id}/detail")
+def get_audit_run_detail(audit_run_id: UUID):
+    """
+    Returns a single audit run by its ID, joined with user info.
+    Used by the edit-audit page to verify ownership.
+    """
+    try:
+        response = supabase.table("audit_runs") \
+            .select("*, users(display_name, avatar_url)") \
+            .eq("id", str(audit_run_id)) \
+            .single() \
+            .execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Audit run tidak ditemukan.")
+
+    run = response.data
+    user_data = run.get("users") or {}
+
+    return {
+        "id": run["id"],
+        "building_id": run["building_id"],
+        "user_id": run.get("user_id"),
+        "contributor_name": run.get("contributor_name"),
+        "trust_score": run.get("trust_score"),
+        "created_at": run["created_at"],
+        "display_name": user_data.get("display_name"),
+        "avatar_url": user_data.get("avatar_url"),
+    }
+
+
 @router.patch("/runs/{audit_run_id}/rerun")
 async def rerun_audit(
     audit_run_id: UUID,
     photos: List[UploadFile] = File(...),
     current_user = Depends(get_current_user)
 ):
+
     """
     Allows a user to re-run an audit run they previously created by uploading new photos.
     """

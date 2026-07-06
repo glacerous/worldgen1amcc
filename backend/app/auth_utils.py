@@ -46,3 +46,25 @@ def get_current_user(authorization: str = Header(None)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token otorisasi tidak valid."
         )
+
+
+def get_optional_user(authorization: str = Header(None)):
+    """
+    Like get_current_user but returns None instead of raising 401 when no token is present.
+    Use this for endpoints that work for both authenticated and anonymous users.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        token = authorization.split(" ")[1]
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+        user_id = payload.get("user_id")
+        if not user_id:
+            return None
+        return {
+            "user_id": user_id,
+            "email": payload.get("email"),
+            "display_name": payload.get("display_name")
+        }
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None

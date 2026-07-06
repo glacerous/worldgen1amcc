@@ -3,7 +3,8 @@ import math
 import io
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
-from fastapi import APIRouter, HTTPException, Form, File, UploadFile
+from fastapi import APIRouter, HTTPException, Form, File, UploadFile, Depends
+from app.auth_utils import get_optional_user
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from pydantic import BaseModel
@@ -120,7 +121,8 @@ async def submit_building(
     photos: List[UploadFile] = File(...),
     panorama: Optional[UploadFile] = File(None),
     contributor_name: Optional[str] = Form(None),
-    confirm_location: bool = Form(False)
+    confirm_location: bool = Form(False),
+    current_user = Depends(get_optional_user)
 ):
     """
     Public endpoint to submit a building with photo evidence and optional panorama.
@@ -169,7 +171,7 @@ async def submit_building(
 
     # 4. Create the building record (community, unverified, status='pending')
     try:
-        building_response = supabase.table("buildings").insert({
+        building_payload = {
             "name": name,
             "address": address,
             "latitude": latitude,
@@ -177,7 +179,13 @@ async def submit_building(
             "source": "community",
             "verified": False,
             "status": "pending"
-        }).execute()
+        }
+        # Link the building to the submitting user if logged in
+        if current_user:
+            building_payload["owner_user_id"] = current_user["user_id"]
+
+        building_response = supabase.table("buildings").insert(building_payload).execute()
+
         
         if not building_response.data:
             raise HTTPException(status_code=400, detail="Failed to record building suggestion.")
@@ -228,6 +236,16 @@ async def submit_building(
             status_code=500,
             detail=f"Gedung berhasil disimpan namun terjadi kegagalan audit: {str(audit_err)}"
         )
+
+    # 5b. If user is logged in, link their user_id to the audit run that was just created
+    if current_user and audit_summary.get("audit_run_id"):
+        try:
+            supabase.table("audit_runs").update({
+                "user_id": current_user["user_id"]
+            }).eq("id", audit_summary["audit_run_id"]).execute()
+        except Exception as e:
+            # Non-fatal: log but don't fail the request
+            print(f"[warn] Gagal mengaitkan user_id ke audit_run: {e}")
 
     # 6. Process optional 360 panorama upload and run panorama agent detection
     scene_id = None

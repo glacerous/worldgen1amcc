@@ -42,10 +42,12 @@ interface AuditResult {
 }
 
 interface AuditRun {
-  id: string;
-  building_id: string;
+  audit_run_id: string;
+  building_id?: string;
   user_id: string | null;
-  contributor_name: string | null;
+  contributor_name?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
   trust_score: number | null;
   created_at: string;
   results?: AuditResult[];
@@ -93,7 +95,7 @@ export default function BuildingDetailPage({
       .then((runs: AuditRun[]) => {
         setAuditRuns(runs);
         if (runs.length > 0) {
-          setSelectedRunId(runs[0].id);
+          setSelectedRunId(runs[0].audit_run_id);
         }
       })
       .catch(console.error)
@@ -117,7 +119,7 @@ export default function BuildingDetailPage({
     if (!selectedRunId) return;
 
     // Check if the run already has results cached
-    const cachedRun = auditRuns.find((r) => r.id === selectedRunId);
+    const cachedRun = auditRuns.find((r) => r.audit_run_id === selectedRunId);
     if (cachedRun?.results) return;
 
     setLoadingResults(true);
@@ -128,7 +130,7 @@ export default function BuildingDetailPage({
       })
       .then((results: AuditResult[]) => {
         setAuditRuns((prev) =>
-          prev.map((r) => (r.id === selectedRunId ? { ...r, results } : r))
+          prev.map((r) => (r.audit_run_id === selectedRunId ? { ...r, results } : r))
         );
       })
       .catch(console.error)
@@ -136,7 +138,7 @@ export default function BuildingDetailPage({
   }, [selectedRunId, auditRuns, id]);
 
   // Determine displayed results
-  const selectedRun = auditRuns.find((r) => r.id === selectedRunId);
+  const selectedRun = auditRuns.find((r) => r.audit_run_id === selectedRunId);
   const displayedResults: AuditResult[] =
     selectedRun?.results ?? consensusResults;
 
@@ -321,16 +323,17 @@ export default function BuildingDetailPage({
             </p>
             <div className="flex flex-wrap gap-2">
               {auditRuns.map((run) => {
-                const isSelected = run.id === selectedRunId;
+                const isSelected = run.audit_run_id === selectedRunId;
                 const label =
+                  run.display_name ||
                   run.contributor_name ||
                   (run.user_id ? `Kontributor #${run.user_id.slice(0, 6)}` : "Anonim");
                 const isOwner = user?.id && run.user_id === user.id;
 
                 return (
-                  <div key={run.id} className="flex items-center gap-1">
+                  <div key={run.audit_run_id} className="flex items-center gap-1">
                     <button
-                      onClick={() => setSelectedRunId(run.id)}
+                      onClick={() => setSelectedRunId(run.audit_run_id)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-sans font-medium border transition-all cursor-pointer ${
                         isSelected
                           ? "bg-accent text-white border-accent shadow-sm"
@@ -348,7 +351,7 @@ export default function BuildingDetailPage({
                     {/* Edit button for logged-in user's own run */}
                     {isOwner && (
                       <Link
-                        href={`/buildings/${id}/edit-audit/${run.id}`}
+                        href={`/buildings/${id}/edit-audit/${run.audit_run_id}`}
                         className="inline-flex items-center px-2 py-1 text-[10px] font-sans font-semibold rounded-md border border-line text-ink-muted hover:border-accent hover:text-accent transition-all bg-surface"
                         title="Edit audit run milik Anda"
                       >
