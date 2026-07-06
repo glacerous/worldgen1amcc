@@ -47,6 +47,8 @@ export default function LoginPage() {
       const data = await res.json();
       if (data.access_token) {
         sessionStorage.setItem("admin_token", data.access_token);
+        // Expiry 7 days matching backend JWT exp
+        document.cookie = `admin_token=${data.access_token}; path=/; max-age=604800; samesite=lax`;
         router.push("/admin");
       } else {
         throw new Error("Gagal menerima token akses dari server.");

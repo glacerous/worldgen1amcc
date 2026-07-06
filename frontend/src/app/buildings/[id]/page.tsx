@@ -1,6 +1,8 @@
 import Navbar from "@/components/Navbar";
 import AuditResultsList from "@/components/AuditResultsList";
 import Link from "next/link";
+import TrustBadge from "@/components/TrustBadge";
+import BuildingDetailActions from "@/components/BuildingDetailActions";
 
 interface Building {
   id: string;
@@ -11,6 +13,10 @@ interface Building {
   status: string;
   source?: string;
   verified?: boolean;
+  trust_status?: string;
+  manually_set_by_admin?: boolean;
+  trust_score_cache?: number | null;
+  vote_count_cache?: number;
 }
 
 interface AuditResult {
@@ -131,13 +137,21 @@ export default async function BuildingDetailPage({
               <h1 className="font-display text-3xl md:text-5xl font-normal text-ink leading-tight">
                 {building.name}
               </h1>
-              <span className={`inline-flex px-2 py-0.5 border rounded-md text-[9px] font-sans font-semibold uppercase tracking-wider ${
-                building.verified 
-                  ? "bg-accent/10 text-accent border-accent/20" 
-                  : "bg-bg text-ink-muted border-line"
-              }`}>
-                {building.verified ? "Diverifikasi Tim" : "Kontribusi Komunitas"}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`inline-flex px-2 py-0.5 border rounded-md text-[9px] font-sans font-semibold uppercase tracking-wider ${
+                  building.verified 
+                    ? "bg-accent/10 text-accent border-accent/20" 
+                    : "bg-bg text-ink-muted border-line"
+                }`}>
+                  {building.verified ? "Diverifikasi Tim" : "Kontribusi Komunitas"}
+                </span>
+                <TrustBadge 
+                  status={(building.trust_status || "neutral") as any}
+                  manuallySetByAdmin={!!building.manually_set_by_admin}
+                  trustScore={building.trust_score_cache ?? null}
+                  voteCount={building.vote_count_cache ?? 0}
+                />
+              </div>
             </div>
             <p className="font-sans text-sm text-ink-muted mt-2">
               {building.address || "Alamat belum ditambahkan."}
@@ -158,6 +172,9 @@ export default async function BuildingDetailPage({
             Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
           </p>
         </div>
+
+        {/* Voting & Reporting Actions */}
+        <BuildingDetailActions buildingId={building.id} />
 
         {/* Summary Bar Component */}
         <div className="bg-surface border border-line rounded-md p-6 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">

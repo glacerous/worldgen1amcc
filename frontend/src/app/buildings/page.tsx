@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
+import TrustBadge from "@/components/TrustBadge";
 
 interface AuditCriteria {
   category: string;
@@ -23,6 +24,10 @@ interface Building {
   audit_results: AuditResult[];
   source?: string;
   verified?: boolean;
+  trust_status?: string;
+  manually_set_by_admin?: boolean;
+  trust_score_cache?: number | null;
+  vote_count_cache?: number;
 }
 
 export default function BuildingsPage() {
@@ -234,16 +239,24 @@ export default function BuildingsPage() {
                     </p>
                   </div>
 
-                  {/* Compliance & Provenance badges */}
+                  {/* Compliance, Provenance & Trust badges */}
                   <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0 sm:flex-col sm:items-end sm:gap-1.5">
-                    {/* Provenance Badge */}
-                    <span className={`px-2 py-0.5 border rounded-md text-[9px] font-sans font-semibold uppercase tracking-wider ${
-                      building.verified 
-                        ? "bg-accent/10 text-accent border-accent/20" 
-                        : "bg-bg text-ink-muted border-line"
-                    }`}>
-                      {building.verified ? "Diverifikasi Tim" : "Kontribusi Komunitas"}
-                    </span>
+                    {/* Provenance & Trust badges */}
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      <span className={`px-2 py-0.5 border rounded-md text-[9px] font-sans font-semibold uppercase tracking-wider ${
+                        building.verified 
+                          ? "bg-accent/10 text-accent border-accent/20" 
+                          : "bg-bg text-ink-muted border-line"
+                      }`}>
+                        {building.verified ? "Diverifikasi Tim" : "Kontribusi Komunitas"}
+                      </span>
+                      <TrustBadge 
+                        status={(building.trust_status || "neutral") as any}
+                        manuallySetByAdmin={!!building.manually_set_by_admin}
+                        trustScore={building.trust_score_cache ?? null}
+                        voteCount={building.vote_count_cache ?? 0}
+                      />
+                    </div>
 
                     {/* Compliance Badge */}
                     {compliance !== null ? (

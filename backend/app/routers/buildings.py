@@ -327,7 +327,13 @@ def get_buildings():
         response = supabase.table("buildings") \
             .select("*, audit_results(status, audit_criteria(category))") \
             .execute()
-        return response.data
+        data = response.data or []
+        for b in data:
+            b.setdefault("trust_status", "neutral")
+            b.setdefault("manually_set_by_admin", False)
+            b.setdefault("trust_score_cache", None)
+            b.setdefault("vote_count_cache", 0)
+        return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -340,7 +346,12 @@ def get_building(id: UUID):
         response = supabase.table("buildings").select("*").eq("id", str(id)).execute()
         if not response.data:
             raise HTTPException(status_code=404, detail=f"Building with ID {id} not found")
-        return response.data[0]
+        b = response.data[0]
+        b.setdefault("trust_status", "neutral")
+        b.setdefault("manually_set_by_admin", False)
+        b.setdefault("trust_score_cache", None)
+        b.setdefault("vote_count_cache", 0)
+        return b
     except HTTPException:
         raise
     except Exception as e:
