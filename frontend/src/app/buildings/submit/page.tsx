@@ -39,6 +39,8 @@ export default function SubmitBuildingPage() {
     }
   }, [loading, user, router]);
 
+  const [warningDistance, setWarningDistance] = useState<number | null>(null);
+
   if (loading || !user) {
     return (
       <div className="min-h-screen flex flex-col bg-bg">
@@ -49,8 +51,6 @@ export default function SubmitBuildingPage() {
       </div>
     );
   }
-
-  const [warningDistance, setWarningDistance] = useState<number | null>(null);
  
   // Geocoding query to resolve address coordinates
   const handleGeocode = async () => {
