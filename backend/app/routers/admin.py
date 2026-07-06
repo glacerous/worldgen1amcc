@@ -182,6 +182,20 @@ def get_admin_disputed(token: str = Depends(require_admin)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal memproses daftar gedung bersengketa: {str(e)}")
 
+@admin_router.get("/building-reports", response_model=List[dict])
+def get_admin_building_reports(token: str = Depends(require_admin)):
+    """
+    Protected endpoint to retrieve all building reports (level gedung).
+    """
+    try:
+        response = supabase.table("building_reports") \
+            .select("*, buildings(*)") \
+            .order("created_at", desc=True) \
+            .execute()
+        return response.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil laporan gedung: {str(e)}")
+
 @admin_router.post("/reports/{report_id}/resolve", response_model=dict)
 def resolve_report(report_id: UUID, token: str = Depends(require_admin)):
     """

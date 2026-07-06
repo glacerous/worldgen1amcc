@@ -28,6 +28,9 @@ interface Building {
   manually_set_by_admin?: boolean;
   trust_score_cache?: number | null;
   vote_count_cache?: number;
+  status_summary?: "review" | "no_audit" | "active";
+  compliance_score?: number | "N/A" | null;
+  audit_run_count?: number;
 }
 
 export default function BuildingsPage() {
@@ -223,7 +226,6 @@ export default function BuildingsPage() {
           /* Listing Grid */
           <div className="grid grid-cols-1 gap-4">
             {filteredBuildings.map((building) => {
-              const compliance = getComplianceStats(building);
               return (
                 <Link
                   href={`/buildings/${building.id}`}
@@ -239,43 +241,34 @@ export default function BuildingsPage() {
                     </p>
                   </div>
 
-                  {/* Compliance, Provenance & Trust badges */}
-                  <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0 sm:flex-col sm:items-end sm:gap-1.5">
-                    {/* Provenance & Trust badges */}
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                      <span className={`px-2 py-0.5 border rounded-md text-[9px] font-sans font-semibold uppercase tracking-wider ${
-                        building.verified 
-                          ? "bg-accent/10 text-accent border-accent/20" 
-                          : "bg-bg text-ink-muted border-line"
-                      }`}>
-                        {building.verified ? "Diverifikasi Tim" : "Kontribusi Komunitas"}
+                  {/* Main Status Container */}
+                  <div className="flex-shrink-0 flex items-center justify-end mt-2 sm:mt-0">
+                    {building.status_summary === "review" && (
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-sans font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-600 border border-amber-500/20 gap-1.5 shadow-sm">
+                        <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        Dalam Peninjauan
                       </span>
-                      <TrustBadge 
-                        status={(building.trust_status || "neutral") as any}
-                        manuallySetByAdmin={!!building.manually_set_by_admin}
-                        trustScore={building.trust_score_cache ?? null}
-                        voteCount={building.vote_count_cache ?? 0}
-                      />
-                    </div>
+                    )}
 
-                    {/* Compliance Badge */}
-                    {compliance !== null ? (
-                      compliance === "N/A" ? (
-                        <span className="px-2.5 py-0.5 bg-status-na/10 text-status-na border border-status-na/20 rounded-md text-xs font-sans font-bold">
-                          N/A
-                        </span>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="font-sans text-xs text-ink-muted hidden md:inline">Compliance:</span>
-                          <span className="px-2.5 py-0.5 bg-status-met/10 text-status-met border border-status-met/20 rounded-md text-xs font-sans font-bold">
-                            {compliance}%
-                          </span>
-                        </div>
-                      )
-                    ) : (
-                      <span className="px-2.5 py-0.5 bg-status-unknown/10 text-status-unknown border border-status-unknown/20 rounded-md text-[11px] font-sans font-medium">
-                        Menunggu Audit
+                    {building.status_summary === "no_audit" && (
+                      <span className="px-3 py-1.5 bg-status-unknown/10 text-status-unknown border border-status-unknown/20 rounded-md text-xs font-sans font-medium">
+                        Menunggu Audit Pertama
                       </span>
+                    )}
+
+                    {building.status_summary === "active" && (
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`font-display text-4xl font-bold ${
+                          building.compliance_score === "N/A" ? "text-ink-muted" : "text-accent"
+                        }`}>
+                          {building.compliance_score === "N/A" ? "N/A" : `${building.compliance_score}%`}
+                        </span>
+                        <span className="font-sans text-[10px] text-ink-muted">
+                          berdasarkan {building.audit_run_count} audit
+                        </span>
+                      </div>
                     )}
                   </div>
                 </Link>

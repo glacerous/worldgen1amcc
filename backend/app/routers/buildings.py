@@ -4,7 +4,7 @@ import io
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 from fastapi import APIRouter, HTTPException, Form, File, UploadFile
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from pydantic import BaseModel
 from app.db import supabase
@@ -327,22 +327,138 @@ async def submit_building(
         "scene_id": scene_id
     }
 
+def compute_building_compliance(results: List[Dict[str, Any]], criteria_list: List[Dict[str, Any]]):
+    results_by_criteria = {}
+    for r in results:
+        crit = r.get("audit_criteria")
+        if crit and crit.get("code"):
+            results_by_criteria.setdefault(crit["code"], []).append(r["status"])
+            
+    priority_map = {"met": 4, "not_met": 3, "unknown": 2, "na": 1}
+    
+    met_count = 0
+    evaluable_count = 0
+    
+    for c in criteria_list:
+        code = c["code"]
+        statuses = results_by_criteria.get(code, [])
+        if not statuses:
+            evaluable_count += 1
+            continue
+            
+        status_counts = {}
+        for st in statuses:
+            status_counts[st] = status_counts.get(st, 0) + 1
+            
+        max_count = max(status_counts.values())
+        candidates = [st for st, count in status_counts.items() if count == max_count]
+        
+        if len(candidates) == 1:
+            final_status = candidates[0]
+        else:
+            final_status = max(candidates, key=lambda st: priority_map.get(st.lower(), 0))
+            
+        if final_status == "na":
+            continue
+        elif final_status == "met":
+            met_count += 1
+            evaluable_count += 1
+        else:
+            evaluable_count += 1
+            
+    if evaluable_count <= 0:
+        return "N/A"
+    return round((met_count / evaluable_count) * 100)
+
 @router.get("", response_model=List[dict])
 def get_buildings():
     """
     Get all buildings. No pending status filtering.
+    Computes a single clean status_summary, consensus compliance score, and audit run counts.
     """
     try:
-        response = supabase.table("buildings") \
-            .select("*, audit_results(status, audit_criteria(category))") \
+        # 1. Fetch buildings, audit results, audit runs, open reports, and criteria in parallel
+        buildings_res = supabase.table("buildings").select("*").execute()
+        buildings = buildings_res.data or []
+        
+        results_res = supabase.table("audit_results") \
+            .select("building_id, status, audit_criteria(code, category)") \
             .execute()
-        data = response.data or []
-        for b in data:
+        results = results_res.data or []
+        
+        runs_res = supabase.table("audit_runs").select("building_id").execute()
+        runs = runs_res.data or []
+        
+        open_reports_res = supabase.table("reports") \
+            .select("audit_result_id, status, audit_results(building_id)") \
+            .eq("status", "open") \
+            .execute()
+        open_reports = open_reports_res.data or []
+        
+        criteria_res = supabase.table("audit_criteria").select("code").execute()
+        criteria_list = criteria_res.data or []
+        
+        # 2. Group audit results by building_id
+        results_by_building = {}
+        for r in results:
+            b_id = r["building_id"]
+            results_by_building.setdefault(b_id, []).append(r)
+            
+        # 3. Group run counts by building_id
+        runs_count_by_building = {}
+        for run in runs:
+            b_id = run["building_id"]
+            runs_count_by_building[b_id] = runs_count_by_building.get(b_id, 0) + 1
+            
+        # 4. Find building IDs that have open reports
+        open_report_building_ids = set()
+        for rep in open_reports:
+            res_obj = rep.get("audit_results")
+            if res_obj and res_obj.get("building_id"):
+                open_report_building_ids.add(res_obj["building_id"])
+                
+        # 5. Populate and decorate each building
+        for b in buildings:
+            b_id = b["id"]
+            b_results = results_by_building.get(b_id, [])
+            run_count = runs_count_by_building.get(b_id, 0)
+            
+            # Check disputes (any criteria has conflicting statuses)
+            results_by_code = {}
+            for r in b_results:
+                crit = r.get("audit_criteria")
+                if crit and crit.get("code"):
+                    results_by_code.setdefault(crit["code"], []).append(r["status"])
+                    
+            has_dispute = False
+            for code, statuses in results_by_code.items():
+                if len(set(statuses)) > 1:
+                    has_dispute = True
+                    break
+                    
+            # Determine status summary
+            if has_dispute or b_id in open_report_building_ids:
+                status_summary = "review"
+                compliance_score = None
+            elif run_count == 0:
+                status_summary = "no_audit"
+                compliance_score = None
+            else:
+                status_summary = "active"
+                compliance_score = compute_building_compliance(b_results, criteria_list)
+                
+            b["status_summary"] = status_summary
+            b["compliance_score"] = compliance_score
+            b["audit_run_count"] = run_count
+            b["audit_results"] = b_results
+            
+            # Maintain safe defaults for other endpoints/components compatibility
             b.setdefault("trust_status", "neutral")
             b.setdefault("manually_set_by_admin", False)
             b.setdefault("trust_score_cache", None)
             b.setdefault("vote_count_cache", 0)
-        return data
+            
+        return buildings
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

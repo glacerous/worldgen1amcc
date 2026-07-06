@@ -39,6 +39,22 @@ interface Report {
   } | null;
 }
 
+interface BuildingReport {
+  id: string;
+  building_id: string;
+  anonymous_id: string;
+  reporter_ip_hash: string;
+  reason: string;
+  created_at: string;
+  buildings: {
+    id: string;
+    name: string;
+    address: string | null;
+    trust_status: string;
+    manually_set_by_admin: boolean;
+  } | null;
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -46,6 +62,7 @@ export default function AdminDashboardPage() {
   // Dashboard state
   const [activeTab, setActiveTab] = useState<"reports" | "disputed" | "moderation">("reports");
   const [reports, setReports] = useState<Report[]>([]);
+  const [buildingReports, setBuildingReports] = useState<BuildingReport[]>([]);
   const [disputedBuildings, setDisputedBuildings] = useState<Building[]>([]);
   const [moderationBuildings, setModerationBuildings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,18 +91,20 @@ export default function AdminDashboardPage() {
         Authorization: `Bearer ${sessionToken}`,
       };
 
-      // Fetch reports, disputed buildings, and moderation queue in parallel
-      const [reportsRes, disputedRes, moderationRes] = await Promise.all([
+      // Fetch reports, disputed buildings, moderation queue, and building reports in parallel
+      const [reportsRes, disputedRes, moderationRes, buildingReportsRes] = await Promise.all([
         fetch("http://localhost:8000/admin/reports", { headers, cache: "no-store" }),
         fetch("http://localhost:8000/admin/disputed", { headers, cache: "no-store" }),
         fetch("http://localhost:8000/admin/moderation-queue", { headers, cache: "no-store" }),
+        fetch("http://localhost:8000/admin/building-reports", { headers, cache: "no-store" }),
       ]);
 
-      if (!reportsRes.ok || !disputedRes.ok || !moderationRes.ok) {
+      if (!reportsRes.ok || !disputedRes.ok || !moderationRes.ok || !buildingReportsRes.ok) {
         if (
           reportsRes.status === 401 || 
           disputedRes.status === 401 || 
-          moderationRes.status === 401
+          moderationRes.status === 401 ||
+          buildingReportsRes.status === 401
         ) {
           sessionStorage.removeItem("admin_token");
           document.cookie = "admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; samesite=lax";
@@ -98,10 +117,12 @@ export default function AdminDashboardPage() {
       const reportsData = await reportsRes.json();
       const disputedData = await disputedRes.json();
       const moderationData = await moderationRes.json();
+      const buildingReportsData = await buildingReportsRes.json();
 
       setReports(reportsData);
       setDisputedBuildings(disputedData);
       setModerationBuildings(moderationData);
+      setBuildingReports(buildingReportsData);
     } catch (err: any) {
       setError(err.message || "Terjadi kesalahan saat memuat data.");
     } finally {
@@ -272,7 +293,7 @@ export default function AdminDashboardPage() {
                 : "border-transparent text-ink-muted hover:text-ink"
             }`}
           >
-            Laporan Masuk ({openReports.length})
+            Laporan Masuk ({openReports.length + buildingReports.length})
           </button>
           <button
             onClick={() => setActiveTab("disputed")}
@@ -305,101 +326,194 @@ export default function AdminDashboardPage() {
           <>
             {/* Tab content 1: Reports List */}
             {activeTab === "reports" && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display text-xl font-normal text-ink">
-                    Laporan Kriteria dari Komunitas ({openReports.length})
-                  </h3>
-                </div>
-
-                {openReports.length === 0 ? (
-                  <div className="bg-surface border border-line rounded-md p-10 text-center">
-                    <p className="font-display italic text-lg text-ink-muted mb-1">
-                      "Semua laporan telah diselesaikan."
-                    </p>
-                    <p className="font-sans text-xs text-ink-muted">
-                      Tidak ada laporan baru yang belum ditinjau saat ini.
+              <div className="space-y-12">
+                {/* 1. Seksi Laporan Umum Gedung */}
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-display text-xl font-normal text-ink">
+                      Laporan Umum Gedung ({buildingReports.length})
+                    </h3>
+                    <p className="font-sans text-xs text-ink-muted mt-1">
+                      Laporan tingkat gedung (dari fitur vote / ketidaksesuaian umum).
                     </p>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {openReports.map((report) => {
-                      const buildName = report.audit_results?.buildings?.name || "Gedung Tidak Diketahui";
-                      const buildId = report.audit_results?.buildings?.id;
-                      const critCode = report.audit_results?.audit_criteria?.code || "N/A";
-                      const critDesc = report.audit_results?.audit_criteria?.description || "Kriteria tidak diketahui";
-                      const evalStatus = report.audit_results?.status || "unknown";
-                      const hasGpsMismatch = report.audit_results?.audit_runs?.gps_mismatch || false;
 
-                      return (
-                        <div key={report.id} className="bg-surface border border-line rounded-md p-5 flex flex-col md:flex-row justify-between gap-6 hover:border-line/80 transition-colors">
-                          <div className="flex-1 space-y-3">
-                            {/* Metadata */}
-                            <div className="flex flex-wrap items-center gap-2 text-[10px] font-sans text-ink-muted">
-                              {buildId ? (
+                  {buildingReports.length === 0 ? (
+                    <div className="bg-surface border border-line rounded-md p-8 text-center">
+                      <p className="font-sans text-xs text-ink-muted italic">
+                        Tidak ada laporan umum gedung saat ini.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {buildingReports.map((bReport) => {
+                        const buildingName = bReport.buildings?.name || "Gedung Tidak Diketahui";
+                        const buildingId = bReport.building_id;
+                        const buildingAddress = bReport.buildings?.address || "Alamat tidak tersedia";
+                        const trustStatus = bReport.buildings?.trust_status || "neutral";
+
+                        return (
+                          <div key={bReport.id} className="bg-surface border border-line rounded-md p-5 flex flex-col md:flex-row justify-between gap-6 hover:border-line/80 transition-colors">
+                            <div className="flex-1 space-y-3">
+                              {/* Metadata */}
+                              <div className="flex flex-wrap items-center gap-2 text-[10px] font-sans text-ink-muted">
                                 <Link 
-                                  href={`/buildings/${buildId}`}
+                                  href={`/buildings/${buildingId}`}
                                   className="font-bold text-accent hover:underline"
                                 >
-                                  {buildName}
+                                  {buildingName}
                                 </Link>
-                              ) : (
-                                <span className="font-bold">{buildName}</span>
-                              )}
-                              <span>•</span>
-                              <span className="font-mono bg-bg px-1.5 py-0.5 border border-line rounded">
-                                {critCode}
-                              </span>
-                              <span>•</span>
-                              <span>
-                                Hasil Audit: <strong className="text-ink font-semibold">{statusLabels[evalStatus] || evalStatus}</strong>
-                              </span>
-                              {hasGpsMismatch && (
-                                <>
-                                  <span>•</span>
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-sans font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-700 border border-amber-500/20">
-                                    GPS Tidak Cocok
-                                  </span>
-                                </>
-                              )}
+                                <span>•</span>
+                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-sans font-semibold uppercase tracking-wider ${
+                                  trustStatus === "trusted" ? "bg-status-met/10 text-status-met border border-status-met/20" :
+                                  trustStatus === "reported" ? "bg-status-not-met/10 text-status-not-met border border-status-not-met/20" :
+                                  "bg-bg text-ink-muted border-line"
+                                }`}>
+                                  Status: {trustStatus.toUpperCase()}
+                                </span>
+                              </div>
+
+                              {/* Reported Reason */}
+                              <div className="bg-bg/40 p-3 rounded border border-line/30">
+                                <span className="block text-[9px] font-sans font-bold text-ink-muted uppercase tracking-wider mb-1">
+                                  Alasan Komunitas:
+                                </span>
+                                <p className="font-sans text-xs text-ink italic leading-relaxed">
+                                  "{bReport.reason || "Tanpa alasan tertulis."}"
+                                </p>
+                              </div>
+
+                              <div className="flex flex-wrap items-center justify-between text-[9px] font-sans text-ink-muted">
+                                <span>IP Hash: <strong className="font-mono">{bReport.reporter_ip_hash?.substring(0, 8)}...</strong></span>
+                                <span>Dilaporkan pada: {new Date(bReport.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}</span>
+                              </div>
                             </div>
 
-                            {/* Criteria Description */}
-                            <h4 className="font-display text-base text-ink leading-relaxed font-medium">
-                              "{critDesc}"
-                            </h4>
-
-                            {/* Reported Reason */}
-                            <div className="bg-bg/40 p-3 rounded border border-line/30">
-                              <span className="block text-[9px] font-sans font-bold text-ink-muted uppercase tracking-wider mb-1">
-                                Alasan Komunitas:
-                              </span>
-                              <p className="font-sans text-xs text-ink italic leading-relaxed">
-                                {report.reason ? `"${report.reason}"` : "Tidak ada alasan tertulis yang disertakan."}
-                              </p>
+                            {/* Action Buttons for building status override directly */}
+                            <div className="flex flex-wrap md:flex-col md:items-end justify-center gap-2">
+                              <button
+                                onClick={() => handleSetTrustStatus(buildingId, "trusted")}
+                                className="inline-flex items-center justify-center bg-status-met/10 text-status-met hover:bg-status-met hover:text-white border border-status-met/20 font-sans text-[10px] font-semibold px-2.5 py-1.5 rounded transition-all cursor-pointer"
+                              >
+                                Set Trusted
+                              </button>
+                              <button
+                                onClick={() => handleSetTrustStatus(buildingId, "doubtful")}
+                                className="inline-flex items-center justify-center bg-amber-500/10 text-amber-700 hover:bg-amber-500 hover:text-white border border-amber-500/20 font-sans text-[10px] font-semibold px-2.5 py-1.5 rounded transition-all cursor-pointer"
+                              >
+                                Set Doubtful
+                              </button>
+                              <button
+                                onClick={() => handleResetToAuto(buildingId)}
+                                className="inline-flex items-center justify-center border border-line bg-surface hover:bg-bg/40 text-ink font-sans text-[10px] font-semibold px-2.5 py-1.5 rounded transition-all cursor-pointer"
+                              >
+                                Reset to Auto
+                              </button>
                             </div>
-
-                            <span className="block text-[9px] font-sans text-ink-muted">
-                              Dilaporkan pada: {new Date(report.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
-                            </span>
                           </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
-                          <div className="flex items-center md:justify-end">
-                            <button
-                              onClick={() => handleResolveReport(report.id)}
-                              disabled={resolvingId === report.id}
-                              className="w-full md:w-auto inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all disabled:opacity-50 cursor-pointer"
-                            >
-                              {resolvingId === report.id ? "Memproses..." : "Selesaikan Laporan"}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                {/* 2. Seksi Laporan Poin Kriteria */}
+                <div className="space-y-6 pt-6 border-t border-line/60">
+                  <div>
+                    <h3 className="font-display text-xl font-normal text-ink">
+                      Laporan Poin Kriteria ({openReports.length})
+                    </h3>
+                    <p className="font-sans text-xs text-ink-muted mt-1">
+                      Laporan tingkat kriteria spesifik (terhubung ke audit_result_id).
+                    </p>
                   </div>
-                )}
 
-                {/* Resolved Reports Divider & List */}
+                  {openReports.length === 0 ? (
+                    <div className="bg-surface border border-line rounded-md p-8 text-center">
+                      <p className="font-sans text-xs text-ink-muted italic">
+                        Tidak ada laporan poin kriteria saat ini.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {openReports.map((report) => {
+                        const buildName = report.audit_results?.buildings?.name || "Gedung Tidak Diketahui";
+                        const buildId = report.audit_results?.buildings?.id;
+                        const critCode = report.audit_results?.audit_criteria?.code || "N/A";
+                        const critDesc = report.audit_results?.audit_criteria?.description || "Kriteria tidak diketahui";
+                        const evalStatus = report.audit_results?.status || "unknown";
+                        const hasGpsMismatch = report.audit_results?.audit_runs?.gps_mismatch || false;
+
+                        return (
+                          <div key={report.id} className="bg-surface border border-line rounded-md p-5 flex flex-col md:flex-row justify-between gap-6 hover:border-line/80 transition-colors">
+                            <div className="flex-1 space-y-3">
+                              {/* Metadata */}
+                              <div className="flex flex-wrap items-center gap-2 text-[10px] font-sans text-ink-muted">
+                                {buildId ? (
+                                  <Link 
+                                    href={`/buildings/${buildId}`}
+                                    className="font-bold text-accent hover:underline"
+                                  >
+                                    {buildName}
+                                  </Link>
+                                ) : (
+                                  <span className="font-bold">{buildName}</span>
+                                )}
+                                <span>•</span>
+                                <span className="font-mono bg-bg px-1.5 py-0.5 border border-line rounded">
+                                  {critCode}
+                                </span>
+                                <span>•</span>
+                                <span>
+                                  Hasil Audit: <strong className="text-ink font-semibold">{statusLabels[evalStatus] || evalStatus}</strong>
+                                </span>
+                                {hasGpsMismatch && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-sans font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                                      GPS Tidak Cocok
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+
+                              {/* Criteria Description */}
+                              <h4 className="font-display text-base text-ink leading-relaxed font-medium">
+                                "{critDesc}"
+                              </h4>
+
+                              {/* Reported Reason */}
+                              <div className="bg-bg/40 p-3 rounded border border-line/30">
+                                <span className="block text-[9px] font-sans font-bold text-ink-muted uppercase tracking-wider mb-1">
+                                  Alasan Komunitas:
+                                </span>
+                                <p className="font-sans text-xs text-ink italic leading-relaxed">
+                                  {report.reason ? `"${report.reason}"` : "Tidak ada alasan tertulis yang disertakan."}
+                                </p>
+                              </div>
+
+                              <span className="block text-[9px] font-sans text-ink-muted">
+                                Dilaporkan pada: {new Date(report.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center md:justify-end">
+                              <button
+                                onClick={() => handleResolveReport(report.id)}
+                                disabled={resolvingId === report.id}
+                                className="w-full md:w-auto inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all disabled:opacity-50 cursor-pointer"
+                              >
+                                {resolvingId === report.id ? "Memproses..." : "Selesaikan Laporan"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Laporan yang Telah Diselesaikan (Criteria Reports) */}
                 {resolvedReports.length > 0 && (
                   <div className="pt-8 border-t border-line/60">
                     <h3 className="font-display text-lg font-normal text-ink-muted mb-4">

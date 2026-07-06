@@ -185,7 +185,7 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
                             }}
                             className="inline-flex items-center justify-center border border-line bg-surface hover:bg-bg/40 text-[10px] font-sans font-semibold px-2.5 py-0.5 rounded text-ink-muted hover:text-accent transition-all cursor-pointer"
                           >
-                            Laporkan
+                            Laporkan Poin Ini
                           </button>
                         )}
                       </div>
