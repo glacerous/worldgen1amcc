@@ -11,7 +11,7 @@ from app.auth_utils import get_current_user
 router = APIRouter(tags=["auth"])
 
 @router.get("/google")
-def google_auth():
+def google_auth(redirect: str = None):
     """
     Redirects the user to the Google OAuth consent screen.
     """
@@ -23,12 +23,14 @@ def google_auth():
         "scope": "openid email profile",
         "access_type": "offline"
     }
+    if redirect:
+        params["state"] = redirect
     query_string = urllib.parse.urlencode(params)
     return RedirectResponse(url=f"{base_url}?{query_string}")
 
 
 @router.get("/google/callback")
-async def google_callback(code: str):
+async def google_callback(code: str, state: str = None):
     """
     Callback endpoint handling the authorization code exchange and user registration/login.
     """
@@ -142,6 +144,8 @@ async def google_callback(code: str):
     
     # 5. Redirect to FRONTEND_URL
     redirect_url = f"{settings.FRONTEND_URL}/auth/callback?token={jwt_token}"
+    if state:
+        redirect_url += f"&redirect={urllib.parse.quote(state)}"
     return RedirectResponse(url=redirect_url)
 
 

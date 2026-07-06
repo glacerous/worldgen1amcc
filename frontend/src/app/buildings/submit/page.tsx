@@ -32,11 +32,10 @@ export default function SubmitBuildingPage() {
   const [error, setError] = useState<string | null>(null);
   const [showWarningModal, setShowWarningModal] = useState(false);
 
-  // Auth guard: redirect to homepage if not logged in
+  // Auth guard: redirect to login if not logged in
   useEffect(() => {
     if (!loading && !user) {
-      alert("Silakan masuk dengan Google untuk berkontribusi audit");
-      router.push("/");
+      router.push("/login?redirect=/buildings/submit");
     }
   }, [loading, user, router]);
   const [warningDistance, setWarningDistance] = useState<number | null>(null);

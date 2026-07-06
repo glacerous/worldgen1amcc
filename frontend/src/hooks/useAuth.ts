@@ -35,8 +35,12 @@ export function useAuth() {
     }
   }, []);
 
-  const login = () => {
-    window.location.href = `${BACKEND_URL}/auth/google`;
+  const login = (redirectPath?: string) => {
+    let url = `${BACKEND_URL}/auth/google`;
+    if (redirectPath) {
+      url += `?redirect=${encodeURIComponent(redirectPath)}`;
+    }
+    window.location.href = url;
   };
 
   const logout = () => {

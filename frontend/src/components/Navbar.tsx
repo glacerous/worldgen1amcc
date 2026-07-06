@@ -59,16 +59,16 @@ export default function Navbar() {
             </button>
           </div>
         ) : (
-          <button 
-            onClick={login}
+          <Link 
+            href="/login"
             className="font-sans text-sm font-medium text-ink-muted hover:text-ink transition-colors cursor-pointer"
           >
-            Masuk dengan Google
-          </button>
+            Login
+          </Link>
         )}
 
         <Link 
-          href="/audit"
+          href="/buildings/submit"
           className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-sm font-semibold px-4 py-2 rounded-md transition-all"
         >
           Mulai Audit

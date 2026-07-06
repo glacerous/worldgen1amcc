@@ -33,12 +33,12 @@ export default function EditAuditPage({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Auth guard: redirect to homepage if not logged in
+  // Auth guard: redirect to login if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push("/");
+      router.push(`/login?redirect=/buildings/${buildingId}/edit-audit/${auditRunId}`);
     }
-  }, [authLoading, user, router]);
+  }, [authLoading, user, router, buildingId, auditRunId]);
 
   // Fetch audit run detail + ownership check
   useEffect(() => {

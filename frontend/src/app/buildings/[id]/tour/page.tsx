@@ -191,7 +191,6 @@ export default function BuildingTourPage() {
 
     const token = typeof window !== "undefined" ? sessionStorage.getItem("admin_token") : null;
     if (!token) {
-      alert("Akses ditolak. Silakan login terlebih dahulu.");
       window.location.href = "/login";
       return;
     }
@@ -237,7 +236,6 @@ export default function BuildingTourPage() {
 
     const token = typeof window !== "undefined" ? sessionStorage.getItem("admin_token") : null;
     if (!token) {
-      alert("Akses ditolak. Silakan login terlebih dahulu.");
       window.location.href = "/login";
       return;
     }
