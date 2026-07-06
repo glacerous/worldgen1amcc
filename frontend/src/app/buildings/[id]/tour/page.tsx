@@ -191,7 +191,7 @@ export default function BuildingTourPage() {
 
     const token = typeof window !== "undefined" ? sessionStorage.getItem("admin_token") : null;
     if (!token) {
-      window.location.href = "/login";
+      window.location.href = "/admin/login";
       return;
     }
 
@@ -236,7 +236,7 @@ export default function BuildingTourPage() {
 
     const token = typeof window !== "undefined" ? sessionStorage.getItem("admin_token") : null;
     if (!token) {
-      window.location.href = "/login";
+      window.location.href = "/admin/login";
       return;
     }
 

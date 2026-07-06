@@ -76,7 +76,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const sessionToken = sessionStorage.getItem("admin_token");
     if (!sessionToken) {
-      router.push("/login");
+      router.push("/admin/login");
       return;
     }
     setToken(sessionToken);
@@ -108,7 +108,7 @@ export default function AdminDashboardPage() {
         ) {
           sessionStorage.removeItem("admin_token");
           document.cookie = "admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; samesite=lax";
-          router.push("/login");
+          router.push("/admin/login");
           return;
         }
         throw new Error("Gagal mengambil data administrasi.");
@@ -237,7 +237,7 @@ export default function AdminDashboardPage() {
   const handleLogout = () => {
     sessionStorage.removeItem("admin_token");
     document.cookie = "admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; samesite=lax";
-    router.push("/login");
+    router.push("/admin/login");
   };
 
   // Filter open reports

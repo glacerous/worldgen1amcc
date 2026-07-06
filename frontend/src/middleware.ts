@@ -30,11 +30,11 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  const isAdminRoute = path.startsWith("/admin");
-  const isLoginRoute = path === "/login";
+  const isLoginRoute = path === "/admin/login";
+  const isAdminRoute = path.startsWith("/admin") && !isLoginRoute;
 
   if (isAdminRoute && !isAuthenticated) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/admin/login", request.url);
     // Clear cookie if it existed but was invalid/expired
     const response = NextResponse.redirect(loginUrl);
     if (token) {
@@ -52,5 +52,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/login"],
+  matcher: ["/admin/:path*"],
 };
