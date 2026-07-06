@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import CardMarquee from "@/components/CardMarquee";
 
@@ -26,18 +27,18 @@ export default function Home() {
             
             {/* CTA Buttons */}
             <div className="flex flex-wrap gap-4 mb-10">
-              <a
+              <Link
                 href="/buildings/submit"
                 className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-sm font-semibold px-6 py-3 rounded transition-all cursor-pointer"
               >
                 Mulai Audit Baru
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/buildings"
                 className="inline-flex items-center justify-center bg-surface text-ink hover:bg-bg border border-line font-sans text-sm font-semibold px-6 py-3 rounded transition-all cursor-pointer"
               >
                 Lihat Daftar Gedung
-              </a>
+              </Link>
             </div>
 
 
