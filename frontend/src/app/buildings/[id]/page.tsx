@@ -17,6 +17,9 @@ interface Building {
   manually_set_by_admin?: boolean;
   trust_score_cache?: number | null;
   vote_count_cache?: number;
+  status_summary?: "review" | "no_audit" | "active";
+  compliance_score?: number | "N/A" | null;
+  audit_run_count?: number;
 }
 
 interface AuditResult {
@@ -106,136 +109,122 @@ export default async function BuildingDetailPage({
   const unknownCount = auditResults.filter((r) => r.status === "unknown").length;
   const naCount = auditResults.filter((r) => r.status === "na").length;
 
-  const evaluableCount = totalCount - naCount;
-  const complianceScore =
-    totalCount > 0 && evaluableCount > 0
-      ? Math.round((metCount / evaluableCount) * 100)
-      : null;
-
   const hasVisualAgent = auditResults.some(
     (r) => r.source_agent === "visual_agent" && r.status !== "unknown"
   );
+
+  const statusSummary = building.status_summary || "active";
+  const complianceScore = building.compliance_score !== undefined ? building.compliance_score : null;
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
       <Navbar />
       
       <main className="flex-1 px-6 py-12 md:py-16 max-w-4xl mx-auto w-full">
-        {/* Header Section */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-          <div>
+        {/* Consolidated Header Container */}
+        <div className="bg-surface border border-line rounded-lg p-6 sm:p-8 mb-8 space-y-6">
+          {/* Navigation & Actions Row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <Link
               href="/buildings"
-              className="inline-flex items-center text-xs font-sans text-ink-muted hover:text-accent transition-colors mb-4"
+              className="inline-flex items-center text-xs font-sans text-ink-muted hover:text-accent transition-colors"
             >
               <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"></path>
               </svg>
               Kembali ke Daftar Gedung
             </Link>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="font-display text-3xl md:text-5xl font-normal text-ink leading-tight">
-                {building.name}
-              </h1>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`inline-flex px-2 py-0.5 border rounded-md text-[9px] font-sans font-semibold uppercase tracking-wider ${
-                  building.verified 
-                    ? "bg-accent/10 text-accent border-accent/20" 
-                    : "bg-bg text-ink-muted border-line"
-                }`}>
-                  {building.verified ? "Diverifikasi Tim" : "Kontribusi Komunitas"}
-                </span>
-                <TrustBadge 
-                  status={(building.trust_status || "neutral") as any}
-                  manuallySetByAdmin={!!building.manually_set_by_admin}
-                  trustScore={building.trust_score_cache ?? null}
-                  voteCount={building.vote_count_cache ?? 0}
-                />
-              </div>
+            
+            {/* Inline actions (Vote & Tour) */}
+            <div className="flex flex-wrap items-center gap-4">
+              <BuildingDetailActions buildingId={building.id} />
+              
+              <Link
+                href={`/buildings/${building.id}/tour`}
+                className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all w-fit cursor-pointer"
+              >
+                Lihat Tur 360°
+              </Link>
             </div>
-            <p className="font-sans text-sm text-ink-muted mt-2">
-              {building.address || "Alamat belum ditambahkan."}
-            </p>
           </div>
 
-          <Link
-            href={`/buildings/${building.id}/tour`}
-            className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2.5 rounded-md transition-all w-fit cursor-pointer md:mt-8"
-          >
-            Lihat Tur 360°
-          </Link>
-        </div>
+          <div className="border-t border-line/45"></div>
 
-        {/* Disclaimer Banner */}
-        <div className="bg-surface border-l-2 border-line/90 p-4 mb-6 rounded-r-md">
-          <p className="font-sans text-xs text-ink-muted leading-relaxed">
-            Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
-          </p>
-        </div>
+          {/* Building Details, Score, and Breakdown */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="font-display text-3xl md:text-4xl font-bold text-ink leading-tight">
+                  {building.name}
+                </h1>
+                
+                {/* Status Badge */}
+                {statusSummary === "review" && (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-sans font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-600 border border-amber-500/20 gap-1 shadow-xs">
+                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Dalam Peninjauan
+                  </span>
+                )}
 
-        {/* Voting & Reporting Actions */}
-        <BuildingDetailActions buildingId={building.id} />
-
-        {/* Summary Bar Component */}
-        <div className="bg-surface border border-line rounded-md p-6 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-6">
-            {/* compliance score rendering */}
-            <div>
-              <span className="block text-[11px] font-sans font-semibold text-ink-muted uppercase tracking-wider mb-1">
-                Kepatuhan Audit
-              </span>
-              <div className="flex items-baseline gap-1">
-                {complianceScore !== null ? (
-                  <>
-                    <span className="font-display text-4xl md:text-5xl font-bold text-accent">
-                      {complianceScore}%
-                    </span>
-                  </>
-                ) : (
-                  <span className="font-display text-2xl font-bold text-ink-muted">
-                    Belum Audit
+                {statusSummary === "no_audit" && (
+                  <span className="px-2.5 py-1 bg-status-unknown/10 text-status-unknown border border-status-unknown/20 rounded-md text-[10px] font-sans font-medium whitespace-nowrap">
+                    Menunggu Audit Pertama
                   </span>
                 )}
               </div>
+              <p className="font-sans text-sm text-ink-muted leading-relaxed truncate">
+                {building.address || "Alamat belum ditambahkan."}
+              </p>
             </div>
-            
-            {/* Decorative hairline vertical divider */}
-            <div className="hidden md:block w-px h-12 bg-line"></div>
-          </div>
 
-          {/* Breakdown Section */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-8 text-center md:text-left flex-1 md:justify-end">
-            <div className="border border-line/40 md:border-transparent p-2.5 md:p-0 rounded-md bg-bg/20 md:bg-transparent">
-              <span className="block text-[10px] font-sans font-semibold text-ink-muted uppercase tracking-wider mb-1">
-                Terpenuhi
-              </span>
-              <span className="font-display text-2xl font-semibold text-status-met">
-                {metCount}
-              </span>
-            </div>
-            <div className="border border-line/40 md:border-transparent p-2.5 md:p-0 rounded-md bg-bg/20 md:bg-transparent">
-              <span className="block text-[10px] font-sans font-semibold text-ink-muted uppercase tracking-wider mb-1">
-                Gagal
-              </span>
-              <span className="font-display text-2xl font-semibold text-status-not-met">
-                {notMetCount}
-              </span>
-            </div>
-            <div className="border border-line/40 md:border-transparent p-2.5 md:p-0 rounded-md bg-bg/20 md:bg-transparent">
-              <span className="block text-[10px] font-sans font-semibold text-ink-muted uppercase tracking-wider mb-1">
-                Unknown
-              </span>
-              <span className="font-display text-2xl font-semibold text-status-unknown">
-                {unknownCount}
-              </span>
-            </div>
-            <div className="border border-line/40 md:border-transparent p-2.5 md:p-0 rounded-md bg-bg/20 md:bg-transparent">
-              <span className="block text-[10px] font-sans font-semibold text-ink-muted uppercase tracking-wider mb-1">
-                N/A
-              </span>
-              <span className="font-display text-2xl font-semibold text-status-na">
-                {naCount}
-              </span>
+            {/* Score & Breakdown Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-6 flex-shrink-0 md:justify-end">
+              {statusSummary === "active" && (
+                <div className="flex flex-col items-start sm:items-end gap-1">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-display text-5xl md:text-6xl font-extrabold text-accent leading-none">
+                      {complianceScore !== null ? `${complianceScore}%` : "N/A"}
+                    </span>
+                    
+                    {/* Tooltip Disclaimer */}
+                    <div className="group relative cursor-pointer inline-flex items-center text-ink-muted hover:text-accent select-none self-start mt-0.5">
+                      <span className="text-[11px] font-bold font-sans">ⓘ</span>
+                      <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-64 bg-surface border border-line p-3 rounded-md shadow-lg text-[10px] leading-relaxed font-sans font-normal text-ink z-50">
+                        Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <span className="text-[9px] font-sans text-ink-muted font-medium whitespace-nowrap">
+                    Hasil dianalisis otomatis oleh AI
+                  </span>
+                </div>
+              )}
+
+              {/* Decorative separator */}
+              {statusSummary === "active" && <div className="hidden sm:block w-px h-10 bg-line/60"></div>}
+
+              {/* Stats Breakdown */}
+              <div className="flex items-center gap-x-4 text-center sm:text-left">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">Terpenuhi</span>
+                  <span className="font-display text-lg font-bold text-status-met">{metCount}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">Gagal</span>
+                  <span className="font-display text-lg font-bold text-status-not-met">{notMetCount}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">Unknown</span>
+                  <span className="font-display text-lg font-bold text-status-unknown">{unknownCount}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">N/A</span>
+                  <span className="font-display text-lg font-bold text-status-na">{naCount}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -466,12 +466,72 @@ def get_buildings():
 def get_building(id: UUID):
     """
     Get a single building by ID.
+    Computes status_summary, compliance_score, and audit_run_count for consistency.
     """
     try:
-        response = supabase.table("buildings").select("*").eq("id", str(id)).execute()
+        building_id = str(id)
+        response = supabase.table("buildings").select("*").eq("id", building_id).execute()
         if not response.data:
             raise HTTPException(status_code=404, detail=f"Building with ID {id} not found")
         b = response.data[0]
+
+        # 1. Fetch audit results, runs, open reports, and criteria in parallel
+        results_res = supabase.table("audit_results") \
+            .select("building_id, status, evidence_url, audit_criteria(code, category)") \
+            .eq("building_id", building_id) \
+            .execute()
+        b_results = results_res.data or []
+
+        runs_res = supabase.table("audit_runs").select("building_id").eq("building_id", building_id).execute()
+        run_count = len(runs_res.data or [])
+
+        open_reports_res = supabase.table("reports") \
+            .select("audit_result_id, status, audit_results(building_id)") \
+            .eq("status", "open") \
+            .execute()
+        open_reports = open_reports_res.data or []
+
+        criteria_res = supabase.table("audit_criteria").select("code").execute()
+        criteria_list = criteria_res.data or []
+
+        # 2. Check if this building has any open reports
+        has_open_reports = False
+        for rep in open_reports:
+            res_obj = rep.get("audit_results")
+            if res_obj and res_obj.get("building_id") == building_id:
+                has_open_reports = True
+                break
+
+        # 3. Check disputes
+        results_by_code = {}
+        for r in b_results:
+            crit = r.get("audit_criteria")
+            if crit and crit.get("code"):
+                results_by_code.setdefault(crit["code"], []).append(r["status"])
+
+        has_dispute = False
+        for code, statuses in results_by_code.items():
+            if len(set(statuses)) > 1:
+                has_dispute = True
+                break
+
+        # 4. Determine status summary and score
+        if has_dispute or has_open_reports:
+            status_summary = "review"
+            compliance_score = None
+        elif run_count == 0:
+            status_summary = "no_audit"
+            compliance_score = None
+        else:
+            status_summary = "active"
+            compliance_score = compute_building_compliance(b_results, criteria_list)
+
+        b["status_summary"] = status_summary
+        b["compliance_score"] = compliance_score
+        b["audit_run_count"] = run_count
+        b["audit_results"] = b_results
+
+        # Safe defaults
         b.setdefault("trust_status", "neutral")
         b.setdefault("manually_set_by_admin", False)
         b.setdefault("trust_score_cache", None)
