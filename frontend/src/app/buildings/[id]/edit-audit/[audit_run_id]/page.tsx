@@ -122,7 +122,7 @@ export default function EditAuditPage({
   };
 
   // Loading states
-  if (authLoading || loadingRun) {
+  if (authLoading || !user || loadingRun) {
     return (
       <div className="min-h-screen flex flex-col bg-bg">
         <Navbar />

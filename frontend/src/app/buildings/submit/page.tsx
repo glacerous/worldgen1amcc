@@ -38,6 +38,18 @@ export default function SubmitBuildingPage() {
       router.push("/login?redirect=/buildings/submit");
     }
   }, [loading, user, router]);
+
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex flex-col bg-bg">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-accent/25 border-t-accent rounded-full animate-spin"></div>
+        </main>
+      </div>
+    );
+  }
+
   const [warningDistance, setWarningDistance] = useState<number | null>(null);
  
   // Geocoding query to resolve address coordinates
