@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Newsreader, IBM_Plex_Mono } from "next/font/google";
+import { AuthProvider } from "@/hooks/useAuth";
 import "./globals.css";
 
 const inter = Inter({
@@ -38,7 +39,11 @@ export default function RootLayout({
       lang="id"
       className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }

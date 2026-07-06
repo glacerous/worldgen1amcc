@@ -38,13 +38,12 @@ function CallbackContent() {
         
         // 4. Redirect ke /buildings/submit atau parameter redirect asal
         const targetPath = redirect || "/buildings/submit";
-        router.push(targetPath);
+        window.location.href = targetPath;
       })
       .catch((err) => {
-        console.error(err);
+        console.error("Autentikasi gagal:", err);
         localStorage.removeItem("aksesibel_token");
-        alert("Autentikasi gagal. Silakan coba masuk kembali.");
-        router.push("/");
+        window.location.href = "/";
       });
   }, [token, redirect, router, BACKEND_URL]);
 

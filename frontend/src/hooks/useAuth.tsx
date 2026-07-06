@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+"use client";
+
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 export interface User {
@@ -8,7 +10,17 @@ export interface User {
   avatar_url: string | null;
 }
 
-export function useAuth() {
+interface AuthContextType {
+  user: User | null;
+  token: string | null;
+  loading: boolean;
+  login: (redirectPath?: string) => void;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -50,8 +62,20 @@ export function useAuth() {
     }
     setUser(null);
     setToken(null);
-    router.push("/");
+    window.location.href = "/";
   };
 
-  return { user, token, loading, login, logout };
+  return (
+    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 }

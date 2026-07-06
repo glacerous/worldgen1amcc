@@ -6,7 +6,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col bg-bg">
       <Navbar />
       
-      <main className="flex-1 flex items-center justify-center px-6 py-12 md:py-20 max-w-5xl mx-auto w-full">
+      <main className="flex-1 flex items-center justify-center px-6 py-12 md:py-20 max-w-6xl mx-auto w-full">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center w-full">
           
           {/* Left Column: Headline and CTAs */}
@@ -40,19 +40,7 @@ export default function Home() {
               </a>
             </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex flex-wrap items-center gap-2 pt-6 border-t border-line/45">
-              <span className="font-sans text-xs text-ink-muted mr-1">Kategori:</span>
-              <button className="px-3 py-1 bg-surface border border-line hover:border-accent hover:text-accent rounded text-xs font-sans text-ink transition-colors cursor-pointer">
-                Mobilitas
-              </button>
-              <button className="px-3 py-1 bg-surface border border-line hover:border-accent hover:text-accent rounded text-xs font-sans text-ink transition-colors cursor-pointer">
-                Netra
-              </button>
-              <button className="px-3 py-1 bg-surface border border-line hover:border-accent hover:text-accent rounded text-xs font-sans text-ink transition-colors cursor-pointer">
-                Rungu
-              </button>
-            </div>
+
           </div>
 
           {/* Right Column: Animated Scrolling Cards Marquee */}

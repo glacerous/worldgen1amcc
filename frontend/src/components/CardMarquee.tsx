@@ -65,7 +65,7 @@ export default function CardMarquee() {
     <div
       style={{
         position: "relative",
-        height: "480px",
+        height: "640px",
         overflow: "hidden",
         maskImage:
           "linear-gradient(to bottom, transparent 0%, white 14%, white 86%, transparent 100%)",
@@ -80,12 +80,6 @@ export default function CardMarquee() {
           gap: "14px",
           animation: "marquee-down 30s linear infinite",
           willChange: "transform",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.animationPlayState = "paused";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.animationPlayState = "running";
         }}
       >
         {doubledCards.map((card, idx) => (
