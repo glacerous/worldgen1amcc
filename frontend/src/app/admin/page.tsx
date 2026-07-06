@@ -10,6 +10,7 @@ interface Building {
   name: string;
   address: string | null;
   verified: boolean;
+  gps_mismatch?: boolean;
 }
 
 interface Report {
@@ -30,6 +31,10 @@ interface Report {
       code: string;
       description: string;
       category: string;
+    } | null;
+    audit_runs?: {
+      gps_mismatch: boolean;
+      gps_distance_meters: number | null;
     } | null;
   } | null;
 }
@@ -324,6 +329,7 @@ export default function AdminDashboardPage() {
                       const critCode = report.audit_results?.audit_criteria?.code || "N/A";
                       const critDesc = report.audit_results?.audit_criteria?.description || "Kriteria tidak diketahui";
                       const evalStatus = report.audit_results?.status || "unknown";
+                      const hasGpsMismatch = report.audit_results?.audit_runs?.gps_mismatch || false;
 
                       return (
                         <div key={report.id} className="bg-surface border border-line rounded-md p-5 flex flex-col md:flex-row justify-between gap-6 hover:border-line/80 transition-colors">
@@ -348,6 +354,14 @@ export default function AdminDashboardPage() {
                               <span>
                                 Hasil Audit: <strong className="text-ink font-semibold">{statusLabels[evalStatus] || evalStatus}</strong>
                               </span>
+                              {hasGpsMismatch && (
+                                <>
+                                  <span>•</span>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-sans font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                                    GPS Tidak Cocok
+                                  </span>
+                                </>
+                              )}
                             </div>
 
                             {/* Criteria Description */}
@@ -447,6 +461,11 @@ export default function AdminDashboardPage() {
                             }`}>
                               {building.verified ? "Diverifikasi" : "Komunitas"}
                             </span>
+                            {building.gps_mismatch && (
+                              <span className="inline-flex px-2 py-0.5 border rounded-md text-[8px] font-sans font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-700 border-amber-500/20">
+                                GPS Tidak Cocok
+                              </span>
+                            )}
                           </div>
                           <p className="font-sans text-xs text-ink-muted mt-1">
                             {building.address || "Alamat belum diisi."}

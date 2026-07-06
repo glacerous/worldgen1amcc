@@ -109,7 +109,6 @@ def report_audit_result(audit_result_id: UUID, body: ReportRequest = Body(...)):
         raise HTTPException(status_code=500, detail=f"Terjadi kesalahan saat membuat laporan: {str(e)}")
 
 # ── Protected Admin Endpoints ───────────────────────────────────────────────
-
 @admin_router.get("/reports", response_model=List[dict])
 def get_admin_reports(token: str = Depends(require_admin)):
     """
@@ -117,7 +116,7 @@ def get_admin_reports(token: str = Depends(require_admin)):
     """
     try:
         response = supabase.table("reports") \
-            .select("*, audit_results(*, buildings(*), audit_criteria(*))") \
+            .select("*, audit_results(*, buildings(*), audit_criteria(*), audit_runs(*))") \
             .order("created_at", desc=True) \
             .execute()
         return response.data or []
@@ -158,7 +157,11 @@ def get_admin_disputed(token: str = Depends(require_admin)):
                 results_by_building[b_id][code] = []
             results_by_building[b_id][code].append(r["status"])
             
-        # 4. Filter buildings containing any criteria with conflicting statuses (more than 1 unique status)
+        # 4. Fetch all audit runs with gps_mismatch = True to map them
+        gps_runs_res = supabase.table("audit_runs").select("building_id").eq("gps_mismatch", True).execute()
+        mismatch_building_ids = {run["building_id"] for run in (gps_runs_res.data or [])}
+
+        # 5. Filter buildings containing any criteria with conflicting statuses (more than 1 unique status)
         disputed_buildings = []
         for b in buildings:
             b_id = b["id"]
@@ -169,6 +172,11 @@ def get_admin_disputed(token: str = Depends(require_admin)):
                 if len(set(statuses)) > 1:
                     has_dispute = True
                     break
+            
+            if has_dispute:
+                # Add gps_mismatch key for admin dashboard context
+                b["gps_mismatch"] = b_id in mismatch_building_ids
+                disputed_buildings.append(b)
                     
         return disputed_buildings
     except Exception as e:

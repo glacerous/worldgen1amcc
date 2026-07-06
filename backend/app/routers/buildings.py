@@ -119,7 +119,8 @@ async def submit_building(
     longitude: Optional[float] = Form(None),
     photos: List[UploadFile] = File(...),
     panorama: Optional[UploadFile] = File(None),
-    contributor_name: Optional[str] = Form(None)
+    contributor_name: Optional[str] = Form(None),
+    confirm_location: bool = Form(False)
 ):
     """
     Public endpoint to submit a building with photo evidence and optional panorama.
@@ -138,7 +139,35 @@ async def submit_building(
         if not panorama.content_type or not panorama.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="Berkas panorama yang diunggah harus berupa file gambar.")
 
-    # 3. Create the building record (community, unverified, status='pending')
+    # 3. GPS EXIF check from the first photo (AWAL)
+    gps_mismatch = False
+    gps_distance_meters = None
+    if photos:
+        first_photo = photos[0]
+        try:
+            first_photo_content = await first_photo.read()
+            # Seek back to 0 so the file content can be read again for upload
+            await first_photo.seek(0)
+            
+            gps_coords = get_exif_gps(first_photo_content)
+            if gps_coords and latitude is not None and longitude is not None:
+                photo_lat, photo_lon = gps_coords
+                distance = calculate_haversine_distance(latitude, longitude, photo_lat, photo_lon)
+                gps_distance_meters = distance
+                if distance > 500.0:
+                    gps_mismatch = True
+        except Exception as e:
+            print(f"Error checking EXIF GPS in initial phase: {e}")
+
+    # Return warning response if mismatch and not confirmed yet
+    if gps_mismatch and not confirm_location:
+        return {
+            "warning": "gps_mismatch",
+            "distance_meters": gps_distance_meters,
+            "message": "Jarak antara lokasi foto (GPS) dan lokasi alamat gedung terpaut lebih dari 500 meter."
+        }
+
+    # 4. Create the building record (community, unverified, status='pending')
     try:
         building_response = supabase.table("buildings").insert({
             "name": name,
@@ -157,26 +186,6 @@ async def submit_building(
         raise HTTPException(status_code=500, detail=f"Gagal mencatat data gedung: {str(e)}")
 
     building_id = new_building["id"]
-
-    # GPS EXIF check from the first photo
-    gps_mismatch = False
-    gps_distance_meters = None
-    if photos:
-        first_photo = photos[0]
-        try:
-            first_photo_content = await first_photo.read()
-            # Seek back to 0 so the file content can be read again for upload
-            await first_photo.seek(0)
-            
-            gps_coords = get_exif_gps(first_photo_content)
-            if gps_coords and latitude is not None and longitude is not None:
-                photo_lat, photo_lon = gps_coords
-                distance = calculate_haversine_distance(latitude, longitude, photo_lat, photo_lon)
-                gps_distance_meters = distance
-                if distance > 500.0:
-                    gps_mismatch = True
-        except Exception as e:
-            print(f"Error checking EXIF GPS: {e}")
 
     # 4. Upload photo files to Supabase Storage bucket "photos"
     photo_urls = []

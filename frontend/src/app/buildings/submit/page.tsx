@@ -28,7 +28,9 @@ export default function SubmitBuildingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [warningDistance, setWarningDistance] = useState<number | null>(null);
+ 
   // Geocoding query to resolve address coordinates
   const handleGeocode = async () => {
     if (!address.trim()) {
@@ -89,8 +91,12 @@ export default function SubmitBuildingPage() {
     setSelectedFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    performSubmit(false);
+  };
+
+  const performSubmit = async (confirmLocation: boolean) => {
     setIsLoading(true);
     setError(null);
 
@@ -113,6 +119,7 @@ export default function SubmitBuildingPage() {
     formData.append("address", address.trim());
     formData.append("latitude", mapCenter[0].toString());
     formData.append("longitude", mapCenter[1].toString());
+    formData.append("confirm_location", confirmLocation ? "true" : "false");
     
     if (contributorName.trim()) {
       formData.append("contributor_name", contributorName.trim());
@@ -132,12 +139,20 @@ export default function SubmitBuildingPage() {
         body: formData,
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "Gagal melakukan registrasi gedung.");
+        throw new Error(data.detail || "Gagal melakukan registrasi gedung.");
       }
 
-      const data = await res.json();
+      // Check if it is a warning
+      if (data.warning === "gps_mismatch") {
+        setWarningDistance(data.distance_meters);
+        setShowWarningModal(true);
+        setIsLoading(false);
+        return;
+      }
+
       const newBuildingId = data.building?.id;
 
       if (!newBuildingId) {
@@ -379,6 +394,62 @@ export default function SubmitBuildingPage() {
           </form>
         </div>
       </main>
+
+      {showWarningModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-ink/40 backdrop-blur-xs transition-opacity duration-300"
+            onClick={() => setShowWarningModal(false)}
+          />
+          
+          {/* Modal Card */}
+          <div className="relative bg-surface border border-line rounded-md max-w-md w-full p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-500/10 text-amber-700 dark:text-amber-600 rounded-full border border-amber-500/20">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-display text-lg font-semibold text-ink mb-2">
+                  Peringatan Selisih GPS
+                </h3>
+                <p className="font-sans text-xs text-ink-muted leading-relaxed mb-4">
+                  Metadata lokasi GPS pada foto bukti yang Anda unggah berjarak sekitar{" "}
+                  <strong className="text-amber-700 dark:text-amber-500">
+                    {warningDistance ? Math.round(warningDistance) : 0} meter
+                  </strong>{" "}
+                  dari titik koordinat alamat yang ditentukan di peta.
+                </p>
+                <p className="font-sans text-xs text-ink-muted leading-relaxed">
+                  Apakah Anda yakin koordinat dan foto yang Anda kirimkan sudah benar? Anda dapat kembali dan memindahkan pin lokasi atau tetap melanjutkan.
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowWarningModal(false)}
+                className="inline-flex items-center justify-center border border-line bg-surface hover:bg-bg/40 text-ink-muted hover:text-ink font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all cursor-pointer"
+              >
+                Perbaiki Alamat
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWarningModal(false);
+                  performSubmit(true);
+                }}
+                className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all cursor-pointer"
+              >
+                Tetap Lanjutkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
