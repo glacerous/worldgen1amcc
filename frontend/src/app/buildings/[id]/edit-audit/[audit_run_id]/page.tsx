@@ -40,15 +40,20 @@ export default function EditAuditPage({
     }
   }, [authLoading, user, router, buildingId, auditRunId]);
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   // Fetch audit run detail + ownership check
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading || !user || !auditRunId || !UUID_REGEX.test(auditRunId)) return;
 
     fetch(`${BACKEND_URL}/audit/runs/${auditRunId}/detail`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => {
-        if (!res.ok) throw new Error("Gagal mengambil data audit run.");
+      .then(async (res) => {
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(`Gagal mengambil data audit run (status ${res.status}): ${errText}`);
+        }
         return res.json();
       })
       .then((data: AuditRun) => {

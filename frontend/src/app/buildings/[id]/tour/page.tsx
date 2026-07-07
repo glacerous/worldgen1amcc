@@ -85,15 +85,17 @@ export default function BuildingTourPage() {
   const [hotspotLabel, setHotspotLabel] = useState("");
   const [isAddingHotspot, setIsAddingHotspot] = useState(false);
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   // Load building and list of scenes
   useEffect(() => {
-    if (!id) return;
+    if (!id || !UUID_REGEX.test(id)) return;
     loadBuildingAndScenes();
   }, [id]);
 
   // Load annotations & hotspots for active scene
   useEffect(() => {
-    if (!activeScene) return;
+    if (!activeScene || !activeScene.id || !UUID_REGEX.test(activeScene.id)) return;
     loadActiveSceneData(activeScene.id);
   }, [activeScene]);
 
@@ -110,11 +112,13 @@ export default function BuildingTourPage() {
           setIsLoading(false);
           return;
         }
-        throw new Error("Gagal memuat detail gedung.");
+        const errText = await buildingRes.text().catch(() => "");
+        throw new Error(`Gagal memuat detail gedung (status ${buildingRes.status}): ${errText}`);
       }
 
       if (!scenesRes.ok) {
-        throw new Error("Gagal memuat panorama gedung.");
+        const errText = await scenesRes.text().catch(() => "");
+        throw new Error(`Gagal memuat panorama gedung (status ${scenesRes.status}): ${errText}`);
       }
 
       const buildingData = await buildingRes.json();

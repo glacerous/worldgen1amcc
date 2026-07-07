@@ -70,12 +70,18 @@ export default function BuildingDetailPage({
   const [loadingResults, setLoadingResults] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   // Fetch building info
   useEffect(() => {
+    if (!id || !UUID_REGEX.test(id)) return;
     fetch(`${BACKEND_URL}/buildings/${id}`, { cache: "no-store" } as RequestInit)
-      .then((res) => {
+      .then(async (res) => {
         if (res.status === 404) { setNotFound(true); return null; }
-        if (!res.ok) throw new Error("Fetch building failed");
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(`Fetch building failed (status ${res.status}): ${errText}`);
+        }
         return res.json();
       })
       .then((data) => {
@@ -87,9 +93,13 @@ export default function BuildingDetailPage({
 
   // Fetch audit runs list
   useEffect(() => {
+    if (!id || !UUID_REGEX.test(id)) return;
     fetch(`${BACKEND_URL}/audit/runs/${id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Fetch runs failed");
+      .then(async (res) => {
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(`Fetch runs failed (status ${res.status}): ${errText}`);
+        }
         return res.json();
       })
       .then((runs: AuditRun[]) => {
@@ -104,10 +114,13 @@ export default function BuildingDetailPage({
 
   // Fetch consensus results (default view / no specific run selected)
   useEffect(() => {
-    if (selectedRunId !== null) return; // only for consensus view
+    if (!id || !UUID_REGEX.test(id) || selectedRunId !== null) return; // only for consensus view
     fetch(`${BACKEND_URL}/buildings/${id}/consensus`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Fetch consensus failed");
+      .then(async (res) => {
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(`Fetch consensus failed (status ${res.status}): ${errText}`);
+        }
         return res.json();
       })
       .then((data: AuditResult[]) => setConsensusResults(data))
@@ -116,7 +129,7 @@ export default function BuildingDetailPage({
 
   // Fetch results for a specific audit run when user clicks a pill
   useEffect(() => {
-    if (!selectedRunId) return;
+    if (!selectedRunId || !UUID_REGEX.test(selectedRunId)) return;
 
     // Check if the run already has results cached
     const cachedRun = auditRuns.find((r) => r.audit_run_id === selectedRunId);
@@ -124,8 +137,11 @@ export default function BuildingDetailPage({
 
     setLoadingResults(true);
     fetch(`${BACKEND_URL}/audit/runs/${selectedRunId}/results`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Fetch run results failed");
+      .then(async (res) => {
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(`Fetch run results failed (status ${res.status}): ${errText}`);
+        }
         return res.json();
       })
       .then((results: AuditResult[]) => {
