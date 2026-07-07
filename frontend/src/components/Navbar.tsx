@@ -9,7 +9,12 @@ export default function Navbar() {
   return (
     <nav className="sticky top-4 z-50 mx-4 md:mx-12 my-2 bg-surface/80 backdrop-blur-md border border-line rounded-full py-3.5 px-6 md:px-8 flex items-center justify-between shadow-xs transition-all">
       {/* Left: Branding Wordmark */}
-      <Link href="/" className="group">
+      <Link href="/" className="group flex items-center gap-2.5">
+        <img 
+          src="/logo.png" 
+          alt="Aksesibel Logo" 
+          className="w-8 h-8 object-contain"
+        />
         <span className="font-display text-2xl font-bold text-ink group-hover:text-accent transition-all">
           Aksesibel
         </span>
