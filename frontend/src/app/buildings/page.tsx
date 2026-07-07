@@ -35,6 +35,8 @@ interface Building {
   created_at?: string;
 }
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+
 export default function BuildingsPage() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,11 +46,12 @@ export default function BuildingsPage() {
   useEffect(() => {
     async function loadBuildings() {
       try {
-        const res = await fetch("http://127.0.0.1:8000/buildings", {
+        const res = await fetch(`${BACKEND_URL}/buildings`, {
           cache: "no-store",
         });
         if (!res.ok) {
-          throw new Error("Failed to fetch buildings");
+          const errText = await res.text().catch(() => "");
+          throw new Error(`Failed to fetch buildings (status ${res.status}): ${errText}`);
         }
         const data = await res.json();
         setBuildings(data);

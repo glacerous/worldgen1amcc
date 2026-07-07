@@ -374,7 +374,7 @@ def compute_building_compliance(results: List[Dict[str, Any]], criteria_list: Li
         if len(candidates) == 1:
             final_status = candidates[0]
         else:
-            final_status = max(candidates, key=lambda st: priority_map.get(st.lower(), 0))
+            final_status = max(candidates, key=lambda st: priority_map.get((st or "").lower(), 0))
             
         if final_status == "na":
             continue
@@ -629,7 +629,7 @@ def get_building_consensus(id: UUID):
                     final_status = candidates[0]
                 else:
                     # Tie-breaker based on priority map
-                    final_status = max(candidates, key=lambda st: priority_map.get(st.lower(), 0))
+                    final_status = max(candidates, key=lambda st: priority_map.get((st or "").lower(), 0))
 
                 agree_count = max_count
                 # Get the ID of one of the audit results that matches the consensus status
