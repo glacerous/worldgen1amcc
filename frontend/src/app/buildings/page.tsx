@@ -324,7 +324,7 @@ export default function BuildingsPage() {
                         </div>
 
                         {/* Status Container */}
-                        <div className="flex-shrink-0 flex items-center justify-end">
+                        <div className="flex-shrink-0 flex items-center justify-end gap-3">
                           {building.status_summary === "review" && (
                             <span className="inline-flex items-center px-2.5 py-1 rounded text-[10px] font-sans font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-600 border border-amber-500/20 gap-1.5 shadow-xs">
                               <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -340,7 +340,7 @@ export default function BuildingsPage() {
                             </span>
                           )}
 
-                          {building.status_summary === "active" && (
+                          {(building.status_summary === "active" || building.status_summary === "review") && building.compliance_score !== null && building.compliance_score !== undefined && (
                             <div className="flex flex-col items-end">
                               <span className={`font-display text-3xl sm:text-4xl font-extrabold ${
                                 building.compliance_score === "N/A" ? "text-ink-muted" : "text-accent"

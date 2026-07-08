@@ -23,6 +23,7 @@ app.add_middleware(
 app.include_router(auth_users.router, prefix="/auth")
 app.include_router(buildings.router)
 app.include_router(audit.router)
+app.include_router(audit.audit_runs_router)
 app.include_router(geocode.router)
 app.include_router(annotations.router)
 app.include_router(scenes.router)

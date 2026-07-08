@@ -112,6 +112,166 @@ def create_building(building: BuildingCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/{building_id}/audit-submit", response_model=dict)
+async def submit_building_audit(
+    building_id: UUID,
+    photos: List[UploadFile] = File(...),
+    panorama: Optional[UploadFile] = File(None),
+    contributor_name: Optional[str] = Form(None),
+    current_user = Depends(get_optional_user)
+):
+    """
+    Submits photo evidence for an existing building to create a new audit run.
+    """
+    # 1. Check if building exists
+    building_id_str = str(building_id)
+    building_res = supabase.table("buildings").select("*").eq("id", building_id_str).execute()
+    if not building_res.data:
+        raise HTTPException(status_code=404, detail="Gedung tidak ditemukan.")
+    existing_building = building_res.data[0]
+
+    # 2. Validation: at least one photo is required
+    if not photos or len(photos) == 0:
+        raise HTTPException(status_code=400, detail="Minimal 1 foto bukti wajib diunggah.")
+        
+    for photo in photos:
+        if not photo.content_type or not photo.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Semua berkas yang diunggah harus berupa file gambar.")
+
+    if panorama:
+        if not panorama.content_type or not panorama.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Berkas panorama yang diunggah harus berupa file gambar.")
+
+    # 3. Upload photo files to Supabase Storage bucket "photos"
+    photo_urls = []
+    for photo in photos:
+        try:
+            file_extension = photo.filename.split(".")[-1] if "." in photo.filename else "jpg"
+            unique_filename = f"{uuid.uuid4()}.{file_extension}"
+            file_content = await photo.read()
+            
+            supabase.storage.from_("photos").upload(
+                path=unique_filename,
+                file=file_content,
+                file_options={"content-type": photo.content_type}
+            )
+            
+            public_url = supabase.storage.from_("photos").get_public_url(unique_filename)
+            photo_urls.append(public_url)
+        except Exception as upload_err:
+            raise HTTPException(status_code=500, detail=f"Gagal mengunggah foto bukti ke server: {str(upload_err)}")
+
+    # 4. Run the multi-agent audit pipeline using the uploaded photo URLs
+    try:
+        audit_summary = run_audit_pipeline(
+            building_id_str,
+            photo_urls,
+            contributor_name=contributor_name,
+            gps_mismatch=False,
+            gps_distance_meters=None
+        )
+    except Exception as audit_err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gedung ditemukan namun terjadi kegagalan audit: {str(audit_err)}"
+        )
+
+    # 5. Link current_user if logged in
+    if current_user and audit_summary.get("audit_run_id"):
+        try:
+            supabase.table("audit_runs").update({
+                "user_id": current_user["user_id"]
+            }).eq("id", audit_summary["audit_run_id"]).execute()
+        except Exception as e:
+            print(f"[warn] Gagal mengaitkan user_id ke audit_run: {e}")
+
+    # 6. Process optional panorama
+    scene_id = None
+    if panorama:
+        try:
+            # Ensure bucket exists
+            try:
+                supabase.storage.create_bucket("panoramas", {"public": True})
+            except Exception:
+                pass
+
+            file_extension = panorama.filename.split(".")[-1] if "." in panorama.filename else "jpg"
+            unique_filename = f"{uuid.uuid4()}.{file_extension}"
+            file_content = await panorama.read()
+            
+            supabase.storage.from_("panoramas").upload(
+                path=unique_filename,
+                file=file_content,
+                file_options={"content-type": panorama.content_type}
+            )
+            
+            panorama_url = supabase.storage.from_("panoramas").get_public_url(unique_filename)
+            
+            scene_response = supabase.table("scenes").insert({
+                "building_id": building_id_str,
+                "type": "panorama_360",
+                "file_url": panorama_url,
+                "label": panorama.filename
+            }).execute()
+            
+            if scene_response.data:
+                scene_id = scene_response.data[0]["id"]
+                features = run_panorama_agent(panorama_url)
+                if features:
+                    audit_results_response = supabase.table("audit_results") \
+                        .select("*, audit_criteria(*)") \
+                        .eq("building_id", building_id_str) \
+                        .execute()
+                    results = audit_results_response.data or []
+                    
+                    def find_matching_audit_result(lbl: str, audit_results: list) -> Optional[str]:
+                        lbl_lower = lbl.lower()
+                        for r in audit_results:
+                            criteria = r.get("audit_criteria")
+                            if not criteria:
+                                continue
+                            desc = criteria.get("description", "").lower()
+                            code = criteria.get("code", "").lower()
+                            if "toilet" in lbl_lower and "toilet" in desc:
+                                return r["id"]
+                            if "ramp" in lbl_lower and "ramp" in desc:
+                                return r["id"]
+                            if "tangga" in lbl_lower and "tangga" in desc:
+                                return r["id"]
+                            if ("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc:
+                                return r["id"]
+                            if "pintu" in lbl_lower and "pintu" in desc:
+                                return r["id"]
+                            if lbl_lower in desc or lbl_lower in code:
+                                return r["id"]
+                        return None
+
+                    annotations_to_insert = []
+                    for item in features:
+                        yaw = (item["x_percent"] / 100) * 360 - 180
+                        pitch = 90 - (item["y_percent"] / 100) * 180
+                        match_id = find_matching_audit_result(item["label"], results)
+                        
+                        annotations_to_insert.append({
+                            "scene_id": scene_id,
+                            "label": item["label"],
+                            "pitch": pitch,
+                            "yaw": yaw,
+                            "audit_result_id": match_id
+                        })
+                    
+                    if annotations_to_insert:
+                        supabase.table("annotations").insert(annotations_to_insert).execute()
+        except Exception as panorama_err:
+            print(f"Gagal memproses panorama: {str(panorama_err)}")
+
+    return {
+        "building": existing_building,
+        "audit_summary": audit_summary,
+        "scene_id": scene_id
+    }
+
+
 @router.post("/submit", response_model=dict)
 async def submit_building(
     name: str = Form(...),
@@ -392,7 +552,7 @@ def compute_building_compliance(results: List[Dict[str, Any]], criteria_list: Li
 def get_buildings():
     """
     Get all buildings. No pending status filtering.
-    Computes a single clean status_summary, consensus compliance score, and audit run counts.
+    Computes a single clean status_summary, primary audit run compliance score, and audit run counts.
     """
     try:
         # 1. Fetch buildings, audit results, audit runs, open reports, and criteria in parallel
@@ -400,11 +560,11 @@ def get_buildings():
         buildings = buildings_res.data or []
         
         results_res = supabase.table("audit_results") \
-            .select("building_id, status, evidence_url, audit_criteria(code, category)") \
+            .select("building_id, status, evidence_url, audit_run_id, audit_criteria(code, category)") \
             .execute()
         results = results_res.data or []
         
-        runs_res = supabase.table("audit_runs").select("building_id").execute()
+        runs_res = supabase.table("audit_runs").select("id, building_id, created_at").execute()
         runs = runs_res.data or []
         
         open_reports_res = supabase.table("reports") \
@@ -422,11 +582,20 @@ def get_buildings():
             b_id = r["building_id"]
             results_by_building.setdefault(b_id, []).append(r)
             
-        # 3. Group run counts by building_id
-        runs_count_by_building = {}
+        # 3. Group runs by building_id and find primary run
+        runs_by_building = {}
         for run in runs:
             b_id = run["building_id"]
-            runs_count_by_building[b_id] = runs_count_by_building.get(b_id, 0) + 1
+            runs_by_building.setdefault(b_id, []).append(run)
+            
+        primary_run_id_by_building = {}
+        runs_count_by_building = {}
+        for b_id, b_runs in runs_by_building.items():
+            runs_count_by_building[b_id] = len(b_runs)
+            # Sort by created_at ASC to get the oldest run as primary
+            sorted_runs = sorted(b_runs, key=lambda x: x["created_at"])
+            if sorted_runs:
+                primary_run_id_by_building[b_id] = sorted_runs[0]["id"]
             
         # 4. Find building IDs that have open reports
         open_report_building_ids = set()
@@ -454,16 +623,26 @@ def get_buildings():
                     has_dispute = True
                     break
                     
+            # Get primary results
+            primary_run_id = primary_run_id_by_building.get(b_id)
+            if primary_run_id:
+                primary_results = [r for r in b_results if r.get("audit_run_id") == primary_run_id]
+            else:
+                primary_results = []
+
             # Determine status summary
             if has_dispute or b_id in open_report_building_ids:
                 status_summary = "review"
-                compliance_score = None
             elif run_count == 0:
                 status_summary = "no_audit"
-                compliance_score = None
             else:
                 status_summary = "active"
-                compliance_score = compute_building_compliance(b_results, criteria_list)
+                
+            # Compute compliance score from primary audit results if runs exist
+            if run_count > 0:
+                compliance_score = compute_building_compliance(primary_results, criteria_list)
+            else:
+                compliance_score = None
                 
             b["status_summary"] = status_summary
             b["compliance_score"] = compliance_score
@@ -480,11 +659,48 @@ def get_buildings():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/nearby", response_model=List[dict])
+def get_nearby_buildings(lat: float, lng: float, radius_meters: float = 100.0):
+    """
+    Search for all buildings within radius_meters from the given coordinates.
+    """
+    try:
+        # Fetch all buildings from DB that have lat and lng set
+        response = supabase.table("buildings") \
+            .select("id, name, address, latitude, longitude") \
+            .execute()
+        
+        buildings = response.data or []
+        nearby = []
+        
+        for b in buildings:
+            b_lat = b.get("latitude")
+            b_lng = b.get("longitude")
+            if b_lat is None or b_lng is None:
+                continue
+                
+            distance = calculate_haversine_distance(lat, lng, b_lat, b_lng)
+            if distance <= radius_meters:
+                nearby.append({
+                    "id": b["id"],
+                    "name": b["name"],
+                    "address": b["address"],
+                    "distance_meters": distance
+                })
+                
+        # Sort nearby by distance ascending
+        nearby.sort(key=lambda x: x["distance_meters"])
+        return nearby
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{id}", response_model=dict)
 def get_building(id: UUID):
     """
     Get a single building by ID.
-    Computes status_summary, compliance_score, and audit_run_count for consistency.
+    Computes status_summary, primary compliance_score, and audit_run_count for consistency.
     """
     try:
         building_id = str(id)
@@ -495,13 +711,14 @@ def get_building(id: UUID):
 
         # 1. Fetch audit results, runs, open reports, and criteria in parallel
         results_res = supabase.table("audit_results") \
-            .select("building_id, status, evidence_url, audit_criteria(code, category)") \
+            .select("id, building_id, status, evidence_url, audit_run_id, audit_criteria(code, category)") \
             .eq("building_id", building_id) \
             .execute()
         b_results = results_res.data or []
 
-        runs_res = supabase.table("audit_runs").select("building_id").eq("building_id", building_id).execute()
-        run_count = len(runs_res.data or [])
+        runs_res = supabase.table("audit_runs").select("id, created_at").eq("building_id", building_id).execute()
+        runs = runs_res.data or []
+        run_count = len(runs)
 
         open_reports_res = supabase.table("reports") \
             .select("audit_result_id, status, audit_results(building_id)") \
@@ -536,13 +753,20 @@ def get_building(id: UUID):
         # 4. Determine status summary and score
         if has_dispute or has_open_reports:
             status_summary = "review"
-            compliance_score = None
         elif run_count == 0:
             status_summary = "no_audit"
-            compliance_score = None
         else:
             status_summary = "active"
-            compliance_score = compute_building_compliance(b_results, criteria_list)
+
+        # Compute compliance score from primary audit results if runs exist
+        if run_count > 0 and runs:
+            # Sort runs by created_at ASC to get the oldest as primary
+            sorted_runs = sorted(runs, key=lambda x: x["created_at"])
+            primary_run_id = sorted_runs[0]["id"]
+            primary_results = [r for r in b_results if r.get("audit_run_id") == primary_run_id]
+            compliance_score = compute_building_compliance(primary_results, criteria_list)
+        else:
+            compliance_score = None
 
         b["status_summary"] = status_summary
         b["compliance_score"] = compliance_score
@@ -559,6 +783,75 @@ def get_building(id: UUID):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{id}/audit-runs", response_model=List[dict])
+def get_building_audit_runs_new(id: UUID):
+    """
+    Returns list of ALL audit_runs for that building, ordered from oldest to newest (created_at ASC).
+    For each item, includes: id, audit_run_id, contributor_name, created_at, summary (count of met/not_met/unknown),
+    and flag is_primary: true ONLY for the first item.
+    """
+    try:
+        # Fetch audit runs for the building, ordered by created_at ASC
+        runs_res = supabase.table("audit_runs") \
+            .select("*, users(display_name)") \
+            .eq("building_id", str(id)) \
+            .order("created_at", desc=False) \
+            .execute()
+        
+        runs = runs_res.data or []
+        if not runs:
+            return []
+            
+        # Fetch all audit results for the building to compute summaries
+        results_res = supabase.table("audit_results") \
+            .select("status, audit_run_id") \
+            .eq("building_id", str(id)) \
+            .execute()
+        results = results_res.data or []
+        
+        # Group counts by audit_run_id
+        results_by_run = {}
+        for r in results:
+            run_id = r.get("audit_run_id")
+            if not run_id:
+                continue
+            run_id_str = str(run_id)
+            if run_id_str not in results_by_run:
+                results_by_run[run_id_str] = {"met": 0, "not_met": 0, "unknown": 0}
+            status = r.get("status")
+            if status in results_by_run[run_id_str]:
+                results_by_run[run_id_str][status] += 1
+                
+        formatted_runs = []
+        for idx, run in enumerate(runs):
+            run_id_str = str(run["id"])
+            user_data = run.get("users") or {}
+            display_name = user_data.get("display_name")
+            
+            # contributor name resolution
+            if run.get("user_id") and display_name:
+                c_name = display_name
+            else:
+                c_name = run.get("contributor_name") or "Anonim"
+                
+            run_summary = results_by_run.get(run_id_str, {"met": 0, "not_met": 0, "unknown": 0})
+            
+            formatted_runs.append({
+                "id": run["id"],
+                "audit_run_id": run["id"],
+                "contributor_name": c_name,
+                "created_at": run["created_at"],
+                "summary": run_summary,
+                "is_primary": idx == 0,
+                "user_id": run.get("user_id")
+            })
+            
+        return formatted_runs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{id}/consensus", response_model=List[dict])
 def get_building_consensus(id: UUID):

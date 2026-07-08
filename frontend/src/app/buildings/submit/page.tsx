@@ -17,6 +17,8 @@ const Map = dynamic(() => import("@/components/Map"), {
   ),
 });
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+
 export default function SubmitBuildingPage() {
   const router = useRouter();
   const { user, token, loading } = useAuth();
@@ -31,6 +33,10 @@ export default function SubmitBuildingPage() {
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showWarningModal, setShowWarningModal] = useState(false);
+  
+  const [nearbyBuildings, setNearbyBuildings] = useState<any[]>([]);
+  const [selectedNearbyBuildingId, setSelectedNearbyBuildingId] = useState<string | null>(null);
+  const [userSelection, setUserSelection] = useState<"existing" | "new" | null>(null);
 
   // Auth guard: redirect to login if not logged in
   useEffect(() => {
@@ -52,6 +58,34 @@ export default function SubmitBuildingPage() {
     );
   }
  
+  // Fetch nearby buildings when mapCenter coordinates change
+  useEffect(() => {
+    const fetchNearby = async () => {
+      try {
+        const res = await fetch(
+          `${BACKEND_URL}/buildings/nearby?lat=${mapCenter[0]}&lng=${mapCenter[1]}&radius_meters=100`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setNearbyBuildings(data);
+          // Only reset if the current selection is no longer in the retrieved data
+          setSelectedNearbyBuildingId((prev) => {
+            if (prev && !data.some((b: any) => b.id === prev)) {
+              setUserSelection(null);
+              return null;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching nearby buildings:", err);
+      }
+    };
+
+    const timer = setTimeout(fetchNearby, 500);
+    return () => clearTimeout(timer);
+  }, [mapCenter]);
+
   // Geocoding query to resolve address coordinates
   const handleGeocode = async () => {
     if (!address.trim()) {
@@ -62,7 +96,7 @@ export default function SubmitBuildingPage() {
     setError(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/geocode", {
+      const res = await fetch(`${BACKEND_URL}/geocode`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -121,8 +155,10 @@ export default function SubmitBuildingPage() {
     setIsLoading(true);
     setError(null);
 
+    const isExisting = userSelection === "existing" && selectedNearbyBuildingId;
+
     // Form validation checks
-    if (!name.trim() || !address.trim()) {
+    if (!isExisting && (!name.trim() || !address.trim())) {
       setError("Nama gedung dan alamat lengkap wajib diisi.");
       setIsLoading(false);
       return;
@@ -136,11 +172,13 @@ export default function SubmitBuildingPage() {
 
     // Build Form Data payload
     const formData = new FormData();
-    formData.append("name", name.trim());
-    formData.append("address", address.trim());
-    formData.append("latitude", mapCenter[0].toString());
-    formData.append("longitude", mapCenter[1].toString());
-    formData.append("confirm_location", confirmLocation ? "true" : "false");
+    if (!isExisting) {
+      formData.append("name", name.trim());
+      formData.append("address", address.trim());
+      formData.append("latitude", mapCenter[0].toString());
+      formData.append("longitude", mapCenter[1].toString());
+      formData.append("confirm_location", confirmLocation ? "true" : "false");
+    }
     
     if (contributorName.trim()) {
       formData.append("contributor_name", contributorName.trim());
@@ -154,8 +192,12 @@ export default function SubmitBuildingPage() {
       formData.append("panorama", panoramaFile);
     }
 
+    const submitUrl = isExisting
+      ? `${BACKEND_URL}/buildings/${selectedNearbyBuildingId}/audit-submit`
+      : `${BACKEND_URL}/buildings/submit`;
+
     try {
-      const res = await fetch("http://127.0.0.1:8000/buildings/submit", {
+      const res = await fetch(submitUrl, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
@@ -167,27 +209,29 @@ export default function SubmitBuildingPage() {
         throw new Error(data.detail || "Gagal melakukan registrasi gedung.");
       }
 
-      // Check if it is a warning
-      if (data.warning === "gps_mismatch") {
+      // Check if it is a warning (only applicable to new building submission)
+      if (!isExisting && data.warning === "gps_mismatch") {
         setWarningDistance(data.distance_meters);
         setShowWarningModal(true);
         setIsLoading(false);
         return;
       }
 
-      const newBuildingId = data.building?.id;
+      const targetBuildingId = isExisting ? selectedNearbyBuildingId : data.building?.id;
 
-      if (!newBuildingId) {
+      if (!targetBuildingId) {
         throw new Error("Gagal memperoleh ID gedung hasil submit.");
       }
 
       // Success redirect to the detail results page immediately
-      router.push(`/buildings/${newBuildingId}`);
+      router.push(`/buildings/${targetBuildingId}`);
     } catch (err: any) {
       setError(err.message || "Terjadi kesalahan koneksi server.");
       setIsLoading(false);
     }
   };
+
+  const isExisting = userSelection === "existing" && !!selectedNearbyBuildingId;
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
@@ -212,16 +256,17 @@ export default function SubmitBuildingPage() {
             {/* Building Name Input */}
             <div>
               <label htmlFor="name" className="block text-xs font-sans font-semibold text-ink-muted mb-1.5">
-                Nama Gedung <span className="text-status-not-met">*</span>
+                Nama Gedung {!isExisting && <span className="text-status-not-met">*</span>}
               </label>
               <input
                 type="text"
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Contoh: Gedung Sate Bandung"
-                className="w-full bg-transparent border border-line rounded-md px-3 py-2 text-sm font-sans text-ink placeholder-ink-muted/50 focus:outline-none focus:border-accent/40"
-                required
+                placeholder={isExisting ? "Nama gedung otomatis dari gedung terpilih" : "Contoh: Gedung Sate Bandung"}
+                className="w-full bg-transparent border border-line rounded-md px-3 py-2 text-sm font-sans text-ink placeholder-ink-muted/50 focus:outline-none focus:border-accent/40 disabled:opacity-60"
+                required={!isExisting}
+                disabled={isExisting}
               />
             </div>
 
@@ -243,26 +288,29 @@ export default function SubmitBuildingPage() {
             {/* Address & Geocode Search Input */}
             <div>
               <label htmlFor="address" className="block text-xs font-sans font-semibold text-ink-muted mb-1.5">
-                Alamat Lengkap <span className="text-status-not-met">*</span>
+                Alamat Lengkap {!isExisting && <span className="text-status-not-met">*</span>}
               </label>
               <div className="flex gap-2">
                 <textarea
                   id="address"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Contoh: Jl. Diponegoro No. 22, Bandung"
+                  placeholder={isExisting ? "Alamat otomatis dari gedung terpilih" : "Contoh: Jl. Diponegoro No. 22, Bandung"}
                   rows={2}
-                  className="w-full bg-transparent border border-line rounded-md px-3 py-2 text-sm font-sans text-ink placeholder-ink-muted/50 focus:outline-none focus:border-accent/40"
-                  required
+                  className="w-full bg-transparent border border-line rounded-md px-3 py-2 text-sm font-sans text-ink placeholder-ink-muted/50 focus:outline-none focus:border-accent/40 disabled:opacity-60"
+                  required={!isExisting}
+                  disabled={isExisting}
                 />
-                <button
-                  type="button"
-                  disabled={isGeocoding}
-                  onClick={handleGeocode}
-                  className="flex-shrink-0 inline-flex items-center justify-center border border-line hover:bg-bg/40 font-sans text-xs font-semibold px-4 rounded-md text-ink transition-all disabled:opacity-50 h-auto cursor-pointer"
-                >
-                  {isGeocoding ? "Mencari..." : "Cari Lokasi"}
-                </button>
+                {!isExisting && (
+                  <button
+                    type="button"
+                    disabled={isGeocoding}
+                    onClick={handleGeocode}
+                    className="flex-shrink-0 inline-flex items-center justify-center border border-line hover:bg-bg/40 font-sans text-xs font-semibold px-4 rounded-md text-ink transition-all disabled:opacity-50 h-auto cursor-pointer"
+                  >
+                    {isGeocoding ? "Mencari..." : "Cari Lokasi"}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -276,6 +324,117 @@ export default function SubmitBuildingPage() {
                 Koordinat terpilih: {mapCenter[0].toFixed(6)}, {mapCenter[1].toFixed(6)}
               </p>
             </div>
+
+            {/* Nearby Buildings Suggestion Card */}
+            {nearbyBuildings.length > 0 && (
+              <div className="bg-accent/5 border border-accent/20 rounded-md p-4 space-y-3 font-sans text-xs">
+                {userSelection === null ? (
+                  <>
+                    {nearbyBuildings.length === 1 ? (
+                      <div>
+                        <p className="text-ink font-medium">
+                          Sepertinya gedung ini sudah terdaftar sebagai{" "}
+                          <span className="font-semibold text-accent">{nearbyBuildings[0].name}</span>,{" "}
+                          jarak <span className="font-semibold">{Math.round(nearbyBuildings[0].distance_meters)}</span> meter dari lokasi Anda.
+                        </p>
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedNearbyBuildingId(nearbyBuildings[0].id);
+                              setUserSelection("existing");
+                            }}
+                            className="bg-accent text-white hover:opacity-90 px-3 py-1.5 rounded font-semibold text-[11px] cursor-pointer"
+                          >
+                            Ya, tambahkan audit saya ke gedung ini
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedNearbyBuildingId(null);
+                              setUserSelection("new");
+                            }}
+                            className="bg-bg border border-line text-ink hover:bg-line/20 px-3 py-1.5 rounded font-semibold text-[11px] cursor-pointer"
+                          >
+                            Bukan, ini gedung berbeda
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-ink font-medium mb-2">
+                          Sepertinya lokasi ini dekat dengan beberapa gedung terdaftar:
+                        </p>
+                        <div className="space-y-2">
+                          {nearbyBuildings.map((b) => (
+                            <label
+                              key={b.id}
+                              className="flex items-center gap-2 p-2 border border-line rounded hover:bg-bg/40 cursor-pointer block"
+                            >
+                              <input
+                                type="radio"
+                                name="nearby_building"
+                                checked={selectedNearbyBuildingId === b.id}
+                                onChange={() => setSelectedNearbyBuildingId(b.id)}
+                                className="cursor-pointer"
+                              />
+                              <span className="text-xs text-ink">
+                                <strong>{b.name}</strong> ({Math.round(b.distance_meters)}m) - <span className="text-ink-muted text-[11px]">{b.address}</span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            type="button"
+                            disabled={!selectedNearbyBuildingId}
+                            onClick={() => setUserSelection("existing")}
+                            className="bg-accent text-white hover:opacity-90 px-3 py-1.5 rounded font-semibold text-[11px] disabled:opacity-50 cursor-pointer"
+                          >
+                            Ya, tambahkan audit saya ke gedung terpilih
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedNearbyBuildingId(null);
+                              setUserSelection("new");
+                            }}
+                            className="bg-bg border border-line text-ink hover:bg-line/20 px-3 py-1.5 rounded font-semibold text-[11px] cursor-pointer"
+                          >
+                            Bukan, ini gedung berbeda
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <p className="text-ink">
+                      {userSelection === "existing" ? (
+                        <>
+                          ✓ Menambahkan audit ke gedung:{" "}
+                          <span className="font-semibold text-accent">
+                            {nearbyBuildings.find((b) => b.id === selectedNearbyBuildingId)?.name}
+                          </span>
+                        </>
+                      ) : (
+                        "✓ Mendaftarkan gedung baru"
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserSelection(null);
+                        setSelectedNearbyBuildingId(null);
+                      }}
+                      className="text-accent font-semibold hover:underline text-[11px] cursor-pointer"
+                    >
+                      Ubah Pilihan
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Multiple Photo Picker & Preview Thumbnails */}
             <div className="space-y-2">

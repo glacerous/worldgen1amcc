@@ -308,3 +308,10 @@ def get_run_results(audit_run_id: UUID):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil hasil audit run: {str(e)}")
 
+
+audit_runs_router = APIRouter(prefix="/audit-runs", tags=["audit-runs"])
+
+@audit_runs_router.get("/{run_id}/results", response_model=List[dict])
+def get_audit_run_results_new_path(run_id: UUID):
+    return get_run_results(run_id)
+

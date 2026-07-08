@@ -42,15 +42,22 @@ interface AuditResult {
 }
 
 interface AuditRun {
+  id?: string;
   audit_run_id: string;
   building_id?: string;
   user_id: string | null;
   contributor_name?: string | null;
   display_name?: string | null;
   avatar_url?: string | null;
-  trust_score: number | null;
+  trust_score?: number | null;
   created_at: string;
   results?: AuditResult[];
+  is_primary?: boolean;
+  summary?: {
+    met: number;
+    not_met: number;
+    unknown: number;
+  };
 }
 
 export default function BuildingDetailPage({
@@ -69,6 +76,7 @@ export default function BuildingDetailPage({
   const [loadingRuns, setLoadingRuns] = useState(true);
   const [loadingResults, setLoadingResults] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [showAllRunsDropdown, setShowAllRunsDropdown] = useState(false);
 
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -94,7 +102,7 @@ export default function BuildingDetailPage({
   // Fetch audit runs list
   useEffect(() => {
     if (!id || !UUID_REGEX.test(id)) return;
-    fetch(`${BACKEND_URL}/audit/runs/${id}`)
+    fetch(`${BACKEND_URL}/buildings/${id}/audit-runs`)
       .then(async (res) => {
         if (!res.ok) {
           const errText = await res.text().catch(() => "");
@@ -105,7 +113,8 @@ export default function BuildingDetailPage({
       .then((runs: AuditRun[]) => {
         setAuditRuns(runs);
         if (runs.length > 0) {
-          setSelectedRunId(runs[0].audit_run_id);
+          const primaryRun = runs.find((r) => r.is_primary) || runs[0];
+          setSelectedRunId(primaryRun.audit_run_id || primaryRun.id);
         }
       })
       .catch(console.error)
@@ -132,11 +141,11 @@ export default function BuildingDetailPage({
     if (!selectedRunId || !UUID_REGEX.test(selectedRunId)) return;
 
     // Check if the run already has results cached
-    const cachedRun = auditRuns.find((r) => r.audit_run_id === selectedRunId);
+    const cachedRun = auditRuns.find((r) => r.audit_run_id === selectedRunId || r.id === selectedRunId);
     if (cachedRun?.results) return;
 
     setLoadingResults(true);
-    fetch(`${BACKEND_URL}/audit/runs/${selectedRunId}/results`)
+    fetch(`${BACKEND_URL}/audit-runs/${selectedRunId}/results`)
       .then(async (res) => {
         if (!res.ok) {
           const errText = await res.text().catch(() => "");
@@ -146,7 +155,7 @@ export default function BuildingDetailPage({
       })
       .then((results: AuditResult[]) => {
         setAuditRuns((prev) =>
-          prev.map((r) => (r.audit_run_id === selectedRunId ? { ...r, results } : r))
+          prev.map((r) => (r.audit_run_id === selectedRunId || r.id === selectedRunId ? { ...r, results } : r))
         );
       })
       .catch(console.error)
@@ -154,7 +163,7 @@ export default function BuildingDetailPage({
   }, [selectedRunId, auditRuns, id]);
 
   // Determine displayed results
-  const selectedRun = auditRuns.find((r) => r.audit_run_id === selectedRunId);
+  const selectedRun = auditRuns.find((r) => r.audit_run_id === selectedRunId || r.id === selectedRunId);
   const displayedResults: AuditResult[] =
     selectedRun?.results ?? consensusResults;
 
@@ -203,8 +212,16 @@ export default function BuildingDetailPage({
   }
 
   const statusSummary = building.status_summary || "active";
-  const complianceScore =
-    building.compliance_score !== undefined ? building.compliance_score : null;
+  const computedComplianceScore = displayedResults.length > 0
+    ? (() => {
+        const evaluable = displayedResults.length - displayedResults.filter((r) => r.status === "na").length;
+        const met = displayedResults.filter((r) => r.status === "met").length;
+        return evaluable > 0 ? Math.round((met / evaluable) * 100) : "N/A";
+      })()
+    : null;
+  const complianceScore = computedComplianceScore !== null
+    ? computedComplianceScore
+    : (building.compliance_score !== undefined ? building.compliance_score : null);
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
@@ -267,11 +284,101 @@ export default function BuildingDetailPage({
               <p className="font-sans text-sm text-ink-muted leading-relaxed truncate">
                 {building.address || "Alamat belum ditambahkan."}
               </p>
+
+              {/* Dilihat: Audit oleh [contributor_name] ([tanggal]) */}
+              {!loadingRuns && auditRuns.length > 0 && selectedRun && (
+                <div className="relative inline-block text-xs font-sans text-ink-muted mt-2">
+                  <span>
+                    Dilihat: Audit oleh{" "}
+                    <span className="font-semibold text-ink">
+                      {selectedRun.contributor_name || "Anonim"}
+                    </span>{" "}
+                    ({new Date(selectedRun.created_at).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })})
+                  </span>
+
+                  {auditRuns.length > 1 && (
+                    <div className="inline-block ml-2 relative">
+                      <button
+                        onClick={() => setShowAllRunsDropdown(!showAllRunsDropdown)}
+                        className="text-accent hover:underline font-medium focus:outline-none cursor-pointer"
+                      >
+                        Lihat {auditRuns.length - 1} audit lainnya
+                      </button>
+
+                      {showAllRunsDropdown && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setShowAllRunsDropdown(false)}
+                          />
+                          <div className="absolute left-0 mt-1 w-64 bg-surface border border-line rounded-md shadow-lg py-1 z-50">
+                            {auditRuns
+                              .filter((r) => r.audit_run_id !== selectedRunId && r.id !== selectedRunId)
+                              .map((run) => {
+                                const label = run.contributor_name || "Anonim";
+                                return (
+                                  <button
+                                    key={run.id || run.audit_run_id}
+                                    onClick={() => {
+                                      setSelectedRunId(run.id || run.audit_run_id);
+                                      setShowAllRunsDropdown(false);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-xs font-sans text-ink hover:bg-bg hover:text-accent transition-colors block cursor-pointer"
+                                  >
+                                    <div className="font-medium flex justify-between items-center">
+                                      <span>{label}</span>
+                                      {run.is_primary && (
+                                        <span className="bg-accent/10 text-accent text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                                          Utama
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[10px] text-ink-muted mt-0.5">
+                                      {new Date(run.created_at).toLocaleDateString("id-ID", {
+                                        day: "numeric",
+                                        month: "short",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </div>
+                                    {run.summary && (
+                                      <div className="flex gap-2 text-[9px] text-ink-muted mt-1">
+                                        <span className="text-status-met">Met: {run.summary.met}</span>
+                                        <span className="text-status-not-met">Not Met: {run.summary.not_met}</span>
+                                        <span className="text-status-unknown">Unknown: {run.summary.unknown}</span>
+                                      </div>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Edit button for current run if owned by logged-in user */}
+                  {user?.id && selectedRun.user_id === user.id && (
+                    <Link
+                      href={`/buildings/${id}/edit-audit/${selectedRunId}`}
+                      className="ml-2 inline-flex items-center px-2 py-0.5 text-[10px] font-sans font-semibold rounded border border-line text-ink-muted hover:border-accent hover:text-accent transition-all bg-surface"
+                      title="Edit audit run milik Anda"
+                    >
+                      Edit Audit
+                    </Link>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Score & Breakdown Row */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-6 flex-shrink-0 md:justify-end">
-              {statusSummary === "active" && (
+              {statusSummary !== "no_audit" && (
                 <div className="flex flex-col items-start sm:items-end gap-1">
                   <div className="flex items-baseline gap-1">
                     <span className="font-display text-5xl md:text-6xl font-extrabold text-accent leading-none">
@@ -296,7 +403,7 @@ export default function BuildingDetailPage({
               )}
 
               {/* Decorative separator */}
-              {statusSummary === "active" && <div className="hidden sm:block w-px h-10 bg-line/60"></div>}
+              {statusSummary !== "no_audit" && <div className="hidden sm:block w-px h-10 bg-line/60"></div>}
 
               {/* Stats Breakdown */}
               <div className="flex items-center gap-x-4 text-center sm:text-left">
@@ -330,56 +437,6 @@ export default function BuildingDetailPage({
             <p className="font-sans text-xs text-ink-muted leading-relaxed">
               Audit ini baru berdasarkan analisis teks nama dan alamat gedung, belum ada foto yang dianalisis. Hasil akan lebih akurat setelah foto diunggah.
             </p>
-          </div>
-        )}
-
-        {/* ── Multi-Audit Run Selector ── */}
-        {!loadingRuns && auditRuns.length > 0 && (
-          <div className="mb-6 bg-surface border border-line rounded-md px-5 py-4">
-            <p className="font-sans text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-3">
-              Audit oleh:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {auditRuns.map((run) => {
-                const isSelected = run.audit_run_id === selectedRunId;
-                const label =
-                  run.display_name ||
-                  run.contributor_name ||
-                  (run.user_id ? `Kontributor #${run.user_id.slice(0, 6)}` : "Anonim");
-                const isOwner = user?.id && run.user_id === user.id;
-
-                return (
-                  <div key={run.audit_run_id} className="flex items-center gap-1">
-                    <button
-                      onClick={() => setSelectedRunId(run.audit_run_id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-sans font-medium border transition-all cursor-pointer ${
-                        isSelected
-                          ? "bg-accent text-white border-accent shadow-sm"
-                          : "bg-bg text-ink-muted border-line hover:border-accent/50 hover:text-ink"
-                      }`}
-                    >
-                      {run.trust_score !== null && (
-                        <span className={`text-[10px] font-semibold ${isSelected ? "text-white/80" : "text-accent"}`}>
-                          {Math.round(run.trust_score * 100)}%
-                        </span>
-                      )}
-                      {label}
-                    </button>
-
-                    {/* Edit button for logged-in user's own run */}
-                    {isOwner && (
-                      <Link
-                        href={`/buildings/${id}/edit-audit/${run.audit_run_id}`}
-                        className="inline-flex items-center px-2 py-1 text-[10px] font-sans font-semibold rounded-md border border-line text-ink-muted hover:border-accent hover:text-accent transition-all bg-surface"
-                        title="Edit audit run milik Anda"
-                      >
-                        Edit
-                      </Link>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </div>
         )}
 
