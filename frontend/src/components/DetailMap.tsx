@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Tooltip, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Tooltip, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -9,7 +9,7 @@ import "leaflet/dist/leaflet.css";
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 18);
+    map.setView(center, 19);
   }, [center, map]);
   return null;
 }
@@ -39,7 +39,8 @@ export default function DetailMap({ center, buildingName }: DetailMapProps) {
   return (
     <MapContainer
       center={center}
-      zoom={18}
+      zoom={19}
+      maxZoom={20}
       zoomControl={false}
       scrollWheelZoom={true}
       className="h-full w-full z-0"
@@ -48,18 +49,32 @@ export default function DetailMap({ center, buildingName }: DetailMapProps) {
       <TileLayer
         attribution="Esri, Maxar, Earthstar Geographics"
         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        maxNativeZoom={19}
+        maxZoom={20}
       />
       {customIcon && (
-        <Marker position={center} icon={customIcon}>
-          <Tooltip 
-            permanent 
-            direction="top" 
-            offset={[0, -28]} 
-            className="leaflet-tooltip-custom"
-          >
-            {buildingName}
-          </Tooltip>
-        </Marker>
+        <>
+          <Marker position={center} icon={customIcon}>
+            <Tooltip 
+              permanent 
+              direction="top" 
+              offset={[0, -28]} 
+              className="leaflet-tooltip-custom"
+            >
+              {buildingName}
+            </Tooltip>
+          </Marker>
+          <Circle
+            center={center}
+            radius={15}
+            pathOptions={{
+              color: "#0F5C5C",
+              fillColor: "#0F5C5C",
+              fillOpacity: 0.15,
+              weight: 2,
+            }}
+          />
+        </>
       )}
     </MapContainer>
   );

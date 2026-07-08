@@ -111,14 +111,14 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
             </h4>
 
             {/* Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-[12px]">
               {filteredResults.map((result) => {
                 const statusConfig = statusMap[result.status] || statusMap.unknown;
                 return (
                   <div
                     key={result.criteria_code}
                     onClick={() => setSelectedResult(result)}
-                    className="bg-surface border border-line rounded-md p-6 flex flex-col justify-between hover:border-accent/40 cursor-pointer transition-all min-h-[180px] relative"
+                    className="bg-surface border border-line rounded-md p-[16px] flex flex-col justify-between hover:border-accent/40 cursor-pointer transition-all min-h-[150px] relative"
                   >
                     {/* Top Row: Code, Dispute Tag and Status Badge */}
                     <div className="flex items-center justify-between mb-3 pb-2 border-b border-line/40">
