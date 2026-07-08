@@ -41,6 +41,7 @@ interface AuditResult {
   criteria_code: string;
   category: string;
   description: string;
+  short_label?: string | null;
   status: "met" | "not_met" | "unknown" | "na";
   is_disputed: boolean;
   total_runs: number;
@@ -281,12 +282,12 @@ export default function BuildingDetailPage({
     <div className="min-h-screen flex flex-col bg-bg">
       <Navbar />
 
-      <main className="flex-1 px-6 py-8 max-w-4xl mx-auto w-full space-y-5">
+      <main className="flex-1 px-6 py-6 max-w-4xl mx-auto w-full space-y-4">
         
         {/* One Single Cohesive Header Container Card */}
-        <div className="bg-surface border border-line rounded-lg p-6 sm:p-8 space-y-6">
-          {/* Navigation & Actions Row */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-surface border border-line rounded-lg p-5 sm:p-6 space-y-4">
+          {/* Row 1: Back Link (left) & Actions Toolbar (right) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
             <Link
               href="/buildings"
               className="inline-flex items-center text-xs font-sans text-ink-muted hover:text-accent transition-colors"
@@ -297,8 +298,8 @@ export default function BuildingDetailPage({
               Kembali ke Daftar Gedung
             </Link>
 
-            {/* Inline actions (Vote & Tour) */}
-            <div className="flex flex-wrap items-center gap-4">
+            {/* Actions Toolbar (Vote + Report + 360 Tour Button) */}
+            <div className="flex items-center gap-4 flex-wrap">
               <BuildingDetailActions buildingId={building.id} />
 
               <Link
@@ -310,178 +311,147 @@ export default function BuildingDetailPage({
             </div>
           </div>
 
-          <div className="border-t border-line/45"></div>
+          {/* Row 2: Building Title */}
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-display text-3xl md:text-4xl font-bold text-ink leading-tight">
+              {building.name}
+            </h1>
+            {statusSummary === "review" && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-sans font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-600 border border-amber-500/20 gap-1 shadow-xs">
+                <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Dalam Peninjauan
+              </span>
+            )}
+            {statusSummary === "no_audit" && (
+              <span className="px-2.5 py-1 bg-status-unknown/10 text-status-unknown border border-status-unknown/20 rounded-md text-[10px] font-sans font-medium whitespace-nowrap">
+                Menunggu Audit Pertama
+              </span>
+            )}
+          </div>
 
-          {/* Details & Carousel Row */}
-          <div className="flex flex-col md:flex-row justify-between gap-6 items-start">
-            <div className="flex-1 space-y-3 min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="font-display text-3xl md:text-4xl font-bold text-ink leading-tight">
-                  {building.name}
-                </h1>
-                {statusSummary === "review" && (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-sans font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-600 border border-amber-500/20 gap-1 shadow-xs">
-                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    Dalam Peninjauan
-                  </span>
-                )}
-                {statusSummary === "no_audit" && (
-                  <span className="px-2.5 py-1 bg-status-unknown/10 text-status-unknown border border-status-unknown/20 rounded-md text-[10px] font-sans font-medium whitespace-nowrap">
-                    Menunggu Audit Pertama
-                  </span>
-                )}
-              </div>
-              
-              <p className="font-sans text-sm text-ink-muted leading-relaxed">
-                {building.address || "Alamat belum ditambahkan."}
-              </p>
+          {/* Row 3: Address & Contributor Switcher */}
+          <div className="space-y-1">
+            <p className="font-sans text-sm text-ink-muted leading-relaxed">
+              {building.address || "Alamat belum ditambahkan."}
+            </p>
 
-              {/* Contributor switcher */}
-              {!loadingRuns && auditRuns.length > 0 && selectedRun && (
-                <div className="relative inline-block text-xs font-sans text-ink-muted mt-2">
-                  <span>
-                    Dilihat: Audit oleh{" "}
-                    <span className="font-semibold text-ink">
-                      {selectedRun.contributor_name || "Anonim"}
-                    </span>{" "}
-                    ({new Date(selectedRun.created_at).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })})
-                  </span>
+            {/* Contributor switcher */}
+            {!loadingRuns && auditRuns.length > 0 && selectedRun && (
+              <div className="relative inline-block text-xs font-sans text-ink-muted mt-1">
+                <span>
+                  Dilihat: Audit oleh{" "}
+                  <span className="font-semibold text-ink">
+                    {selectedRun.contributor_name || "Anonim"}
+                  </span>{" "}
+                  ({new Date(selectedRun.created_at).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })})
+                </span>
 
-                  {auditRuns.length > 1 && (
-                    <div className="inline-block ml-2 relative">
-                      <button
-                        onClick={() => setShowAllRunsDropdown(!showAllRunsDropdown)}
-                        className="text-accent hover:underline font-semibold focus:outline-none cursor-pointer"
-                      >
-                        Lihat {auditRuns.length - 1} audit lainnya
-                      </button>
+                {auditRuns.length > 1 && (
+                  <div className="inline-block ml-2 relative">
+                    <button
+                      onClick={() => setShowAllRunsDropdown(!showAllRunsDropdown)}
+                      className="text-accent hover:underline font-semibold focus:outline-none cursor-pointer"
+                    >
+                      Lihat {auditRuns.length - 1} audit lainnya
+                    </button>
 
-                      {showAllRunsDropdown && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-40"
-                            onClick={() => setShowAllRunsDropdown(false)}
-                          />
-                          <div className="absolute left-0 mt-1 w-64 bg-surface border border-line rounded-md shadow-lg py-1 z-50">
-                            {auditRuns
-                              .filter((r) => r.audit_run_id !== selectedRunId && r.id !== selectedRunId)
-                              .map((run) => {
-                                const label = run.contributor_name || "Anonim";
-                                return (
-                                  <button
-                                    key={run.id || run.audit_run_id}
-                                    onClick={() => {
-                                      setSelectedRunId(run.id || run.audit_run_id);
-                                      setShowAllRunsDropdown(false);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-xs font-sans text-ink hover:bg-bg hover:text-accent transition-colors block cursor-pointer"
-                                  >
-                                    <div className="font-medium flex justify-between items-center">
-                                      <span>{label}</span>
-                                      {run.is_primary && (
-                                        <span className="bg-accent/10 text-accent text-[9px] font-semibold px-1.5 py-0.5 rounded">
-                                          Utama
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="text-[10px] text-ink-muted mt-0.5">
-                                      {new Date(run.created_at).toLocaleDateString("id-ID", {
-                                        day: "numeric",
-                                        month: "short",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </div>
-                                    {run.summary && (
-                                      <div className="flex gap-2 text-[9px] text-ink-muted mt-1">
-                                        <span className="text-status-met">Met: {run.summary.met}</span>
-                                        <span className="text-status-not-met">Not Met: {run.summary.not_met}</span>
-                                        <span className="text-status-unknown">Unknown: {run.summary.unknown}</span>
-                                      </div>
+                    {showAllRunsDropdown && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowAllRunsDropdown(false)}
+                        />
+                        <div className="absolute left-0 mt-1 w-64 bg-surface border border-line rounded-md shadow-lg py-1 z-50">
+                          {auditRuns
+                            .filter((r) => r.audit_run_id !== selectedRunId && r.id !== selectedRunId)
+                            .map((run) => {
+                              const label = run.contributor_name || "Anonim";
+                              return (
+                                <button
+                                  key={run.id || run.audit_run_id}
+                                  onClick={() => {
+                                    setSelectedRunId(run.id || run.audit_run_id);
+                                    setShowAllRunsDropdown(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-xs font-sans text-ink hover:bg-bg hover:text-accent transition-colors block cursor-pointer"
+                                >
+                                  <div className="font-medium flex justify-between items-center">
+                                    <span>{label}</span>
+                                    {run.is_primary && (
+                                      <span className="bg-accent/10 text-accent text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                                        Utama
+                                      </span>
                                     )}
-                                  </button>
-                                );
-                              })}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Edit button for current run if owned by logged-in user */}
-                  {user?.id && selectedRun.user_id === user.id && (
-                    <Link
-                      href={`/buildings/${id}/edit-audit/${selectedRunId}`}
-                      className="ml-2 inline-flex items-center px-2 py-0.5 text-[10px] font-sans font-semibold rounded border border-line text-ink-muted hover:border-accent hover:text-accent transition-all bg-surface"
-                      title="Edit audit run milik Anda"
-                    >
-                      Edit Audit
-                    </Link>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Photo Evidence Carousel */}
-            {evidencePhotos.length > 0 && (
-              <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-xl overflow-hidden border border-line flex-shrink-0 bg-bg/20 shadow-xs">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={evidencePhotos[currentPhotoIndex]}
-                  alt="Bukti Audit"
-                  className="w-full h-full object-cover"
-                />
-                {evidencePhotos.length > 1 && (
-                  <div className="absolute inset-x-0 bottom-2 flex items-center justify-between px-2">
-                    <button
-                      onClick={() => setCurrentPhotoIndex((prev) => (prev === 0 ? evidencePhotos.length - 1 : prev - 1))}
-                      className="w-5 h-5 rounded-full bg-surface/90 border border-line flex items-center justify-center hover:bg-surface text-ink hover:text-accent transition-colors focus:outline-none cursor-pointer shadow-xs font-mono text-[9px] font-bold"
-                    >
-                      &lt;
-                    </button>
-                    <button
-                      onClick={() => setCurrentPhotoIndex((prev) => (prev === evidencePhotos.length - 1 ? 0 : prev + 1))}
-                      className="w-5 h-5 rounded-full bg-surface/90 border border-line flex items-center justify-center hover:bg-surface text-ink hover:text-accent transition-colors focus:outline-none cursor-pointer shadow-xs font-mono text-[9px] font-bold"
-                    >
-                      &gt;
-                    </button>
+                                  </div>
+                                  <div className="text-[10px] text-ink-muted mt-0.5">
+                                    {new Date(run.created_at).toLocaleDateString("id-ID", {
+                                      day: "numeric",
+                                      month: "short",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </div>
+                                  {run.summary && (
+                                    <div className="flex gap-2 text-[9px] text-ink-muted mt-1">
+                                      <span className="text-status-met">Met: {run.summary.met}</span>
+                                      <span className="text-status-not-met">Not Met: {run.summary.not_met}</span>
+                                      <span className="text-status-unknown">Unknown: {run.summary.unknown}</span>
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </>
+                    )}
                   </div>
+                )}
+
+                {/* Edit button for current run if owned by logged-in user */}
+                {user?.id && selectedRun.user_id === user.id && (
+                  <Link
+                    href={`/buildings/${id}/edit-audit/${selectedRunId}`}
+                    className="ml-2 inline-flex items-center px-2 py-0.5 text-[10px] font-sans font-semibold rounded border border-line text-ink-muted hover:border-accent hover:text-accent transition-all bg-surface"
+                    title="Edit audit run milik Anda"
+                  >
+                    Edit Audit
+                  </Link>
                 )}
               </div>
             )}
           </div>
 
-          <div className="border-t border-line/30"></div>
+          <div className="border-t border-line/45"></div>
 
-          {/* Score, Breakdown & Satellite Map Thumbnail Row */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          {/* Main Card Content: Left Column (Score, Disclaimer) & Right Column (Map, Photos) */}
+          <div className="flex flex-col md:flex-row gap-6 items-start">
             
-            {/* Left: Score & Stats Breakdown & Disclaimer */}
-            <div className="flex-[1.3] space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+            {/* Left Column: Score and Disclaimer */}
+            <div className="flex-1 space-y-4 min-w-0 w-full">
+              
+              {/* Compliance Score & Breakdown */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-6 pt-1">
                 {statusSummary !== "no_audit" && (
-                  <div className="flex flex-col items-start gap-1">
-                    <div className="flex items-baseline gap-1">
-                      <span className="font-display text-4xl md:text-5xl font-extrabold text-accent leading-none">
-                        {complianceScore !== null ? `${complianceScore}%` : "N/A"}
-                      </span>
-                      <span className="text-xs font-sans text-ink-muted">Kepatuhan</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-display text-4xl md:text-5xl font-extrabold text-accent leading-none">
+                      {complianceScore !== null ? `${complianceScore}%` : "N/A"}
+                    </span>
+                    <span className="text-xs font-sans text-ink-muted">Kepatuhan</span>
 
-                      {/* Tooltip Disclaimer */}
-                      <div className="group relative cursor-pointer inline-flex items-center select-none self-start mt-0.5 ml-1">
-                        <span className="w-3.5 h-3.5 rounded-full border border-ink-muted/50 text-ink-muted group-hover:border-accent group-hover:text-accent flex items-center justify-center text-[9px] font-sans font-bold leading-none transition-colors">
-                          i
-                        </span>
-                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 bg-surface border border-line p-3 rounded-md shadow-lg text-[10px] leading-relaxed font-sans font-normal text-ink z-50">
-                          Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
-                        </div>
+                    {/* Tooltip Disclaimer */}
+                    <div className="group relative cursor-pointer inline-flex items-center select-none self-start mt-0.5 ml-1">
+                      <span className="w-3.5 h-3.5 rounded-full border border-ink-muted/50 text-ink-muted group-hover:border-accent group-hover:text-accent flex items-center justify-center text-[9px] font-sans font-bold leading-none transition-colors">
+                        i
+                      </span>
+                      <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 bg-surface border border-line p-3 rounded-md shadow-lg text-[10px] leading-relaxed font-sans font-normal text-ink z-50">
+                        Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
                       </div>
                     </div>
                   </div>
@@ -508,7 +478,7 @@ export default function BuildingDetailPage({
                 </div>
               </div>
 
-              {/* Disclaimer directly inside card, under score row */}
+              {/* Disclaimer */}
               {!hasVisualAgent && statusSummary !== "no_audit" && (
                 <p className="font-sans text-xs text-ink-muted leading-relaxed max-w-xl">
                   * Audit ini baru berdasarkan analisis teks nama/alamat gedung, belum ada foto yang dianalisis. Hasil akan lebih akurat setelah foto bukti fisik diunggah.
@@ -516,9 +486,41 @@ export default function BuildingDetailPage({
               )}
             </div>
 
-            {/* Right: Satellite Map Thumbnail (flexible size) */}
-            <div className="w-full md:flex-1 h-[200px] md:h-[220px] rounded-md border border-line overflow-hidden z-0 flex-shrink-0 relative">
-              <DetailMap center={buildingCoords} buildingName={building.name} />
+            {/* Right Column: Map and Photos Carousel stacked */}
+            <div className="w-full md:w-[320px] flex flex-col gap-4 flex-shrink-0">
+              
+              {/* Satellite Map Thumbnail */}
+              <div className="w-full h-[200px] rounded-md border border-line overflow-hidden z-0 relative">
+                <DetailMap center={buildingCoords} buildingName={building.name} />
+              </div>
+
+              {/* Photo Evidence Carousel (only rendered if photos exist) */}
+              {evidencePhotos.length > 0 && (
+                <div className="relative w-full h-[180px] rounded-md overflow-hidden border border-line bg-bg/20 shadow-xs">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={evidencePhotos[currentPhotoIndex]}
+                    alt="Bukti Audit"
+                    className="w-full h-full object-cover"
+                  />
+                  {evidencePhotos.length > 1 && (
+                    <div className="absolute inset-x-0 bottom-2 flex items-center justify-between px-2">
+                      <button
+                        onClick={() => setCurrentPhotoIndex((prev) => (prev === 0 ? evidencePhotos.length - 1 : prev - 1))}
+                        className="w-5 h-5 rounded-full bg-surface/90 border border-line flex items-center justify-center hover:bg-surface text-ink hover:text-accent transition-colors focus:outline-none cursor-pointer shadow-xs font-mono text-[9px] font-bold"
+                      >
+                        &lt;
+                      </button>
+                      <button
+                        onClick={() => setCurrentPhotoIndex((prev) => (prev === evidencePhotos.length - 1 ? 0 : prev + 1))}
+                        className="w-5 h-5 rounded-full bg-surface/90 border border-line flex items-center justify-center hover:bg-surface text-ink hover:text-accent transition-colors focus:outline-none cursor-pointer shadow-xs font-mono text-[9px] font-bold"
+                      >
+                        &gt;
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
           </div>
@@ -530,7 +532,7 @@ export default function BuildingDetailPage({
             Kutipan Hasil Audit Kriteria
           </h3>
           <p className="font-display italic text-xs text-ink-muted">
-            Daftar kriteria ketaatan fisik gedung berdasarkan standar nasional, klik kartu kriteria untuk meninjau detail analisis AI.
+            Klik kartu untuk melihat detail analisis.
           </p>
         </div>
 

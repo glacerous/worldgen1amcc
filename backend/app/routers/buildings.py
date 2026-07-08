@@ -866,7 +866,7 @@ def get_building_consensus(id: UUID):
 
         # 2. Fetch all audit results for the building
         results_response = supabase.table("audit_results") \
-            .select("*, audit_criteria(code, category, description)") \
+            .select("*, audit_criteria(code, category, description, short_label)") \
             .eq("building_id", str(id)) \
             .execute()
         results = results_response.data or []
@@ -933,6 +933,7 @@ def get_building_consensus(id: UUID):
                 "criteria_code": code,
                 "category": c["category"],
                 "description": c["description"],
+                "short_label": c.get("short_label"),
                 "status": final_status,
                 "is_disputed": is_disputed,
                 "total_runs": total_runs,

@@ -9,15 +9,34 @@ interface VoteButtonsProps {
 
 export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsProps) {
   const [activeVote, setActiveVote] = useState<"up" | "down" | null>(null);
-  const [voteStats, setVoteStats] = useState<{ trustScore: number | null; voteCount: number } | null>(null);
+  const [voteStats, setVoteStats] = useState<{
+    trustScore: number | null;
+    voteCount: number;
+    upCount?: number;
+    downCount?: number;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Fetch initial vote status for this user
   useEffect(() => {
+    let id = "";
+    if (typeof window !== "undefined") {
+      let localId = localStorage.getItem("anonymous_id");
+      if (!localId) {
+        localId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem("anonymous_id", localId);
+      }
+      id = localId;
+    }
+
     async function fetchVoteStatus() {
       try {
+        const headers: Record<string, string> = {};
+        if (id) {
+          headers["X-Anonymous-ID"] = id;
+        }
         const res = await fetch(`http://127.0.0.1:8000/buildings/${buildingId}/vote-status`, {
-          // Send cookies for session tracking
+          headers,
           credentials: "include",
         });
         if (res.ok) {
@@ -28,6 +47,8 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
           setVoteStats({
             trustScore: data.trust_score !== undefined ? data.trust_score : null,
             voteCount: data.vote_count !== undefined ? data.vote_count : 0,
+            upCount: data.up_count !== undefined ? data.up_count : 0,
+            downCount: data.down_count !== undefined ? data.down_count : 0,
           });
         }
       } catch (err) {
@@ -44,12 +65,21 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
     const isUnselecting = activeVote === type;
     const targetVoteType = isUnselecting ? null : type;
 
+    let id = "";
+    if (typeof window !== "undefined") {
+      id = localStorage.getItem("anonymous_id") || "";
+    }
+
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (id) {
+        headers["X-Anonymous-ID"] = id;
+      }
       const res = await fetch(`http://127.0.0.1:8000/buildings/${buildingId}/vote`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({ vote_type: targetVoteType }),
         credentials: "include", // Ensure session cookies are sent/received
       });
@@ -65,6 +95,8 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
         setVoteStats({
           trustScore: data.building.trust_score_cache ?? null,
           voteCount: data.building.vote_count_cache ?? 0,
+          upCount: data.up_count ?? 0,
+          downCount: data.down_count ?? 0,
         });
       }
 
@@ -83,12 +115,12 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
     : null;
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="group relative flex items-center gap-1">
       {/* Upvote Button */}
       <button
         onClick={() => handleVote("up")}
         disabled={isLoading}
-        className={`inline-flex items-center justify-center p-1.5 rounded transition-all cursor-pointer ${
+        className={`inline-flex items-center gap-1 justify-center p-1.5 rounded transition-all cursor-pointer ${
           activeVote === "up" ? "text-status-met bg-status-met/10" : "text-ink-muted hover:text-status-met"
         } disabled:opacity-50`}
         title="Akurat"
@@ -97,13 +129,16 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
           <path strokeLinecap="round" strokeLinejoin="round" d="M7 10v12" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
         </svg>
+        <span className="text-[11px] font-sans font-semibold">
+          {voteStats?.upCount ?? 0}
+        </span>
       </button>
 
       {/* Downvote Button */}
       <button
         onClick={() => handleVote("down")}
         disabled={isLoading}
-        className={`inline-flex items-center justify-center p-1.5 rounded transition-all cursor-pointer ${
+        className={`inline-flex items-center gap-1 justify-center p-1.5 rounded transition-all cursor-pointer ${
           activeVote === "down" ? "text-status-not-met bg-status-not-met/10" : "text-ink-muted hover:text-status-not-met"
         } disabled:opacity-50`}
         title="Tidak Akurat"
@@ -112,13 +147,16 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
           <path strokeLinecap="round" strokeLinejoin="round" d="M17 14V2" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
         </svg>
+        <span className="text-[11px] font-sans font-semibold">
+          {voteStats?.downCount ?? 0}
+        </span>
       </button>
 
-      {/* Percentage / Count info */}
+      {/* Hover Tooltip showing percentage accuracy from total votes */}
       {percentage !== null && (
-        <span className="text-[10px] font-sans font-semibold ml-1.5 px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">
-          {percentage}% Akurat
-        </span>
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-48 bg-surface border border-line p-2 rounded-md shadow-lg text-[10px] text-ink font-sans font-normal text-center z-50">
+          {percentage}% dari {voteStats?.voteCount ?? 0} vote menganggap ini akurat
+        </div>
       )}
     </div>
   );

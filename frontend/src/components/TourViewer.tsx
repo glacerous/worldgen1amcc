@@ -7,6 +7,7 @@ interface AuditCriteria {
   code: string;
   description: string;
   category: string;
+  short_label?: string | null;
 }
 
 interface AuditResult {
