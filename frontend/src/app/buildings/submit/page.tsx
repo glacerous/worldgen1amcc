@@ -47,17 +47,6 @@ export default function SubmitBuildingPage() {
 
   const [warningDistance, setWarningDistance] = useState<number | null>(null);
 
-  if (loading || !user) {
-    return (
-      <div className="min-h-screen flex flex-col bg-bg">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-accent/25 border-t-accent rounded-full animate-spin"></div>
-        </main>
-      </div>
-    );
-  }
- 
   // Fetch nearby buildings when mapCenter coordinates change
   useEffect(() => {
     const fetchNearby = async () => {
@@ -85,6 +74,17 @@ export default function SubmitBuildingPage() {
     const timer = setTimeout(fetchNearby, 500);
     return () => clearTimeout(timer);
   }, [mapCenter]);
+
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex flex-col bg-bg">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-accent/25 border-t-accent rounded-full animate-spin"></div>
+        </main>
+      </div>
+    );
+  }
 
   // Geocoding query to resolve address coordinates
   const handleGeocode = async () => {
