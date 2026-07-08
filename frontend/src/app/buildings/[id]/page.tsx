@@ -6,8 +6,18 @@ import AuditResultsList from "@/components/AuditResultsList";
 import Link from "next/link";
 import BuildingDetailActions from "@/components/BuildingDetailActions";
 import { useAuth } from "@/hooks/useAuth";
+import dynamic from "next/dynamic";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+
+const DetailMap = dynamic(() => import("@/components/DetailMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full w-full bg-bg/50 flex items-center justify-center font-sans text-xs text-ink-muted animate-pulse">
+      Memuat peta satelit...
+    </div>
+  ),
+});
 
 interface Building {
   id: string;
@@ -77,6 +87,13 @@ export default function BuildingDetailPage({
   const [loadingResults, setLoadingResults] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [showAllRunsDropdown, setShowAllRunsDropdown] = useState(false);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [selectedResult, setSelectedResult] = useState<AuditResult | null>(null);
+
+  // Reset photo index when selected run changes
+  useEffect(() => {
+    setCurrentPhotoIndex(0);
+  }, [selectedRunId]);
 
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -114,7 +131,7 @@ export default function BuildingDetailPage({
         setAuditRuns(runs);
         if (runs.length > 0) {
           const primaryRun = runs.find((r) => r.is_primary) || runs[0];
-          setSelectedRunId(primaryRun.audit_run_id || primaryRun.id);
+          setSelectedRunId(primaryRun.audit_run_id || primaryRun.id || null);
         }
       })
       .catch(console.error)
@@ -223,71 +240,110 @@ export default function BuildingDetailPage({
     ? computedComplianceScore
     : (building.compliance_score !== undefined ? building.compliance_score : null);
 
+  const buildingCoords: [number, number] = building.latitude !== null && building.longitude !== null
+    ? [building.latitude, building.longitude]
+    : [-6.2088, 106.8456];
+
+  // Extract photos for the carousel from the current run results
+  const evidencePhotos = Array.from(
+    new Set(
+      displayedResults
+        .map((r) => r.evidence_url)
+        .filter((url): url is string => !!url)
+    )
+  );
+
+  // Sort criteria results by code
+  const sortedResults = [...displayedResults].sort((a, b) =>
+    a.criteria_code.localeCompare(b.criteria_code)
+  );
+
+  const statusMap = {
+    met: {
+      label: "Terpenuhi",
+      colorClass: "bg-status-met/10 text-status-met border-status-met/20",
+    },
+    not_met: {
+      label: "Tidak Terpenuhi",
+      colorClass: "bg-status-not-met/10 text-status-not-met border-status-not-met/20",
+    },
+    unknown: {
+      label: "Tidak Diketahui",
+      colorClass: "bg-status-unknown/10 text-status-unknown border-status-unknown/20",
+    },
+    na: {
+      label: "Tidak Relevan",
+      colorClass: "bg-status-na/10 text-status-na border-status-na/20",
+    },
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-bg">
+    <div className="w-screen h-screen relative overflow-hidden flex flex-col bg-bg">
       <Navbar />
 
-      <main className="flex-1 px-6 py-12 md:py-16 max-w-4xl mx-auto w-full">
-        {/* Consolidated Header Container */}
-        <div className="bg-surface border border-line rounded-lg p-6 sm:p-8 mb-8 space-y-6">
-          {/* Navigation & Actions Row */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <Link
-              href="/buildings"
-              className="inline-flex items-center text-xs font-sans text-ink-muted hover:text-accent transition-colors"
-            >
-              <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"></path>
-              </svg>
-              Kembali ke Daftar Gedung
-            </Link>
+      {/* Full-bleed Satellite Map in background */}
+      <div className="absolute inset-0 z-0">
+        <DetailMap center={buildingCoords} buildingName={building.name} />
+      </div>
 
-            {/* Inline actions (Vote & Tour) */}
-            <div className="flex flex-wrap items-center gap-4">
-              <BuildingDetailActions buildingId={building.id} />
+      {/* Floating Panel Bottom Sheet */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 w-full max-w-4xl mx-auto h-[78%] md:h-[55%] bg-surface border-t border-line rounded-t-3xl shadow-[0_-4px_24px_rgba(0,0,0,0.04)] flex flex-col">
+        
+        {/* Floating Close Button in Top-Right of Bottom Sheet */}
+        <Link
+          href="/buildings"
+          className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-surface border border-line flex items-center justify-center hover:bg-bg transition-colors shadow-xs group cursor-pointer"
+          title="Kembali ke Daftar Gedung"
+        >
+          <svg className="w-4 h-4 text-ink-muted group-hover:text-accent" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </Link>
 
-              <Link
-                href={`/buildings/${building.id}/tour`}
-                className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all w-fit cursor-pointer"
-              >
-                Lihat Tur 360°
-              </Link>
-            </div>
-          </div>
-
-          <div className="border-t border-line/45"></div>
-
-          {/* Building Details, Score, and Breakdown */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-1.5 flex-1 min-w-0">
+        {/* Scrollable sheet container */}
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 scrollbar-none">
+          
+          {/* Header block with Details & Carousel */}
+          <div className="flex flex-col md:flex-row justify-between gap-6 items-start">
+            <div className="flex-1 space-y-2 pr-10">
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="font-display text-3xl md:text-4xl font-bold text-ink leading-tight">
+                <h1 className="font-display text-2xl md:text-3xl font-bold text-ink leading-tight">
                   {building.name}
                 </h1>
-
-                {/* Status Badge */}
                 {statusSummary === "review" && (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-sans font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-600 border border-amber-500/20 gap-1 shadow-xs">
-                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 text-[10px] font-sans font-semibold border border-amber-500/20 gap-1">
+                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                     Dalam Peninjauan
                   </span>
                 )}
-
                 {statusSummary === "no_audit" && (
-                  <span className="px-2.5 py-1 bg-status-unknown/10 text-status-unknown border border-status-unknown/20 rounded-md text-[10px] font-sans font-medium whitespace-nowrap">
-                    Menunggu Audit Pertama
+                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-status-unknown/10 text-status-unknown text-[10px] font-sans font-semibold border border-status-unknown/20">
+                    Belum Diaudit
                   </span>
                 )}
               </div>
-              <p className="font-sans text-sm text-ink-muted leading-relaxed truncate">
+
+              <p className="font-sans text-xs text-ink-muted leading-relaxed">
                 {building.address || "Alamat belum ditambahkan."}
               </p>
 
-              {/* Dilihat: Audit oleh [contributor_name] ([tanggal]) */}
+              {/* Compliance score metric */}
+              {statusSummary !== "no_audit" && (
+                <div className="flex items-center gap-3 mt-1.5">
+                  <span className="font-display text-xl font-bold text-accent">
+                    {complianceScore !== null && complianceScore !== "N/A" ? `${complianceScore}% Kepatuhan` : "Skor N/A"}
+                  </span>
+                  <span className="text-[11px] font-sans text-ink-muted">
+                    ({metCount} Terpenuhi • {notMetCount} Gagal)
+                  </span>
+                </div>
+              )}
+
+              {/* Contributor dropdown switcher */}
               {!loadingRuns && auditRuns.length > 0 && selectedRun && (
-                <div className="relative inline-block text-xs font-sans text-ink-muted mt-2">
+                <div className="relative inline-block text-[11px] font-sans text-ink-muted mt-2">
                   <span>
                     Dilihat: Audit oleh{" "}
                     <span className="font-semibold text-ink">
@@ -304,7 +360,7 @@ export default function BuildingDetailPage({
                     <div className="inline-block ml-2 relative">
                       <button
                         onClick={() => setShowAllRunsDropdown(!showAllRunsDropdown)}
-                        className="text-accent hover:underline font-medium focus:outline-none cursor-pointer"
+                        className="text-accent hover:underline font-semibold focus:outline-none cursor-pointer"
                       >
                         Lihat {auditRuns.length - 1} audit lainnya
                       </button>
@@ -376,103 +432,215 @@ export default function BuildingDetailPage({
               )}
             </div>
 
-            {/* Score & Breakdown Row */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-6 flex-shrink-0 md:justify-end">
-              {statusSummary !== "no_audit" && (
-                <div className="flex flex-col items-start sm:items-end gap-1">
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-display text-5xl md:text-6xl font-extrabold text-accent leading-none">
-                      {complianceScore !== null ? `${complianceScore}%` : "N/A"}
-                    </span>
-
-                    {/* Tooltip Disclaimer */}
-                    <div className="group relative cursor-pointer inline-flex items-center select-none self-start mt-0.5">
-                      <span className="w-3.5 h-3.5 rounded-full border border-ink-muted/50 text-ink-muted group-hover:border-accent group-hover:text-accent flex items-center justify-center text-[9px] font-sans font-bold leading-none transition-colors">
-                        i
-                      </span>
-                      <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-64 bg-surface border border-line p-3 rounded-md shadow-lg text-[10px] leading-relaxed font-sans font-normal text-ink z-50">
-                        Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
-                      </div>
-                    </div>
+            {/* Photo Evidence Carousel */}
+            {evidencePhotos.length > 0 && (
+              <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-xl overflow-hidden border border-line flex-shrink-0 bg-bg/20 shadow-xs">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={evidencePhotos[currentPhotoIndex]}
+                  alt="Bukti Audit"
+                  className="w-full h-full object-cover"
+                />
+                {evidencePhotos.length > 1 && (
+                  <div className="absolute inset-x-0 bottom-2 flex items-center justify-between px-2">
+                    <button
+                      onClick={() => setCurrentPhotoIndex((prev) => (prev === 0 ? evidencePhotos.length - 1 : prev - 1))}
+                      className="w-5 h-5 rounded-full bg-surface/90 border border-line flex items-center justify-center hover:bg-surface text-ink hover:text-accent transition-colors focus:outline-none cursor-pointer shadow-xs font-mono text-[9px] font-bold"
+                    >
+                      &lt;
+                    </button>
+                    <button
+                      onClick={() => setCurrentPhotoIndex((prev) => (prev === evidencePhotos.length - 1 ? 0 : prev + 1))}
+                      className="w-5 h-5 rounded-full bg-surface/90 border border-line flex items-center justify-center hover:bg-surface text-ink hover:text-accent transition-colors focus:outline-none cursor-pointer shadow-xs font-mono text-[9px] font-bold"
+                    >
+                      &gt;
+                    </button>
                   </div>
+                )}
+              </div>
+            )}
+          </div>
 
-                  <span className="text-[9px] font-sans text-ink-muted font-medium whitespace-nowrap">
-                    Hasil dianalisis otomatis oleh AI
+          {/* Audit Banner */}
+          {!hasVisualAgent && statusSummary !== "no_audit" && (
+            <div className="bg-bg/40 border border-line rounded-lg p-3 flex items-start space-x-2.5">
+              <svg className="w-4 h-4 text-status-unknown flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <p className="font-sans text-[11px] text-ink-muted leading-relaxed">
+                Audit ini baru berdasarkan analisis teks nama/alamat gedung, belum ada foto yang dianalisis. Hasil akan lebih akurat setelah foto bukti fisik diunggah.
+              </p>
+            </div>
+          )}
+
+          {/* Main results list - Compact grid of criteria */}
+          <div className="space-y-3">
+            <h3 className="font-display text-base font-semibold text-ink">
+              Kutipan Hasil Audit Kriteria
+            </h3>
+
+            {loadingResults && (
+              <div className="flex justify-center py-6">
+                <div className="w-6 h-6 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+              </div>
+            )}
+
+            {!loadingResults && (
+              sortedResults.length === 0 ? (
+                <div className="border border-line border-dashed rounded-lg p-6 text-center bg-bg/5">
+                  <p className="font-sans text-xs text-ink-muted">
+                    Belum ada kriteria yang diaudit untuk gedung ini.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {sortedResults.map((result) => {
+                    return (
+                      <div
+                        key={result.criteria_code}
+                        className="flex items-center justify-between p-3 border border-line rounded-lg bg-surface hover:border-accent/40 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {/* Status Icon */}
+                          {result.status === "met" && (
+                            <svg className="w-4 h-4 text-status-met flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                          {result.status === "not_met" && (
+                            <svg className="w-4 h-4 text-status-not-met flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          )}
+                          {result.status === "unknown" && (
+                            <svg className="w-4 h-4 text-status-unknown flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          )}
+                          {result.status === "na" && (
+                            <span className="w-4 h-4 flex items-center justify-center text-status-na font-sans font-bold text-xs flex-shrink-0">—</span>
+                          )}
+                          
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-mono text-xs text-ink font-semibold tracking-wider leading-none">
+                              {result.criteria_code}
+                            </span>
+                            <span className="font-sans text-[10px] text-ink-muted truncate max-w-[150px] md:max-w-[220px] mt-0.5">
+                              {result.description}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedResult(result)}
+                          className="inline-flex items-center justify-center bg-bg hover:bg-line/25 border border-line text-[10px] font-sans font-semibold px-2.5 py-1 rounded text-ink hover:text-accent transition-all cursor-pointer"
+                        >
+                          Info
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            )}
+          </div>
+
+          {/* Footer Actions block */}
+          <div className="pt-5 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4">
+            <Link
+              href={`/buildings/${building.id}/tour`}
+              className="w-full sm:w-auto inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-6 py-2.5 rounded-md border border-accent/25 transition-all cursor-pointer"
+            >
+              Lihat Tur 360°
+            </Link>
+
+            <div className="flex items-center border border-line bg-bg/10 rounded-md px-3 py-1.5 w-full sm:w-auto justify-center sm:justify-start">
+              <BuildingDetailActions buildingId={building.id} />
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Detail Modal Overlay */}
+      {selectedResult && (() => {
+        const statusConfig = statusMap[selectedResult.status] || statusMap.unknown;
+        return (
+          <div className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 transition-opacity">
+            <div 
+              className="bg-surface border border-line rounded-md p-6 max-w-lg w-full shadow-lg flex flex-col max-h-[85vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-line/60 mb-5">
+                <div className="flex items-center space-x-3">
+                  <span className="font-mono text-sm text-ink-muted tracking-wider">
+                    {selectedResult.criteria_code}
+                  </span>
+                  <span className={`px-2.5 py-0.5 border rounded-md text-[10px] font-sans font-semibold uppercase tracking-wider ${statusConfig.colorClass}`}>
+                    {statusConfig.label}
                   </span>
                 </div>
-              )}
-
-              {/* Decorative separator */}
-              {statusSummary !== "no_audit" && <div className="hidden sm:block w-px h-10 bg-line/60"></div>}
-
-              {/* Stats Breakdown */}
-              <div className="flex items-center gap-x-4 text-center sm:text-left">
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">Terpenuhi</span>
-                  <span className="font-display text-lg font-bold text-status-met">{metCount}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">Gagal</span>
-                  <span className="font-display text-lg font-bold text-status-not-met">{notMetCount}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">Unknown</span>
-                  <span className="font-display text-lg font-bold text-status-unknown">{unknownCount}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">N/A</span>
-                  <span className="font-display text-lg font-bold text-status-na">{naCount}</span>
-                </div>
+                <button
+                  onClick={() => setSelectedResult(null)}
+                  className="text-ink-muted hover:text-ink font-sans text-xs font-semibold focus:outline-none cursor-pointer"
+                >
+                  Tutup
+                </button>
               </div>
+
+              {/* Criteria Description */}
+              <p className="font-display text-lg text-ink leading-relaxed mb-6">
+                "{selectedResult.description}"
+              </p>
+
+              {/* Evaluation Details */}
+              <div className="space-y-4 font-sans text-sm">
+                <div>
+                  <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                    Analisis Penalaran AI
+                  </h4>
+                  <p className="text-ink leading-relaxed bg-bg/40 p-4 rounded-md border border-line/30 text-[12px]">
+                    {selectedResult.reasoning || "Tidak ada penalaran yang dicatat."}
+                  </p>
+                </div>
+
+                <div className="flex justify-between items-center text-xs border-b border-line/30 pb-2">
+                  <span className="text-ink-muted">Agen Pengevaluasi:</span>
+                  <span className="font-mono font-semibold text-accent">{selectedResult.source_agent || "N/A"}</span>
+                </div>
+
+                {/* Evidence Image */}
+                {selectedResult.evidence_url && (
+                  <div className="pt-2">
+                    <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">
+                      Bukti Foto (Visual)
+                    </h4>
+                    <div className="relative border border-line rounded-md overflow-hidden bg-bg/20">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={selectedResult.evidence_url}
+                        alt={`Evidence for ${selectedResult.criteria_code}`}
+                        className="w-full h-auto object-cover max-h-64"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Close Button at bottom */}
+              <button
+                onClick={() => setSelectedResult(null)}
+                className="mt-8 bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-6 py-2 rounded-md transition-all ml-auto cursor-pointer"
+              >
+                Tutup Detail
+              </button>
             </div>
           </div>
-        </div>
+        );
+      })()}
 
-        {/* Informatif Banner if no visual agent results */}
-        {!hasVisualAgent && (
-          <div className="bg-surface border-l-4 border-status-unknown border-t border-r border-b border-line/40 rounded-r-md p-4 mb-10 flex items-start space-x-3">
-            <svg className="w-5 h-5 text-status-unknown flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <p className="font-sans text-xs text-ink-muted leading-relaxed">
-              Audit ini baru berdasarkan analisis teks nama dan alamat gedung, belum ada foto yang dianalisis. Hasil akan lebih akurat setelah foto diunggah.
-            </p>
-          </div>
-        )}
-
-        {/* Audit Results Heading & Italic Caption Accent */}
-        <div className="mb-6">
-          <h3 className="font-display text-xl font-normal text-ink mb-1">
-            Kutipan Hasil Audit Kriteria
-          </h3>
-          <p className="font-display italic text-xs text-ink-muted">
-            Daftar kriteria evaluasi fisik gedung berdasarkan standar nasional, klik untuk meninjau detail analisis.
-          </p>
-        </div>
-
-        {/* Loading state for run results */}
-        {loadingResults && (
-          <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-4 border-accent/20 border-t-accent rounded-full animate-spin" />
-          </div>
-        )}
-
-        {/* Main interactive cards list */}
-        {!loadingResults && (
-          displayedResults.length === 0 ? (
-            <div className="bg-surface border border-line rounded-md p-10 text-center">
-              <p className="font-display italic text-lg text-ink-muted mb-2">
-                &quot;Belum ada kriteria yang diaudit untuk gedung ini.&quot;
-              </p>
-              <p className="font-sans text-xs text-ink-muted">
-                Jalankan program audit untuk mengisi daftar kriteria aksesibilitas.
-              </p>
-            </div>
-          ) : (
-            <AuditResultsList auditResults={displayedResults} />
-          )
-        )}
-      </main>
     </div>
   );
 }
