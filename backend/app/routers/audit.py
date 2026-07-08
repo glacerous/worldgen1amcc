@@ -49,7 +49,7 @@ def get_audit_results(building_id: UUID):
     """
     try:
         response = supabase.table("audit_results") \
-            .select("*, audit_criteria(code, description, category)") \
+            .select("*, audit_criteria(code, description, category, short_label)") \
             .eq("building_id", str(building_id)) \
             .execute()
         return response.data
@@ -251,7 +251,7 @@ def get_run_results(audit_run_id: UUID):
 
         # 2. Fetch audit results for the specific run
         results_response = supabase.table("audit_results") \
-            .select("*, audit_criteria(code, category, description)") \
+            .select("*, audit_criteria(code, category, description, short_label)") \
             .eq("audit_run_id", str(audit_run_id)) \
             .execute()
         results = results_response.data or []
@@ -280,6 +280,7 @@ def get_run_results(audit_run_id: UUID):
                     "criteria_code": code,
                     "category": c["category"],
                     "description": c["description"],
+                    "short_label": c.get("short_label"),
                     "status": r["status"],
                     "is_disputed": False,
                     "total_runs": 1,
@@ -294,6 +295,7 @@ def get_run_results(audit_run_id: UUID):
                     "criteria_code": code,
                     "category": c["category"],
                     "description": c["description"],
+                    "short_label": c.get("short_label"),
                     "status": "unknown",
                     "is_disputed": False,
                     "total_runs": 0,

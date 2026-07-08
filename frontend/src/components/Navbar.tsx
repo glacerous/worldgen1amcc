@@ -7,7 +7,7 @@ export default function Navbar() {
   const { user, login, logout, loading } = useAuth();
 
   return (
-    <nav className="sticky top-4 z-50 mx-4 md:mx-12 my-2 bg-surface/80 backdrop-blur-md border border-line rounded-full py-3.5 px-6 md:px-8 flex items-center justify-between shadow-xs transition-all">
+    <nav className="sticky top-4 z-50 mx-4 md:mx-12 my-2 bg-surface border border-line rounded-full py-3.5 px-6 md:px-8 flex items-center justify-between shadow-sm transition-all">
       {/* Left: Branding Wordmark */}
       <Link href="/" className="group flex items-center gap-2.5">
         <img 

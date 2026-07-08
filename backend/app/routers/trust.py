@@ -72,6 +72,10 @@ def get_client_ip(request: Request) -> str:
 
 # 2. Anonymous Session Dependency
 def get_anonymous_id(request: Request, response: Response, anonymous_id: Optional[str] = Cookie(None)):
+    header_anon_id = request.headers.get("x-anonymous-id")
+    if header_anon_id:
+        return header_anon_id
+
     if not anonymous_id:
         anonymous_id = str(uuid.uuid4())
         # Set cookie with 1 year expiry (31536000 seconds)
@@ -183,11 +187,19 @@ def get_user_vote_status(id: UUID, anonymous_id: str = Depends(get_anonymous_id)
             trust_score = build_res.data[0].get("trust_score_cache")
             vote_count = build_res.data[0].get("vote_count_cache") or 0
 
+        # Calculate vote stats from database
+        res_votes = supabase.table("votes").select("vote_type").eq("building_id", building_id).execute()
+        votes = res_votes.data or []
+        up_count = sum(1 for v in votes if v["vote_type"] == "up")
+        down_count = sum(1 for v in votes if v["vote_type"] == "down")
+
         return {
             "has_voted": has_voted,
             "vote_type": vote_type,
             "trust_score": trust_score,
-            "vote_count": vote_count
+            "vote_count": vote_count,
+            "up_count": up_count,
+            "down_count": down_count
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil status vote: {str(e)}")
@@ -244,10 +256,18 @@ def vote_building(
     # Recalculate trust status
     updated_building = recalculate_trust_status(building_id)
     
+    # Calculate vote stats from database
+    res_votes = supabase.table("votes").select("vote_type").eq("building_id", building_id).execute()
+    votes = res_votes.data or []
+    up_count = sum(1 for v in votes if v["vote_type"] == "up")
+    down_count = sum(1 for v in votes if v["vote_type"] == "down")
+
     return {
         "status": "success",
         "message": "Vote berhasil disimpan.",
-        "building": updated_building
+        "building": updated_building,
+        "up_count": up_count,
+        "down_count": down_count
     }
 
 

@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "framer-motion": "^12.42.2",
     "leaflet": "^1.9.4",
     "next": "16.2.10",
     "pannellum-react": "^1.2.4",
