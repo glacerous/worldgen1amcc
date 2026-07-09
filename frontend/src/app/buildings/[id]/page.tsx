@@ -89,13 +89,7 @@ export default function BuildingDetailPage({
   const [loadingResults, setLoadingResults] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [showAllRunsDropdown, setShowAllRunsDropdown] = useState(false);
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [selectedResult, setSelectedResult] = useState<AuditResult | null>(null);
-
-  // Reset photo index when selected run changes
-  useEffect(() => {
-    setCurrentPhotoIndex(0);
-  }, [selectedRunId]);
 
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -246,14 +240,8 @@ export default function BuildingDetailPage({
     ? [building.latitude, building.longitude]
     : [-6.2088, 106.8456];
 
-  // Extract photos for the carousel from the current run results
-  const evidencePhotos = Array.from(
-    new Set(
-      displayedResults
-        .map((r) => r.evidence_url)
-        .filter((url): url is string => !!url)
-    )
-  );
+  // Count the number of results with a non-empty evidence_url
+  const evidenceCount = displayedResults.filter((r) => !!r.evidence_url).length;
 
   // Sort criteria results by code
   const sortedResults = [...displayedResults].sort((a, b) =>
@@ -440,25 +428,41 @@ export default function BuildingDetailPage({
               {/* Compliance Score & Breakdown */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-6 pt-1">
                 {statusSummary !== "no_audit" && (
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-display text-4xl md:text-5xl font-extrabold text-accent leading-none">
-                      {typeof complianceScore === "number" ? (
-                        <CountUpNumber value={complianceScore} suffix="%" />
-                      ) : (
-                        "N/A"
-                      )}
-                    </span>
-                    <span className="text-xs font-sans text-ink-muted">Kepatuhan</span>
-
-                    {/* Tooltip Disclaimer */}
-                    <div className="group relative cursor-pointer inline-flex items-center select-none self-start mt-0.5 ml-1">
-                      <span className="w-3.5 h-3.5 rounded-full border border-ink-muted/50 text-ink-muted group-hover:border-accent group-hover:text-accent flex items-center justify-center text-[9px] font-sans font-bold leading-none transition-colors">
-                        i
+                  <div className="flex flex-col gap-1.5 items-start">
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-display text-4xl md:text-5xl font-extrabold text-accent leading-none">
+                        {typeof complianceScore === "number" ? (
+                          <CountUpNumber value={complianceScore} suffix="%" />
+                        ) : (
+                          "N/A"
+                        )}
                       </span>
-                      <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 bg-surface border border-line p-3 rounded-md shadow-lg text-[10px] leading-relaxed font-sans font-normal text-ink z-50">
-                        Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
+                      <span className="text-xs font-sans text-ink-muted">Kepatuhan</span>
+
+                      {/* Tooltip Disclaimer */}
+                      <div className="group relative cursor-pointer inline-flex items-center select-none self-start mt-0.5 ml-1">
+                        <span className="w-3.5 h-3.5 rounded-full border border-ink-muted/50 text-ink-muted group-hover:border-accent group-hover:text-accent flex items-center justify-center text-[9px] font-sans font-bold leading-none transition-colors">
+                          i
+                        </span>
+                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 bg-surface border border-line p-3 rounded-md shadow-lg text-[10px] leading-relaxed font-sans font-normal text-ink z-50">
+                          Hasil ini dihasilkan otomatis oleh AI dari foto yang diunggah. Mungkin tidak 100% akurat — untuk kebutuhan penting, disarankan konfirmasi langsung ke pengelola gedung.
+                        </div>
                       </div>
                     </div>
+                    
+                    {/* Foto Bukti Indicator Link */}
+                    <button
+                      onClick={() => {
+                        document.getElementById("audit-criteria-section")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline font-semibold focus:outline-none cursor-pointer mt-0.5"
+                    >
+                      <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>{evidenceCount} foto bukti diunggah</span>
+                    </button>
                   </div>
                 )}
 
@@ -500,47 +504,19 @@ export default function BuildingDetailPage({
             </div>
 
             {/* Right Column: Map and Photos Carousel stacked */}
-            <div className="w-full md:w-[320px] flex flex-col gap-4 flex-shrink-0">
+            <div className="w-full md:w-[320px] flex-shrink-0">
               
               {/* Satellite Map Thumbnail */}
               <div className="w-full h-[200px] rounded-md border border-line overflow-hidden z-0 relative">
                 <DetailMap center={buildingCoords} buildingName={building.name} />
               </div>
-
-              {/* Photo Evidence Carousel (only rendered if photos exist) */}
-              {evidencePhotos.length > 0 && (
-                <div className="relative w-full h-[180px] rounded-md overflow-hidden border border-line bg-bg/20 shadow-xs">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={evidencePhotos[currentPhotoIndex]}
-                    alt="Bukti Audit"
-                    className="w-full h-full object-cover"
-                  />
-                  {evidencePhotos.length > 1 && (
-                    <div className="absolute inset-x-0 bottom-2 flex items-center justify-between px-2">
-                      <button
-                        onClick={() => setCurrentPhotoIndex((prev) => (prev === 0 ? evidencePhotos.length - 1 : prev - 1))}
-                        className="w-5 h-5 rounded-full bg-surface/90 border border-line flex items-center justify-center hover:bg-surface text-ink hover:text-accent transition-colors focus:outline-none cursor-pointer shadow-xs font-mono text-[9px] font-bold"
-                      >
-                        &lt;
-                      </button>
-                      <button
-                        onClick={() => setCurrentPhotoIndex((prev) => (prev === evidencePhotos.length - 1 ? 0 : prev + 1))}
-                        className="w-5 h-5 rounded-full bg-surface/90 border border-line flex items-center justify-center hover:bg-surface text-ink hover:text-accent transition-colors focus:outline-none cursor-pointer shadow-xs font-mono text-[9px] font-bold"
-                      >
-                        &gt;
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
           </div>
         </div>
 
         {/* Audit Results Section heading */}
-        <div className="space-y-1 mt-[24px]!" style={{ marginTop: "24px" }}>
+        <div id="audit-criteria-section" className="space-y-1 mt-[24px]!" style={{ marginTop: "24px" }}>
           <h3 className="font-display text-xl font-normal text-ink mb-1">
             Kutipan Hasil Audit Kriteria
           </h3>

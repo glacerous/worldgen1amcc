@@ -159,7 +159,7 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
             </h4>
 
             {/* Accordion Grid (2 Columns on Desktop) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
               {filteredResults.map((result, index) => {
                 const isExpanded = expandedCriteria[category] === result.criteria_code;
                 const statusConfig = statusMap[result.status] || statusMap.unknown;
@@ -168,7 +168,7 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
                   <div
                     key={result.criteria_code}
                     className={`bg-surface border border-line rounded-md overflow-hidden transition-all shadow-xs ${
-                      isExpanded || isLastAndOdd ? "md:col-span-2" : ""
+                      isLastAndOdd ? "md:col-span-2" : ""
                     }`}
                   >
                     {/* Collapsed Bar Row */}
