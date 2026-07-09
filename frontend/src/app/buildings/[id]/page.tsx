@@ -7,6 +7,7 @@ import Link from "next/link";
 import BuildingDetailActions from "@/components/BuildingDetailActions";
 import { useAuth } from "@/hooks/useAuth";
 import dynamic from "next/dynamic";
+import CountUpNumber from "@/components/CountUpNumber";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
@@ -441,7 +442,11 @@ export default function BuildingDetailPage({
                 {statusSummary !== "no_audit" && (
                   <div className="flex items-baseline gap-1">
                     <span className="font-display text-4xl md:text-5xl font-extrabold text-accent leading-none">
-                      {complianceScore !== null ? `${complianceScore}%` : "N/A"}
+                      {typeof complianceScore === "number" ? (
+                        <CountUpNumber value={complianceScore} suffix="%" />
+                      ) : (
+                        "N/A"
+                      )}
                     </span>
                     <span className="text-xs font-sans text-ink-muted">Kepatuhan</span>
 
@@ -461,19 +466,27 @@ export default function BuildingDetailPage({
                 <div className="flex items-center gap-x-4 text-center sm:text-left flex-wrap">
                   <div className="flex flex-col">
                     <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">Terpenuhi</span>
-                    <span className="font-display text-lg font-bold" style={{ color: "var(--color-status-met)" }}>{metCount}</span>
+                    <span className="font-display text-lg font-bold" style={{ color: "var(--color-status-met)" }}>
+                      <CountUpNumber value={metCount} />
+                    </span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">Gagal</span>
-                    <span className="font-display text-lg font-bold" style={{ color: "var(--color-status-not-met)" }}>{notMetCount}</span>
+                    <span className="font-display text-lg font-bold" style={{ color: "var(--color-status-not-met)" }}>
+                      <CountUpNumber value={notMetCount} />
+                    </span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">Unknown</span>
-                    <span className="font-display text-lg font-bold" style={{ color: "var(--color-status-unknown)" }}>{unknownCount}</span>
+                    <span className="font-display text-lg font-bold" style={{ color: "var(--color-status-unknown)" }}>
+                      <CountUpNumber value={unknownCount} />
+                    </span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[9px] font-sans font-semibold text-ink-muted uppercase tracking-wider">N/A</span>
-                    <span className="font-display text-lg font-bold" style={{ color: "var(--color-status-na)" }}>{naCount}</span>
+                    <span className="font-display text-lg font-bold" style={{ color: "var(--color-status-na)" }}>
+                      <CountUpNumber value={naCount} />
+                    </span>
                   </div>
                 </div>
               </div>
