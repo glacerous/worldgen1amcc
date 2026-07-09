@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/hooks/useAuth";
+import AuditLoadingOverlay from "@/components/AuditLoadingOverlay";
 
 // Dynamically import Leaflet Map to bypass SSR window issues
 const Map = dynamic(() => import("@/components/Map"), {
@@ -637,6 +638,7 @@ export default function SubmitBuildingPage() {
           </div>
         </div>
       )}
+      <AuditLoadingOverlay isVisible={isLoading} />
     </div>
   );
 }
