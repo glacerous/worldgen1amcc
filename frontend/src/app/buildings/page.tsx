@@ -37,11 +37,48 @@ interface Building {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
+function calculateHaversineDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371000; // Radius of the Earth in meters
+  const toRad = (val: number) => (val * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export default function BuildingsPage() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"terbaru" | "skor_tertinggi" | "nama_az">("terbaru");
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.log("Geolocation error or denied:", error);
+        }
+      );
+    }
+  }, []);
 
   useEffect(() => {
     async function loadBuildings() {
@@ -92,6 +129,29 @@ export default function BuildingsPage() {
       return a.name.localeCompare(b.name, "id", { sensitivity: "base" });
     }
   });
+
+  // Calculate distance from user location and sort 5 closest
+  interface BuildingWithDistance extends Building {
+    distance: number;
+  }
+
+  const topNearbyBuildings: BuildingWithDistance[] = (() => {
+    if (!userLocation || buildings.length === 0) return [];
+
+    return buildings
+      .filter((b) => b.latitude !== null && b.longitude !== null)
+      .map((b) => {
+        const distance = calculateHaversineDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          b.latitude!,
+          b.longitude!
+        );
+        return { ...b, distance };
+      })
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 5);
+  })();
 
   // Find the building with highest numeric compliance score as the featured spotlight
   let featuredBuilding: Building | null = null;
@@ -175,6 +235,20 @@ export default function BuildingsPage() {
               </select>
             </div>
           </div>
+
+          {/* Coba Cari Chips */}
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            <span className="font-sans text-xs text-ink-muted">Coba cari:</span>
+            {["Kampus", "Kantor Pemerintah", "Rumah Sakit", "Mall"].map((keyword) => (
+              <button
+                key={keyword}
+                onClick={() => setSearchQuery(keyword)}
+                className="font-sans text-xs px-2.5 py-1 rounded-md border border-line/60 bg-surface text-ink hover:border-accent hover:text-accent transition-colors cursor-pointer"
+              >
+                {keyword}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Buildings Content */}
@@ -229,6 +303,42 @@ export default function BuildingsPage() {
         ) : (
           /* Listing Layout */
           <div className="space-y-8">
+            {/* Gedung Terdekat Section */}
+            {userLocation && topNearbyBuildings.length > 0 && (
+              <div className="pb-2 border-b border-line/30">
+                <h2 className="font-display text-xl font-normal text-ink mb-4">Gedung Terdekat</h2>
+                <div className="flex overflow-x-auto gap-4 pb-4">
+                  {topNearbyBuildings.map((building) => {
+                    const distanceText = building.distance < 1000
+                      ? `${Math.round(building.distance)} m`
+                      : `${(building.distance / 1000).toFixed(1)} km`;
+
+                    return (
+                      <Link
+                        key={building.id}
+                        href={`/buildings/${building.id}`}
+                        className="bg-surface border border-line hover:border-accent/50 rounded-md p-4 flex items-center justify-between gap-4 w-[260px] flex-shrink-0 group transition-all cursor-pointer"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-display text-sm font-medium text-ink group-hover:text-accent transition-colors truncate">
+                            {building.name}
+                          </h3>
+                          <p className="font-sans text-xs text-accent mt-1">
+                            {distanceText}
+                          </p>
+                        </div>
+                        {building.compliance_score !== null && building.compliance_score !== undefined && (
+                          <div className="flex-shrink-0 font-display text-xl font-bold text-accent">
+                            {building.compliance_score === "N/A" ? "N/A" : `${building.compliance_score}%`}
+                          </div>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Featured Spotlight Card */}
             {featuredBuilding && (
               <Link
