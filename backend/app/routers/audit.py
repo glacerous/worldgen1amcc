@@ -18,12 +18,28 @@ class AuditRequest(BaseModel):
 def run_audit(request: AuditRequest, current_user = Depends(get_current_user)):
     building_id_str = str(request.building_id)
     
-    # Fetch associated photos from annotations if they exist
+    # Fetch associated photos dari tabel scenes & existing audit results
+    photos = []
+    
+    # 1. Ambil foto panorama dari tabel 'scenes' (yang diunggah melalui virtual tour/scene baru)
     try:
-        annotations_response = supabase.table("annotations").select("photo_url").eq("building_id", building_id_str).execute()
-        photos = [row["photo_url"] for row in annotations_response.data] if annotations_response.data else []
-    except Exception:
-        photos = []
+        scenes_response = supabase.table("scenes").select("file_url").eq("building_id", building_id_str).execute()
+        if scenes_response.data:
+            photos.extend([row["file_url"] for row in scenes_response.data if row.get("file_url")])
+    except Exception as e:
+        print(f"[warn] Gagal mengambil foto dari tabel scenes: {e}")
+        
+    # 2. Ambil foto bukti dari audit regular terdahulu yang disimpan di tabel 'audit_results'
+    try:
+        results_response = supabase.table("audit_results").select("evidence_url").eq("building_id", building_id_str).not_.is_("evidence_url", "null").execute()
+        if results_response.data:
+            photos.extend([row["evidence_url"] for row in results_response.data if row.get("evidence_url")])
+    except Exception as e:
+        print(f"[warn] Gagal mengambil foto dari tabel audit_results: {e}")
+        
+    # De-duplikasi list foto agar tidak mengirimkan foto duplikat ke AI Agent
+    photos = list(set(photos))
+
 
     # Delegate core logic to run_audit_pipeline helper
     result = run_audit_pipeline(building_id_str, photos, contributor_name=request.contributor_name)

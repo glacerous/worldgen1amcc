@@ -12,6 +12,7 @@ class CriteriaResult(BaseModel):
     status: str          # 'met', 'not_met', 'unknown', 'na'
     reasoning: str
     source_agent: str
+    evidence_url: Optional[str] = None
 
 # 2. Define BuildingAuditState Schema
 class BuildingAuditState(BaseModel):
@@ -35,10 +36,24 @@ def get_status_priority(status: str) -> int:
     }
     return priority_map.get(status.lower(), 0)
 
+def get_agent_priority(agent: str) -> int:
+    """
+    Returns priority order of source agents for info richness:
+    resolver_agent (3) > visual_agent (2) > text_agent (1) > system/other (0).
+    """
+    priority_map = {
+        "resolver_agent": 3,
+        "visual_agent": 2,
+        "text_agent": 1,
+        "system": 0
+    }
+    return priority_map.get(agent.lower(), 0)
+
 def merge_evaluations(results: List[CriteriaResult]) -> List[CriteriaResult]:
     """
     Consolidates multiple evaluations for each criteria based on priority:
     met > not_met > unknown > na
+    If status is identical, prefers the agent with higher informational richness.
     """
     merged: Dict[str, CriteriaResult] = {}
     for r in results:
@@ -50,6 +65,9 @@ def merge_evaluations(results: List[CriteriaResult]) -> List[CriteriaResult]:
             new_p = get_status_priority(r.status)
             if new_p > current_p:
                 merged[code] = r
+            elif new_p == current_p:
+                if get_agent_priority(r.source_agent) > get_agent_priority(merged[code].source_agent):
+                    merged[code] = r
     
     # Ensure all seed criteria are represented
     final_list = []
@@ -250,8 +268,8 @@ def run_audit_pipeline(
         if not crit_id:
             continue
         
-        # Basic mapping for optional evidence_url if it came from visual agent and status is met
-        evidence_url = photos[0] if (photos and r.source_agent == "visual_agent" and r.status == "met") else None
+        # Retrieve the dynamic evidence_url determined by the visual agent
+        evidence_url = r.evidence_url
         
         rows_to_insert.append({
             "building_id": building_id,

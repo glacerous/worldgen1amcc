@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
@@ -14,6 +14,7 @@ class CriteriaEvaluation(BaseModel):
     criteria_code: str = Field(description="Kode kriteria, contoh: SNI-8201-M1")
     status: str = Field(description="Status evaluasi: harus salah satu dari 'met', 'not_met', 'unknown', 'na'")
     reasoning: str = Field(description="Alasan evaluasi berdasarkan analisis visual dari foto")
+    evidence_photo_index: Optional[int] = Field(None, description="Indeks foto (1-based, yaitu 1 untuk foto pertama, 2 untuk foto kedua, dst.) yang menjadi bukti utama kriteria ini. Gunakan null jika tidak ada.")
 
 class VisualAgentResult(BaseModel):
     evaluations: List[CriteriaEvaluation]
@@ -89,15 +90,25 @@ def run_visual_agent(photos: List[str]) -> List[Dict[str, Any]]:
                 eval_item = evaluations_map[code]
                 status = eval_item.status if eval_item.status in ["met", "not_met", "unknown", "na"] else "unknown"
                 reasoning = eval_item.reasoning
+                
+                # Determine evidence_url dynamically based on index provided by AI
+                evidence_url = None
+                if eval_item.evidence_photo_index and 1 <= eval_item.evidence_photo_index <= len(photos):
+                    evidence_url = photos[eval_item.evidence_photo_index - 1]
+                elif photos:
+                    # Fallback to the first photo if AI didn't specify an index
+                    evidence_url = photos[0]
             else:
                 status = "unknown"
                 reasoning = "Kriteria tidak dievaluasi oleh model visual."
+                evidence_url = None
             
             output_results.append({
                 "criteria_code": code,
                 "status": status,
                 "reasoning": reasoning,
-                "source_agent": "visual_agent"
+                "source_agent": "visual_agent",
+                "evidence_url": evidence_url
             })
             
         return output_results
