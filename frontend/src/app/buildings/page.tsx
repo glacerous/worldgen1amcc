@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import TrustBadge from "@/components/TrustBadge";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface AuditCriteria {
   category: string;
@@ -57,12 +58,26 @@ function calculateHaversineDistance(
   return R * c;
 }
 
+function getComplianceColorClass(score: number | "N/A" | null | undefined): string {
+  if (score === null || score === undefined || score === "N/A") {
+    return "text-ink-muted";
+  }
+  if (score < 50) {
+    return "text-status-not-met";
+  }
+  if (score < 75) {
+    return "text-amber-600";
+  }
+  return "text-accent";
+}
+
 export default function BuildingsPage() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"terbaru" | "skor_tertinggi" | "nama_az">("terbaru");
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isExpandedNearby, setIsExpandedNearby] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && navigator.geolocation) {
@@ -150,7 +165,7 @@ export default function BuildingsPage() {
         return { ...b, distance };
       })
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 5);
+      .slice(0, 10);
   })();
 
   // Find the building with highest numeric compliance score as the featured spotlight
@@ -169,13 +184,15 @@ export default function BuildingsPage() {
     ? sortedBuildings.filter((b) => b.id !== featuredBuilding!.id)
     : sortedBuildings;
 
+  const showMainCatalog = searchQuery.length > 0 || !userLocation || topNearbyBuildings.length === 0;
+
   return (
     <div className="min-h-screen flex flex-col bg-bg">
       <Navbar />
 
       <main className="flex-1 px-6 py-12 md:py-16 max-w-4xl mx-auto w-full">
         {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 pb-6 border-b border-line/45">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 pb-4 border-b border-line/45">
           <div>
             <h1 className="font-display text-3xl md:text-4xl font-normal text-ink">
               Daftar Gedung Publik
@@ -193,10 +210,10 @@ export default function BuildingsPage() {
         </div>
 
         {/* Filter & Search Bar */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+        <div className="mb-6">
+          <div className="flex gap-4 items-center justify-between">
             {/* Search Input */}
-            <div className="relative flex-1 w-full">
+            <div className="relative w-full">
               <input
                 type="text"
                 placeholder="Cari gedung berdasarkan nama atau alamat..."
@@ -218,38 +235,79 @@ export default function BuildingsPage() {
                 ></path>
               </svg>
             </div>
-
-            {/* Sort Dropdown */}
-            <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
-              <span className="text-[11px] font-sans font-semibold text-ink-muted uppercase tracking-wider whitespace-nowrap">
-                Urutkan:
-              </span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="bg-surface border border-line rounded-md px-3 py-2 text-xs font-sans text-ink font-semibold focus:outline-none focus:border-accent/40 cursor-pointer w-full sm:w-auto"
-              >
-                <option value="terbaru">Terbaru</option>
-                <option value="skor_tertinggi">Skor Kepatuhan Tertinggi</option>
-                <option value="nama_az">Nama A-Z</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Coba Cari Chips */}
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
-            <span className="font-sans text-xs text-ink-muted">Coba cari:</span>
-            {["Kampus", "Kantor Pemerintah", "Rumah Sakit", "Mall"].map((keyword) => (
-              <button
-                key={keyword}
-                onClick={() => setSearchQuery(keyword)}
-                className="font-sans text-xs px-2.5 py-1 rounded-md border border-line/60 bg-surface text-ink hover:border-accent hover:text-accent transition-colors cursor-pointer"
-              >
-                {keyword}
-              </button>
-            ))}
           </div>
         </div>
+          {/* Coba Cari (Try Searching) Section */}
+          <div className="mt-4 mb-8">
+            <h3 className="text-[10px] font-sans font-semibold text-ink-muted/80 uppercase tracking-widest mb-3">
+              Coba Cari
+            </h3>
+            <div className="flex flex-col border border-line rounded-md bg-surface overflow-hidden divide-y divide-line/45">
+              {[
+                { label: "Kampus dengan aksesibilitas terverifikasi", value: "Kampus" },
+                { label: "Kantor Pemerintah ramah disabilitas", value: "Kantor Pemerintah" },
+                { label: "Rumah Sakit akses kursi roda", value: "Rumah Sakit" },
+                { label: "Mall ramah disabilitas terdekat", value: "Mall" },
+              ].map((item) => {
+                const isActive = searchQuery.toLowerCase() === item.value.toLowerCase();
+                return (
+                  <button
+                    key={item.value}
+                    onClick={() => setSearchQuery(isActive ? "" : item.value)}
+                    className={`flex items-center justify-between px-4 py-3.5 text-left font-sans text-xs transition-all duration-200 cursor-pointer group ${
+                      isActive
+                        ? "bg-accent/5 text-accent font-semibold"
+                        : "text-ink hover:bg-bg/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <svg
+                        className={`w-4 h-4 flex-shrink-0 ${
+                          isActive ? "text-accent" : "text-ink-muted/60"
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                      <span className="truncate">{item.label}</span>
+                    </div>
+                    <svg
+                      className={`w-4 h-4 flex-shrink-0 transition-transform duration-300 group-hover:translate-x-1.5 ${
+                        isActive ? "text-accent" : "text-ink-muted/40"
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+            
+            {/* Reset Button */}
+            {searchQuery && (
+              <div className="flex justify-end mt-2">
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={() => setSearchQuery("")}
+                  className="font-sans text-xs px-2.5 py-1 rounded-md border border-status-not-met/30 bg-surface text-status-not-met hover:bg-status-not-met/5 hover:border-status-not-met transition-all cursor-pointer flex items-center gap-1 hover:-translate-y-0.5 duration-200"
+                >
+                  <span>✕</span> Reset Pencarian
+                </motion.button>
+              </div>
+            )}
+          </div>
 
         {/* Buildings Content */}
         {isLoading ? (
@@ -304,167 +362,246 @@ export default function BuildingsPage() {
           /* Listing Layout */
           <div className="space-y-8">
             {/* Gedung Terdekat Section */}
-            {userLocation && topNearbyBuildings.length > 0 && (
-              <div className="pb-2 border-b border-line/30">
-                <h2 className="font-display text-xl font-normal text-ink mb-4">Gedung Terdekat</h2>
-                <div className="flex overflow-x-auto gap-4 pb-4">
-                  {topNearbyBuildings.map((building) => {
-                    const distanceText = building.distance < 1000
-                      ? `${Math.round(building.distance)} m`
-                      : `${(building.distance / 1000).toFixed(1)} km`;
-
-                    return (
-                      <Link
-                        key={building.id}
-                        href={`/buildings/${building.id}`}
-                        className="bg-surface border border-line hover:border-accent/50 rounded-md p-4 flex items-center justify-between gap-4 w-[260px] flex-shrink-0 group transition-all cursor-pointer"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-display text-sm font-medium text-ink group-hover:text-accent transition-colors truncate">
-                            {building.name}
-                          </h3>
-                          <p className="font-sans text-xs text-accent mt-1">
-                            {distanceText}
-                          </p>
-                        </div>
-                        {building.compliance_score !== null && building.compliance_score !== undefined && (
-                          <div className="flex-shrink-0 font-display text-xl font-bold text-accent">
-                            {building.compliance_score === "N/A" ? "N/A" : `${building.compliance_score}%`}
-                          </div>
-                        )}
-                      </Link>
-                    );
-                  })}
+            {!searchQuery && userLocation && topNearbyBuildings.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="pb-6 border-b border-line/30"
+              >
+                {/* Header with badge count */}
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-display text-xl font-normal text-ink">Gedung Terdekat</h2>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-sans font-semibold bg-accent/10 text-accent border border-accent/20">
+                    {topNearbyBuildings.length} ditemukan
+                  </span>
                 </div>
-              </div>
+
+                {/* Vertical List of cards */}
+                <div className="flex flex-col gap-3.5">
+                  {topNearbyBuildings
+                    .slice(0, isExpandedNearby ? topNearbyBuildings.length : 5)
+                    .map((building) => {
+                      const firstPhotoResult = building.audit_results?.find((r) => r.evidence_url);
+                      const thumbnailUrl = firstPhotoResult?.evidence_url || null;
+                      const distanceText = building.distance < 1000
+                        ? `${Math.round(building.distance)} m`
+                        : `${(building.distance / 1000).toFixed(1)} km`;
+
+                      const scoreColorClass = getComplianceColorClass(building.compliance_score);
+
+                      return (
+                        <Link
+                          key={building.id}
+                          href={`/buildings/${building.id}`}
+                          className="bg-surface border border-line hover:border-accent/40 rounded-md p-3 sm:p-4 flex items-center gap-4 transition-all group hover:shadow-sm hover:-translate-y-0.5 duration-300 cursor-pointer w-full"
+                        >
+                          {/* Left Thumbnail */}
+                          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-md bg-bg overflow-hidden flex-shrink-0 relative border border-line/45">
+                            {thumbnailUrl ? (
+                              <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300" alt="" />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-bg to-line/30 flex items-center justify-center">
+                                <svg className="w-6 h-6 text-ink-muted/30" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Center Info */}
+                          <div className="flex-1 min-w-0 pr-2">
+                            <h3 className="font-display text-sm sm:text-base font-semibold text-ink group-hover:text-accent transition-colors truncate">
+                              {building.name}
+                            </h3>
+                            <p className="font-sans text-xs text-ink-muted flex items-center gap-1.5 mt-1 truncate">
+                              <svg className="w-3.5 h-3.5 text-accent/80 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                              </svg>
+                              <span className="font-semibold text-accent flex-shrink-0">{distanceText}</span>
+                              {building.address && (
+                                <>
+                                  <span className="text-ink-muted/40 font-normal">·</span>
+                                  <span className="truncate">{building.address}</span>
+                                </>
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Right Compliance Score */}
+                          {building.compliance_score !== null && building.compliance_score !== undefined && (
+                            <div className={`flex-shrink-0 font-display text-xl sm:text-2xl font-bold ${scoreColorClass}`}>
+                              {building.compliance_score === "N/A" ? "N/A" : `${building.compliance_score}%`}
+                            </div>
+                          )}
+                        </Link>
+                      );
+                    })}
+                </div>
+
+                {/* Show more/less toggle button */}
+                {topNearbyBuildings.length > 5 && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={() => setIsExpandedNearby(!isExpandedNearby)}
+                      className="font-sans text-xs font-semibold text-accent hover:opacity-85 transition-opacity cursor-pointer py-1.5 px-4 border border-line rounded-md bg-surface hover:bg-bg/40 flex items-center gap-1.5 hover:-translate-y-0.5 duration-200"
+                    >
+                      {isExpandedNearby ? (
+                        <>
+                          Tampilkan Lebih Sedikit <span>↑</span>
+                        </>
+                      ) : (
+                        <>
+                          Tampilkan {topNearbyBuildings.length - 5} Lainnya <span>↓</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </motion.div>
             )}
 
             {/* Featured Spotlight Card */}
-            {featuredBuilding && (
-              <Link
-                href={`/buildings/${featuredBuilding.id}`}
-                className="relative bg-surface border-2 border-accent/20 hover:border-accent/50 rounded-lg p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 transition-all group overflow-hidden block"
+            {showMainCatalog && featuredBuilding && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
               >
-                {/* Highlight Badge */}
-                <div className="absolute top-4 left-4 bg-accent text-white text-[9px] font-sans font-bold uppercase tracking-widest px-2.5 py-1 rounded shadow-sm z-10">
-                  Sorotan Kepatuhan Terbaik
-                </div>
-                
-                {/* Thumbnail */}
-                {(() => {
-                  const firstPhotoResult = featuredBuilding.audit_results?.find((r) => r.evidence_url);
-                  const thumbnailUrl = firstPhotoResult?.evidence_url || null;
-                  return (
-                    <div 
-                      className="w-full md:w-36 h-36 md:h-36 rounded-md bg-bg overflow-hidden flex-shrink-0 relative border border-line/50 mt-6 md:mt-0"
-                    >
-                      {thumbnailUrl ? (
-                        <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-bg to-line/40 flex items-center justify-center">
-                          <svg className="w-10 h-10 text-ink-muted/40" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* Content */}
-                <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-6 w-full">
-                  <div className="space-y-2">
-                    <h2 className="font-display text-2xl font-bold text-ink group-hover:text-accent transition-colors">
-                      {featuredBuilding.name}
-                    </h2>
-                    <p className="font-sans text-sm text-ink-muted leading-relaxed">
-                      {featuredBuilding.address || "Tidak ada alamat lengkap"}
-                    </p>
+                <Link
+                  href={`/buildings/${featuredBuilding.id}`}
+                  className="relative bg-surface border-2 border-accent/20 hover:border-accent/50 rounded-lg p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 transition-all group overflow-hidden block hover:shadow-md hover:-translate-y-0.5 duration-300 cursor-pointer"
+                >
+                  {/* Highlight Badge */}
+                  <div className="absolute top-4 left-4 bg-accent text-white text-[9px] font-sans font-bold uppercase tracking-widest px-2.5 py-1 rounded shadow-sm z-10">
+                    Sorotan Kepatuhan Terbaik
                   </div>
-
-                  <div className="flex-shrink-0 flex items-center">
-                    <div className="flex flex-col items-end">
-                      <span className="font-display text-5xl sm:text-6xl font-extrabold text-accent leading-none">
-                        {featuredBuilding.compliance_score}%
-                      </span>
-                      <span className="font-sans text-[10px] text-ink-muted mt-1.5 uppercase tracking-wider font-semibold">
-                        Kepatuhan
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            )}
-
-            {/* Grid layout for other buildings */}
-            {gridBuildings.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {gridBuildings.map((building) => {
-                  const firstPhotoResult = building.audit_results?.find((r) => r.evidence_url);
-                  const thumbnailUrl = firstPhotoResult?.evidence_url || null;
-
-                  return (
-                    <Link
-                      href={`/buildings/${building.id}`}
-                      key={building.id}
-                      className="bg-surface border border-line hover:border-accent/50 rounded-md p-5 flex items-center gap-4 transition-all group"
-                    >
-                      {/* Card Thumbnail */}
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded bg-bg overflow-hidden flex-shrink-0 relative border border-line/45">
+                  
+                  {/* Thumbnail */}
+                  {(() => {
+                    const firstPhotoResult = featuredBuilding.audit_results?.find((r) => r.evidence_url);
+                    const thumbnailUrl = firstPhotoResult?.evidence_url || null;
+                    return (
+                      <div 
+                        className="w-full md:w-36 h-36 md:h-36 rounded-md bg-bg overflow-hidden flex-shrink-0 relative border border-line/50 mt-6 md:mt-0"
+                      >
                         {thumbnailUrl ? (
-                          <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300" alt="" />
+                          <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="" />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-bg to-line/30 flex items-center justify-center">
-                            <svg className="w-8 h-8 text-ink-muted/30" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                          <div className="w-full h-full bg-gradient-to-br from-bg to-line/40 flex items-center justify-center">
+                            <svg className="w-10 h-10 text-ink-muted/40" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                             </svg>
                           </div>
                         )}
                       </div>
+                    );
+                  })()}
 
-                      {/* Card Content & Score */}
-                      <div className="flex-1 flex items-center justify-between gap-4 min-w-0">
-                        <div className="min-w-0 pr-2">
-                          <h2 className="font-display text-base sm:text-lg font-medium text-ink group-hover:text-accent transition-colors truncate">
-                            {building.name}
-                          </h2>
-                          <p className="font-sans text-xs text-ink-muted truncate mt-1">
-                            {building.address || "Tidak ada alamat lengkap"}
-                          </p>
-                        </div>
+                  {/* Content */}
+                  <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-6 w-full">
+                    <div className="space-y-2">
+                      <h2 className="font-display text-2xl font-bold text-ink group-hover:text-accent transition-colors">
+                        {featuredBuilding.name}
+                      </h2>
+                      <p className="font-sans text-sm text-ink-muted leading-relaxed">
+                        {featuredBuilding.address || "Tidak ada alamat lengkap"}
+                      </p>
+                    </div>
 
-                        {/* Status Container */}
-                        <div className="flex-shrink-0 flex items-center justify-end gap-3">
-                          {building.status_summary === "review" && (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded text-[10px] font-sans font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-600 border border-amber-500/20 gap-1.5 shadow-xs">
-                              <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    <div className="flex-shrink-0 flex items-center">
+                      <div className="flex flex-col items-end">
+                        <span className={`font-display text-5xl sm:text-6xl font-extrabold leading-none ${getComplianceColorClass(featuredBuilding.compliance_score)}`}>
+                          {featuredBuilding.compliance_score === "N/A" ? "N/A" : `${featuredBuilding.compliance_score}%`}
+                        </span>
+                        <span className="font-sans text-[10px] text-ink-muted mt-1.5 uppercase tracking-wider font-semibold">
+                          Kepatuhan
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              </motion.div>
+            )}
+
+            {/* Grid layout for other buildings */}
+            {showMainCatalog && gridBuildings.length > 0 && (
+              <motion.div
+                layout
+                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              >
+                {gridBuildings.map((building) => {
+                  const firstPhotoResult = building.audit_results?.find((r) => r.evidence_url);
+                  const thumbnailUrl = firstPhotoResult?.evidence_url || null;
+
+                  return (
+                    <motion.div
+                      layout
+                      key={building.id}
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <Link
+                        href={`/buildings/${building.id}`}
+                        className="bg-surface border border-line hover:border-accent/40 rounded-md p-5 flex items-center gap-4 transition-all group hover:shadow-md hover:-translate-y-0.5 duration-300 cursor-pointer h-full"
+                      >
+                        {/* Card Thumbnail */}
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-md bg-bg overflow-hidden flex-shrink-0 relative border border-line/45">
+                          {thumbnailUrl ? (
+                            <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300" alt="" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-bg to-line/30 flex items-center justify-center">
+                              <svg className="w-8 h-8 text-ink-muted/30" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                               </svg>
-                              Review
-                            </span>
-                          )}
-
-                          {building.status_summary === "no_audit" && (
-                            <span className="px-2.5 py-1 bg-status-unknown/10 text-status-unknown border border-status-unknown/20 rounded text-[10px] font-sans font-medium whitespace-nowrap">
-                              No Audit
-                            </span>
-                          )}
-
-                          {(building.status_summary === "active" || building.status_summary === "review") && building.compliance_score !== null && building.compliance_score !== undefined && (
-                            <div className="flex flex-col items-end">
-                              <span className={`font-display text-3xl sm:text-4xl font-extrabold ${
-                                building.compliance_score === "N/A" ? "text-ink-muted" : "text-accent"
-                              }`}>
-                                {building.compliance_score === "N/A" ? "N/A" : `${building.compliance_score}%`}
-                              </span>
                             </div>
                           )}
                         </div>
-                      </div>
-                    </Link>
+
+                        {/* Card Content & Score */}
+                        <div className="flex-1 flex items-center justify-between gap-4 min-w-0">
+                          <div className="min-w-0 pr-2">
+                            <h2 className="font-display text-base sm:text-lg font-medium text-ink group-hover:text-accent transition-colors truncate">
+                              {building.name}
+                            </h2>
+                            <p className="font-sans text-xs text-ink-muted truncate mt-1">
+                              {building.address || "Tidak ada alamat lengkap"}
+                            </p>
+                          </div>
+
+                          {/* Status Container */}
+                          <div className="flex-shrink-0 flex items-center justify-end gap-3">
+                            {building.status_summary === "review" && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded text-[10px] font-sans font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-600 border border-amber-500/20 gap-1.5 shadow-xs">
+                                <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Review
+                              </span>
+                            )}
+
+                            {building.status_summary === "no_audit" && (
+                              <span className="px-2.5 py-1 bg-status-unknown/10 text-status-unknown border border-status-unknown/20 rounded text-[10px] font-sans font-medium whitespace-nowrap">
+                                No Audit
+                              </span>
+                            )}
+
+                            {(building.status_summary === "active" || building.status_summary === "review") && building.compliance_score !== null && building.compliance_score !== undefined && (
+                              <div className="flex flex-col items-end">
+                                <span className={`font-display text-3xl sm:text-4xl font-extrabold ${getComplianceColorClass(building.compliance_score)}`}>
+                                  {building.compliance_score === "N/A" ? "N/A" : `${building.compliance_score}%`}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    </motion.div>
                   );
                 })}
-              </div>
+              </motion.div>
             )}
           </div>
         )}
