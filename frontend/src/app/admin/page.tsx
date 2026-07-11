@@ -11,6 +11,7 @@ interface Building {
   address: string | null;
   verified: boolean;
   gps_mismatch?: boolean;
+  edit_history_count?: number;
 }
 
 interface Report {
@@ -578,6 +579,11 @@ export default function AdminDashboardPage() {
                             {building.gps_mismatch && (
                               <span className="inline-flex px-2 py-0.5 border rounded-md text-[8px] font-sans font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-700 border-amber-500/20">
                                 GPS Tidak Cocok
+                              </span>
+                            )}
+                            {building.edit_history_count !== undefined && building.edit_history_count > 0 && (
+                              <span className="inline-flex px-2 py-0.5 border rounded-md text-[8px] font-sans font-semibold uppercase tracking-wider bg-accent/10 text-accent border-accent/20">
+                                Riwayat Edit ({building.edit_history_count})
                               </span>
                             )}
                           </div>

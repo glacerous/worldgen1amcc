@@ -32,6 +32,8 @@ export default function EditAuditPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
+  const [photoUrlsToDelete, setPhotoUrlsToDelete] = useState<string[]>([]);
 
   // Auth guard: redirect to login if not logged in
   useEffect(() => {
@@ -70,6 +72,40 @@ export default function EditAuditPage({
       .finally(() => setLoadingRun(false));
   }, [auditRunId, buildingId, user, token, authLoading, router]);
 
+  // Fetch existing audit results and scenes to extract photos
+  useEffect(() => {
+    if (!auditRunId || !buildingId || !UUID_REGEX.test(auditRunId) || !auditRun) return;
+    
+    const fetchResults = fetch(`${BACKEND_URL}/audit-runs/${auditRunId}/results`)
+      .then((res) => (res.ok ? res.json() : []))
+      .catch(() => []);
+      
+    const fetchScenes = fetch(`${BACKEND_URL}/scenes?building_id=${buildingId}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .catch(() => []);
+      
+    Promise.all([fetchResults, fetchScenes])
+      .then(([results, scenesList]) => {
+        const closeUps = results
+          .map((r: any) => r.evidence_url)
+          .filter((url: any): url is string => !!url);
+          
+        const uniqueCloseUps = Array.from(new Set(closeUps));
+        
+        const runTime = new Date(auditRun.created_at).getTime();
+        const matchedPanoramas = scenesList
+          .filter((s: any) => {
+            const sceneTime = new Date(s.created_at).getTime();
+            return Math.abs(sceneTime - runTime) < 60000;
+          })
+          .map((s: any) => s.file_url);
+          
+        const combined = Array.from(new Set([...uniqueCloseUps, ...matchedPanoramas]));
+        setExistingPhotos(combined);
+      })
+      .catch(console.error);
+  }, [auditRunId, buildingId, auditRun]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
@@ -90,8 +126,9 @@ export default function EditAuditPage({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (selectedFiles.length === 0) {
-      setError("Minimal 1 foto baru wajib diunggah untuk memperbarui audit.");
+    const remainingCount = existingPhotos.filter(url => !photoUrlsToDelete.includes(url)).length + selectedFiles.length;
+    if (remainingCount === 0) {
+      setError("Minimal harus ada 1 foto bukti tersisa atau baru yang diunggah.");
       return;
     }
 
@@ -100,11 +137,12 @@ export default function EditAuditPage({
 
     const formData = new FormData();
     selectedFiles.forEach((file) => {
-      formData.append("photos", file);
+      formData.append("new_photos", file);
     });
+    formData.append("photo_ids_to_delete", JSON.stringify(photoUrlsToDelete));
 
     try {
-      const res = await fetch(`${BACKEND_URL}/audit/runs/${auditRunId}/rerun`, {
+      const res = await fetch(`${BACKEND_URL}/audit-runs/${auditRunId}`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -235,11 +273,63 @@ export default function EditAuditPage({
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Existing Photos Gallery with delete buttons */}
+            {existingPhotos.length > 0 && (
+              <div className="space-y-2">
+                <label className="block text-xs font-sans font-semibold text-ink-muted">
+                  Foto Bukti yang Sudah Ada ({existingPhotos.filter(url => !photoUrlsToDelete.includes(url)).length})
+                </label>
+                <div className="grid grid-cols-4 gap-3 bg-bg p-3 border border-line rounded-md">
+                  {existingPhotos.map((url) => {
+                    const isDeleted = photoUrlsToDelete.includes(url);
+                    const isPanorama = url.includes("/panoramas/");
+                    return (
+                      <div
+                        key={url}
+                        className={`relative aspect-square rounded overflow-hidden border bg-surface transition-all ${
+                          isDeleted ? "opacity-35 border-line" : "border-line hover:border-status-not-met/40"
+                        }`}
+                      >
+                        <img
+                          src={url}
+                          alt="Audit Photo"
+                          className="w-full h-full object-cover"
+                        />
+                        {isPanorama && (
+                          <span className="absolute bottom-1 left-1 bg-accent text-[7px] text-white font-sans font-bold px-1 rounded scale-80 origin-bottom-left">
+                            360°
+                          </span>
+                        )}
+                        {!isDeleted ? (
+                          <button
+                            type="button"
+                            onClick={() => setPhotoUrlsToDelete((prev) => [...prev, url])}
+                            className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px] shadow-xs cursor-pointer focus:outline-none transition-colors"
+                            title="Hapus foto ini"
+                          >
+                            ✕
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setPhotoUrlsToDelete((prev) => prev.filter((item) => item !== url))}
+                            className="absolute inset-0 bg-black/55 flex items-center justify-center text-[10px] font-sans font-bold text-white cursor-pointer hover:bg-black/45 focus:outline-none transition-colors"
+                            title="Batalkan hapus"
+                          >
+                            Batal
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Photo upload area */}
             <div className="space-y-2">
               <label className="block text-xs font-sans font-semibold text-ink-muted">
-                Foto Bukti Fisik Terbaru{" "}
-                <span className="text-status-not-met">*</span>
+                Unggah Foto Bukti Fisik Baru
               </label>
 
               {/* Drop area */}
@@ -278,7 +368,7 @@ export default function EditAuditPage({
               {selectedFiles.length > 0 && (
                 <div className="pt-2">
                   <span className="block text-[10px] font-sans font-semibold text-ink-muted mb-2">
-                    Foto terpilih ({selectedFiles.length}):
+                    Foto Baru terpilih ({selectedFiles.length}):
                   </span>
                   <div className="flex flex-wrap gap-3">
                     {selectedFiles.map((file, idx) => {
@@ -288,7 +378,6 @@ export default function EditAuditPage({
                           key={idx}
                           className="relative w-16 h-16 border border-line rounded-md overflow-hidden bg-bg"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={objectUrl}
                             alt={`Preview ${idx + 1}`}
@@ -297,7 +386,7 @@ export default function EditAuditPage({
                           <button
                             type="button"
                             onClick={() => removeFile(idx)}
-                            className="absolute top-0 right-0 bg-ink-muted text-white w-4 h-4 flex items-center justify-center text-[9px] hover:bg-status-not-met transition-colors focus:outline-none cursor-pointer"
+                            className="absolute top-0 right-0 bg-ink-muted text-white w-4.5 h-4.5 flex items-center justify-center text-[9px] hover:bg-status-not-met transition-colors focus:outline-none cursor-pointer"
                           >
                             ×
                           </button>
@@ -325,10 +414,10 @@ export default function EditAuditPage({
 
               <button
                 type="submit"
-                disabled={isSubmitting || selectedFiles.length === 0}
+                disabled={isSubmitting || (existingPhotos.filter(url => !photoUrlsToDelete.includes(url)).length + selectedFiles.length === 0)}
                 className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-6 py-2.5 rounded-md transition-all disabled:opacity-50 cursor-pointer"
               >
-                {isSubmitting ? "Memproses..." : "Simpan & Analisis Ulang"}
+                {isSubmitting ? "Memproses..." : "Simpan Perubahan"}
               </button>
             </div>
           </form>

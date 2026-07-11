@@ -1,5 +1,6 @@
 import uuid
-from fastapi import APIRouter, HTTPException, Depends, File, UploadFile
+import json
+from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, Form
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from uuid import UUID
@@ -332,4 +333,164 @@ audit_runs_router = APIRouter(prefix="/audit-runs", tags=["audit-runs"])
 @audit_runs_router.get("/{run_id}/results", response_model=List[dict])
 def get_audit_run_results_new_path(run_id: UUID):
     return get_run_results(run_id)
+
+
+@audit_runs_router.patch("/{run_id}")
+async def patch_audit_run(
+    run_id: UUID,
+    photo_ids_to_delete: Optional[str] = Form(None), # JSON-encoded list of urls to delete
+    new_photos: Optional[List[UploadFile]] = File(None),
+    current_user = Depends(get_current_user)
+):
+    run_id_str = str(run_id)
+    
+    # 1. Fetch audit run and check ownership
+    try:
+        run_res = supabase.table("audit_runs").select("*").eq("id", run_id_str).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil data audit run: {str(e)}")
+        
+    if not run_res.data:
+        raise HTTPException(status_code=404, detail="Audit run tidak ditemukan.")
+    
+    audit_run = run_res.data[0]
+    run_user_id = audit_run.get("user_id")
+    
+    if not run_user_id or str(run_user_id) != str(current_user["user_id"]):
+        raise HTTPException(
+            status_code=401,
+            detail="Anda tidak memiliki izin untuk mengedit audit run ini."
+        )
+        
+    building_id = audit_run["building_id"]
+    
+    # 2. Fetch current audit results for snapshot
+    try:
+        results_res = supabase.table("audit_results") \
+            .select("*") \
+            .eq("audit_run_id", run_id_str) \
+            .execute()
+        old_results = results_res.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil hasil audit lama: {str(e)}")
+    
+    # 3. Save snapshot to history table
+    try:
+        history_payload = {
+            "audit_run_id": run_id_str,
+            "previous_results_snapshot": old_results
+        }
+        supabase.table("audit_run_edit_history").insert(history_payload).execute()
+    except Exception as e:
+        # Log error but don't fail, as it could be that the migration hasn't been run yet
+        print(f"[warn] Gagal menyimpan histori perubahan: {e}")
+        
+    # 4. Parse photo URLs to delete and delete them from Supabase Storage and scenes
+    urls_to_delete = []
+    if photo_ids_to_delete:
+        try:
+            urls_to_delete = json.loads(photo_ids_to_delete)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Format photo_ids_to_delete tidak valid.")
+            
+    for url in urls_to_delete:
+        try:
+            filename = url.split("/")[-1]
+            if "/panoramas/" in url:
+                supabase.storage.from_("panoramas").remove([filename])
+                # Delete from scenes table
+                supabase.table("scenes").delete().eq("file_url", url).execute()
+            else:
+                supabase.storage.from_("photos").remove([filename])
+        except Exception as err:
+            print(f"[warn] Gagal menghapus file dari storage: {url}. Error: {err}")
+            
+    # 5. Determine the list of remaining old photos
+    old_photos = []
+    for r in old_results:
+        ev_url = r.get("evidence_url")
+        if ev_url and ev_url not in urls_to_delete:
+            old_photos.append(ev_url)
+            
+    # Also check matched panoramas
+    try:
+        scenes_res = supabase.table("scenes").select("file_url, created_at").eq("building_id", str(building_id)).execute()
+        
+        # In Python, we calculate timestamps in seconds
+        import datetime
+        if audit_run.get("created_at"):
+            # parse iso date
+            dt = datetime.datetime.fromisoformat(audit_run["created_at"].replace("Z", "+00:00"))
+            run_time_sec = dt.timestamp()
+        else:
+            run_time_sec = 0
+            
+        for s in (scenes_res.data or []):
+            f_url = s.get("file_url")
+            c_at = s.get("created_at")
+            if f_url and f_url not in urls_to_delete and c_at:
+                s_dt = datetime.datetime.fromisoformat(c_at.replace("Z", "+00:00"))
+                s_time_sec = s_dt.timestamp()
+                if abs(s_time_sec - run_time_sec) < 60: # 60 seconds
+                    old_photos.append(f_url)
+    except Exception as e:
+        print(f"[warn] Gagal menyeleksi scene panorama lama: {e}")
+    
+    old_photos = list(set(old_photos))
+    
+    # 6. Process and upload new photos
+    uploaded_photo_urls = []
+    if new_photos:
+        for photo in new_photos:
+            if not photo.content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="Semua file baru harus berupa gambar.")
+            try:
+                file_extension = photo.filename.split(".")[-1] if "." in photo.filename else "jpg"
+                unique_filename = f"{uuid.uuid4()}.{file_extension}"
+                file_content = await photo.read()
+                
+                supabase.storage.from_("photos").upload(
+                    path=unique_filename,
+                    file=file_content,
+                    file_options={"content-type": photo.content_type}
+                )
+                
+                public_url = supabase.storage.from_("photos").get_public_url(unique_filename)
+                uploaded_photo_urls.append(public_url)
+            except Exception as upload_err:
+                raise HTTPException(status_code=500, detail=f"Gagal mengunggah foto baru: {str(upload_err)}")
+                
+    # 7. Merge remaining photos and new photos
+    final_photos = list(set(old_photos + uploaded_photo_urls))
+    
+    if not final_photos:
+        raise HTTPException(
+            status_code=400,
+            detail="Minimal harus ada 1 foto bukti tersisa setelah pengeditan."
+        )
+        
+    # 8. Delete old audit results for this run
+    try:
+        supabase.table("audit_results").delete().eq("audit_run_id", run_id_str).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal menghapus hasil audit lama: {str(e)}")
+        
+    # 9. Run audit pipeline to overwrite results
+    try:
+        run_audit_pipeline(
+            building_id=str(building_id),
+            photos=final_photos,
+            contributor_name=audit_run.get("contributor_name"),
+            gps_mismatch=audit_run.get("gps_mismatch", False),
+            gps_distance_meters=audit_run.get("gps_distance_meters"),
+            audit_run_id=run_id_str
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal menjalankan ulang analisis audit: {str(e)}")
+        
+    return {
+        "message": "Audit run berhasil diperbarui.",
+        "audit_run_id": run_id_str,
+        "photos": final_photos
+    }
 

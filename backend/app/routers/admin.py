@@ -177,7 +177,38 @@ def get_admin_disputed(token: str = Depends(require_admin)):
                 # Add gps_mismatch key for admin dashboard context
                 b["gps_mismatch"] = b_id in mismatch_building_ids
                 disputed_buildings.append(b)
+        
+        # 6. Fetch edit history count for disputed buildings' audit runs
+        disputed_b_ids = [b["id"] for b in disputed_buildings]
+        if disputed_b_ids:
+            try:
+                runs_res = supabase.table("audit_runs") \
+                    .select("id, building_id") \
+                    .in_("building_id", disputed_b_ids) \
+                    .execute()
+                runs = runs_res.data or []
+                run_to_building = {run["id"]: run["building_id"] for run in runs}
+                run_ids = list(run_to_building.keys())
+                
+                if run_ids:
+                    history_res = supabase.table("audit_run_edit_history") \
+                        .select("id, audit_run_id") \
+                        .in_("audit_run_id", run_ids) \
+                        .execute()
+                    history_records = history_res.data or []
                     
+                    building_edit_counts = {}
+                    for h in history_records:
+                        run_id = h.get("audit_run_id")
+                        b_id = run_to_building.get(run_id)
+                        if b_id:
+                            building_edit_counts[b_id] = building_edit_counts.get(b_id, 0) + 1
+                            
+                    for b in disputed_buildings:
+                        b["edit_history_count"] = building_edit_counts.get(b["id"], 0)
+            except Exception as history_err:
+                print(f"[warn] Gagal mengambil hitungan histori edit di admin disputed: {history_err}")
+                
         return disputed_buildings
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal memproses daftar gedung bersengketa: {str(e)}")
