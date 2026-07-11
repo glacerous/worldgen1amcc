@@ -8,6 +8,7 @@ import BuildingDetailActions from "@/components/BuildingDetailActions";
 import { useAuth } from "@/hooks/useAuth";
 import dynamic from "next/dynamic";
 import CountUpNumber from "@/components/CountUpNumber";
+import { motion, AnimatePresence } from "framer-motion";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
@@ -90,6 +91,8 @@ export default function BuildingDetailPage({
   const [notFound, setNotFound] = useState(false);
   const [showAllRunsDropdown, setShowAllRunsDropdown] = useState(false);
   const [selectedResult, setSelectedResult] = useState<AuditResult | null>(null);
+  const [scenes, setScenes] = useState<any[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -132,6 +135,23 @@ export default function BuildingDetailPage({
       })
       .catch(console.error)
       .finally(() => setLoadingRuns(false));
+  }, [id]);
+
+  // Fetch scenes list for the building
+  useEffect(() => {
+    if (!id || !UUID_REGEX.test(id)) return;
+    fetch(`${BACKEND_URL}/scenes?building_id=${id}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(`Fetch scenes failed (status ${res.status}): ${errText}`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setScenes(data);
+      })
+      .catch(console.error);
   }, [id]);
 
   // Fetch consensus results (default view / no specific run selected)
@@ -242,6 +262,31 @@ export default function BuildingDetailPage({
 
   // Count the number of results with a non-empty evidence_url
   const evidenceCount = displayedResults.filter((r) => !!r.evidence_url).length;
+
+  // Extract all photos (close-up evidence photos & panorama) for the active audit run
+  const activePhotos: string[] = (() => {
+    if (!selectedRun) return [];
+    
+    // 1. Get unique close-up photos from evidence_url of displayedResults
+    const closeUpPhotos = displayedResults
+      .map((r) => r.evidence_url)
+      .filter((url): url is string => !!url);
+    
+    const uniqueCloseUps = Array.from(new Set(closeUpPhotos));
+    
+    // 2. Find if there's a panorama uploaded in the same audit run
+    // Compare timestamps (within 1 minute threshold)
+    const runTime = new Date(selectedRun.created_at).getTime();
+    const matchedPanoramas = scenes
+      .filter((s) => {
+        const sceneTime = new Date(s.created_at).getTime();
+        return Math.abs(sceneTime - runTime) < 60000; // 60 seconds
+      })
+      .map((s) => s.file_url);
+      
+    // Combine both close-up photos and panorama URLs
+    return Array.from(new Set([...uniqueCloseUps, ...matchedPanoramas]));
+  })();
 
   // Sort criteria results by code
   const sortedResults = [...displayedResults].sort((a, b) =>
@@ -515,6 +560,42 @@ export default function BuildingDetailPage({
           </div>
         </div>
 
+        {/* Galeri Foto Section */}
+        {activePhotos.length > 0 && (
+          <div className="bg-surface border border-line rounded-lg p-5 sm:p-6 space-y-4">
+            <h3 className="font-display text-lg font-medium text-ink flex items-center gap-2">
+              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+              </svg>
+              <span>Galeri Foto Audit</span>
+            </h3>
+            
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+              {activePhotos.map((url, idx) => {
+                const isPanorama = url.includes("/panoramas/");
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => setLightboxImage(url)}
+                    className="aspect-square rounded-md overflow-hidden border border-line hover:border-accent/60 transition-all group relative bg-bg/40 cursor-pointer shadow-xs"
+                  >
+                    <img
+                      src={url}
+                      className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300"
+                      alt={`Foto audit ${idx + 1}`}
+                    />
+                    {isPanorama && (
+                      <span className="absolute bottom-1 right-1 bg-accent/90 backdrop-blur-xs text-white text-[8px] font-sans font-bold px-1.5 py-0.5 rounded shadow-xs">
+                        360°
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Audit Results Section heading */}
         <div id="audit-criteria-section" className="space-y-1 mt-[24px]!" style={{ marginTop: "24px" }}>
           <h3 className="font-display text-xl font-normal text-ink mb-1">
@@ -548,6 +629,50 @@ export default function BuildingDetailPage({
           )
         )}
       </main>
+
+      {/* Lightbox Modal Overlay */}
+      <AnimatePresence>
+        {lightboxImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxImage(null)}
+            className="fixed inset-0 bg-black/85 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 cursor-zoom-out select-none"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="relative max-w-4xl max-h-[90vh] w-full flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={lightboxImage}
+                alt="Enlarged audit photo"
+                className="max-w-full max-h-[85vh] rounded-md object-contain shadow-2xl border border-white/10"
+              />
+              <button
+                onClick={() => setLightboxImage(null)}
+                className="absolute -top-10 right-0 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all focus:outline-none cursor-pointer flex items-center justify-center"
+                title="Tutup"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              {lightboxImage.includes("/panoramas/") && (
+                <div className="absolute -bottom-8 left-0 right-0 text-center">
+                  <span className="bg-accent text-white text-[10px] font-sans font-bold uppercase tracking-wider px-2 py-0.5 rounded">
+                    Foto Panorama 360°
+                  </span>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
