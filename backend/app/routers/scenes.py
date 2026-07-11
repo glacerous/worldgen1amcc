@@ -3,7 +3,7 @@ from typing import List
 from uuid import UUID, uuid4
 from pydantic import BaseModel
 from app.db import supabase
-from app.routers.admin import require_admin
+from app.auth_utils import get_current_user
 
 
 router = APIRouter(prefix="/scenes", tags=["scenes"])
@@ -45,32 +45,44 @@ async def create_scene(
     building_id: UUID = Form(...),
     label: str = Form(...),
     file: UploadFile = File(...),
-    token: dict = Depends(require_admin)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Upload a new 360 panorama scene for a building (without running AI detection).
     """
     try:
+        # Check audit ownership: User must own at least one audit run for this building
+        run_check = supabase.table("audit_runs") \
+            .select("id") \
+            .eq("building_id", str(building_id)) \
+            .eq("user_id", str(current_user["user_id"])) \
+            .execute()
+        if not run_check.data:
+            raise HTTPException(
+                status_code=403,
+                detail="Akses ditolak. Hanya pemilik audit yang dapat menambahkan foto 360°."
+            )
+
         # 1. Ensure panoramas bucket exists in Supabase storage
         try:
             supabase.storage.create_bucket("panoramas", {"public": True})
         except Exception:
             pass
- 
+
         # 2. Upload file to Supabase storage
         file_extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
         unique_filename = f"{uuid4()}.{file_extension}"
         file_content = await file.read()
- 
+
         supabase.storage.from_("panoramas").upload(
             path=unique_filename,
             file=file_content,
             file_options={"content-type": file.content_type}
         )
- 
+
         # 3. Get public URL
         panorama_url = supabase.storage.from_("panoramas").get_public_url(unique_filename)
- 
+
         # 4. Save scene metadata to Supabase 'scenes' table
         scene_response = supabase.table("scenes").insert({
             "building_id": str(building_id),
@@ -78,25 +90,48 @@ async def create_scene(
             "file_url": panorama_url,
             "label": label
         }).execute()
- 
+
         if not scene_response.data:
             raise HTTPException(status_code=500, detail="Gagal menyimpan metadata scene ke database.")
- 
+
         return scene_response.data[0]
- 
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengunggah scene: {str(e)}")
- 
+
 @router.delete("/{scene_id}")
-def delete_scene(scene_id: UUID, token: dict = Depends(require_admin)):
+def delete_scene(scene_id: UUID, current_user: dict = Depends(get_current_user)):
     """
     Delete a specific scene.
     All scene_links (Penanda Navigasi) and annotations (Penanda Info) referencing
     this scene are automatically removed by ON DELETE CASCADE constraints.
     """
     try:
+        # 1. Fetch scene to get building_id
+        scene_res = supabase.table("scenes").select("building_id").eq("id", str(scene_id)).execute()
+        if not scene_res.data:
+            raise HTTPException(status_code=404, detail="Scene tidak ditemukan.")
+            
+        building_id = scene_res.data[0]["building_id"]
+        
+        # 2. Check if current user is the owner of an audit run for this building
+        run_check = supabase.table("audit_runs") \
+            .select("id") \
+            .eq("building_id", str(building_id)) \
+            .eq("user_id", str(current_user["user_id"])) \
+            .execute()
+        if not run_check.data:
+            raise HTTPException(
+                status_code=403,
+                detail="Akses ditolak. Hanya pemilik audit yang dapat menghapus foto 360°."
+            )
+
         supabase.table("scenes").delete().eq("id", str(scene_id)).execute()
         return {"status": "success", "message": f"Scene {scene_id} berhasil dihapus"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal menghapus scene: {str(e)}")
 

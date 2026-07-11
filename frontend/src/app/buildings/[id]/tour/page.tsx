@@ -5,6 +5,9 @@ import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useAuth } from "@/hooks/useAuth";
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
 // Dynamically import TourViewer to avoid server-side pre-rendering errors with Pannellum
 const TourViewer = dynamic(() => import("@/components/TourViewer"), {
@@ -65,6 +68,7 @@ export default function BuildingTourPage() {
   const params = useParams();
   const id = params.id as string;
   const pannellumRef = useRef<any>(null);
+  const { user, token } = useAuth();
 
   const [building, setBuilding] = useState<Building | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -85,6 +89,9 @@ export default function BuildingTourPage() {
   const [hotspotLabel, setHotspotLabel] = useState("");
   const [isAddingHotspot, setIsAddingHotspot] = useState(false);
 
+  const [auditRuns, setAuditRuns] = useState<any[]>([]);
+  const [isAuditOwner, setIsAuditOwner] = useState(false);
+
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   // Load building and list of scenes
@@ -99,11 +106,29 @@ export default function BuildingTourPage() {
     loadActiveSceneData(activeScene.id);
   }, [activeScene]);
 
+  // Calculate if user owns any audit run for this building
+  useEffect(() => {
+    if (user && auditRuns.length > 0) {
+      const ownsAudit = auditRuns.some((run: any) => run.user_id === user.id);
+      setIsAuditOwner(ownsAudit);
+    } else {
+      setIsAuditOwner(false);
+    }
+  }, [user, auditRuns]);
+
+  // Disable editMode if user is not the audit owner
+  useEffect(() => {
+    if (!isAuditOwner) {
+      setEditMode(false);
+    }
+  }, [isAuditOwner]);
+
   async function loadBuildingAndScenes() {
     try {
-      const [buildingRes, scenesRes] = await Promise.all([
-        fetch(`http://127.0.0.1:8000/buildings/${id}`),
-        fetch(`http://127.0.0.1:8000/scenes?building_id=${id}`),
+      const [buildingRes, scenesRes, runsRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/buildings/${id}`),
+        fetch(`${BACKEND_URL}/scenes?building_id=${id}`),
+        fetch(`${BACKEND_URL}/audit/runs/${id}`),
       ]);
 
       if (!buildingRes.ok) {
@@ -123,8 +148,10 @@ export default function BuildingTourPage() {
 
       const buildingData = await buildingRes.json();
       const scenesData: Scene[] = await scenesRes.json();
+      const runsData = runsRes.ok ? await runsRes.json() : [];
 
       setBuilding(buildingData);
+      setAuditRuns(runsData);
       
       const panoramaScenes = scenesData.filter((s) => s.type === "panorama_360");
       setScenes(panoramaScenes);
@@ -152,8 +179,8 @@ export default function BuildingTourPage() {
   async function loadActiveSceneData(sceneId: string) {
     try {
       const [annotationsRes, sceneLinksRes] = await Promise.all([
-        fetch(`http://127.0.0.1:8000/scenes/${sceneId}/annotations`),
-        fetch(`http://127.0.0.1:8000/scenes/${sceneId}/scene-links`),
+        fetch(`${BACKEND_URL}/scenes/${sceneId}/annotations`),
+        fetch(`${BACKEND_URL}/scenes/${sceneId}/scene-links`),
       ]);
 
       if (annotationsRes.ok) {
@@ -193,14 +220,14 @@ export default function BuildingTourPage() {
     formData.append("label", uploadLabel.trim());
     formData.append("file", uploadFile);
 
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("admin_token") : null;
     if (!token) {
-      window.location.href = "/admin/login";
+      alert("Anda harus masuk terlebih dahulu.");
+      setIsUploadingScene(false);
       return;
     }
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/scenes", {
+      const res = await fetch(`${BACKEND_URL}/scenes`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -238,14 +265,13 @@ export default function BuildingTourPage() {
       return;
     }
 
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("admin_token") : null;
     if (!token) {
-      window.location.href = "/admin/login";
+      alert("Anda harus masuk terlebih dahulu.");
       return;
     }
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/scenes/${activeScene.id}`, {
+      const res = await fetch(`${BACKEND_URL}/scenes/${activeScene.id}`, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -292,7 +318,7 @@ export default function BuildingTourPage() {
     setIsAddingHotspot(true);
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/scenes/${activeScene.id}/scene-links`, {
+      const res = await fetch(`${BACKEND_URL}/scenes/${activeScene.id}/scene-links`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -332,7 +358,7 @@ export default function BuildingTourPage() {
     }
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/scenes/scene-links/${hotspotId}`, {
+      const res = await fetch(`${BACKEND_URL}/scenes/scene-links/${hotspotId}`, {
         method: "DELETE",
       });
 
@@ -426,23 +452,25 @@ export default function BuildingTourPage() {
 
           <div className="flex flex-wrap items-center gap-3">
             {/* Mode Switcher Toggle */}
-            <button
-              onClick={() => setEditMode(!editMode)}
-              className={`inline-flex items-center justify-center gap-2 font-sans text-xs font-semibold px-4 py-2.5 rounded-md border transition-all cursor-pointer ${
-                editMode
-                  ? "bg-ink text-white border-ink hover:bg-ink/90"
-                  : "bg-surface text-ink border-line hover:bg-bg/40"
-              }`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                {editMode ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                )}
-              </svg>
-              {editMode ? "Lihat Mode User" : "Mode Edit Tur"}
-            </button>
+            {isAuditOwner && (
+              <button
+                onClick={() => setEditMode(!editMode)}
+                className={`inline-flex items-center justify-center gap-2 font-sans text-xs font-semibold px-4 py-2.5 rounded-md border transition-all cursor-pointer ${
+                  editMode
+                    ? "bg-ink text-white border-ink hover:bg-ink/90"
+                    : "bg-surface text-ink border-line hover:bg-bg/40"
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  {editMode ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  )}
+                </svg>
+                {editMode ? "Lihat Mode User" : "Mode Edit Tur"}
+              </button>
+            )}
 
             <Link
               href={`/buildings/${building.id}`}
@@ -499,12 +527,14 @@ export default function BuildingTourPage() {
                 </button>
               </form>
             ) : (
-              <button
-                onClick={() => setEditMode(true)}
-                className="bg-accent text-white px-5 py-2.5 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer"
-              >
-                Mulai Unggah di Mode Edit
-              </button>
+              isAuditOwner && (
+                <button
+                  onClick={() => setEditMode(true)}
+                  className="bg-accent text-white px-5 py-2.5 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer"
+                >
+                  Mulai Unggah di Mode Edit
+                </button>
+              )
             )}
           </div>
         ) : (
