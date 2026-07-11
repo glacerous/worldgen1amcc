@@ -1,4 +1,7 @@
 import os
+import time
+import random
+import logging
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from langchain_groq import ChatGroq
@@ -6,9 +9,31 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.config import settings
 from app.agents.criteria_seed import CRITERIA_SEED
 
+logger = logging.getLogger(__name__)
+
 # Ensure API key is set in environment so LangChain can pick it up
 if settings.GROQ_API_KEY:
     os.environ["GROQ_API_KEY"] = settings.GROQ_API_KEY
+
+def retry_with_backoff(retries=3, backoff_in_seconds=2):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            x = 0
+            while True:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    err_str = str(e)
+                    is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower() or "rate limit" in err_str.lower()
+                    if is_rate_limit and x < retries:
+                        sleep_time = (backoff_in_seconds * (2 ** x)) + random.uniform(0, 1)
+                        logger.warning(f"Rate limit hit (429). Retrying in {sleep_time:.2f} seconds... Error: {err_str}")
+                        time.sleep(sleep_time)
+                        x += 1
+                    else:
+                        raise e
+        return wrapper
+    return decorator
 
 class CriteriaEvaluation(BaseModel):
     criteria_code: str = Field(description="Kode kriteria yang dievaluasi")
@@ -71,8 +96,12 @@ def run_resolver_agent(
     structured_llm = llm.with_structured_output(ResolverAgentResult)
     chain = prompt | structured_llm
     
+    @retry_with_backoff(retries=3, backoff_in_seconds=2)
+    def invoke_with_retry(inputs):
+        return chain.invoke(inputs)
+    
     try:
-        result: ResolverAgentResult = chain.invoke({
+        result: ResolverAgentResult = invoke_with_retry({
             "building_name": building_name,
             "building_address": building_address or "Tidak ada alamat",
             "existing_evaluations": existing_evals_str,

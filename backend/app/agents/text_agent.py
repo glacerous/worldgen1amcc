@@ -1,14 +1,39 @@
 import os
+import time
+import random
+import logging
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from app.config import settings
 from app.agents.criteria_seed import CRITERIA_SEED
 
+logger = logging.getLogger(__name__)
+
 # Ensure API key is set in environment so LangChain can pick it up
-if settings.GEMINI_API_KEY:
-    os.environ["GOOGLE_API_KEY"] = settings.GEMINI_API_KEY
+if settings.GROQ_API_KEY:
+    os.environ["GROQ_API_KEY"] = settings.GROQ_API_KEY
+
+def retry_with_backoff(retries=3, backoff_in_seconds=2):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            x = 0
+            while True:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    err_str = str(e)
+                    is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower() or "rate limit" in err_str.lower()
+                    if is_rate_limit and x < retries:
+                        sleep_time = (backoff_in_seconds * (2 ** x)) + random.uniform(0, 1)
+                        logger.warning(f"Rate limit hit (429). Retrying in {sleep_time:.2f} seconds... Error: {err_str}")
+                        time.sleep(sleep_time)
+                        x += 1
+                    else:
+                        raise e
+        return wrapper
+    return decorator
 
 class CriteriaEvaluation(BaseModel):
     criteria_code: str = Field(description="Kode kriteria, contoh: SNI-8201-M1")
@@ -20,7 +45,7 @@ class TextAgentResult(BaseModel):
 
 def run_text_agent(building_name: str, building_address: str) -> List[Dict[str, Any]]:
     """
-    Evaluates accessibility criteria based on building name and address using Gemini.
+    Evaluates accessibility criteria based on building name and address using Groq.
     """
     # Format the criteria list for prompt context
     criteria_str = "\n".join([
@@ -42,18 +67,22 @@ def run_text_agent(building_name: str, building_address: str) -> List[Dict[str, 
         ("user", "Nama Gedung: {building_name}\nAlamat Gedung: {building_address}")
     ])
     
-    # Initialize Gemini model
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=settings.GEMINI_API_KEY,
+    # Initialize Groq model
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        groq_api_key=settings.GROQ_API_KEY,
         temperature=0.0
     )
     
     structured_llm = llm.with_structured_output(TextAgentResult)
     chain = prompt | structured_llm
     
+    @retry_with_backoff(retries=3, backoff_in_seconds=2)
+    def invoke_with_retry(inputs):
+        return chain.invoke(inputs)
+    
     try:
-        result: TextAgentResult = chain.invoke({
+        result: TextAgentResult = invoke_with_retry({
             "criteria_list": criteria_str,
             "building_name": building_name,
             "building_address": building_address

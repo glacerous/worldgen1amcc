@@ -1,14 +1,68 @@
 import os
+import base64
+import time
+import random
+import logging
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
-from langchain_google_genai import ChatGoogleGenerativeAI
+import httpx
+from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 from app.config import settings
 from app.agents.criteria_seed import CRITERIA_SEED
 
+logger = logging.getLogger(__name__)
+
 # Ensure API key is set in environment so LangChain can pick it up
-if settings.GEMINI_API_KEY:
-    os.environ["GOOGLE_API_KEY"] = settings.GEMINI_API_KEY
+if settings.GROQ_API_KEY:
+    os.environ["GROQ_API_KEY"] = settings.GROQ_API_KEY
+
+def retry_with_backoff(retries=3, backoff_in_seconds=2):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            x = 0
+            while True:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    err_str = str(e)
+                    is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower() or "rate limit" in err_str.lower()
+                    if is_rate_limit and x < retries:
+                        sleep_time = (backoff_in_seconds * (2 ** x)) + random.uniform(0, 1)
+                        logger.warning(f"Rate limit hit (429). Retrying in {sleep_time:.2f} seconds... Error: {err_str}")
+                        time.sleep(sleep_time)
+                        x += 1
+                    else:
+                        raise e
+        return wrapper
+    return decorator
+
+def get_image_base64(image_source: str) -> str:
+    """
+    Downloads image from URL or reads it locally, and converts it to a base64 data URI.
+    """
+    if image_source.startswith("http://") or image_source.startswith("https://"):
+        with httpx.Client(timeout=15.0) as client:
+            response = client.get(image_source)
+            response.raise_for_status()
+            content = response.content
+    else:
+        with open(image_source, "rb") as f:
+            content = f.read()
+            
+    encoded = base64.b64encode(content).decode("utf-8")
+    
+    lower_source = image_source.lower()
+    if lower_source.endswith(".png"):
+        mime = "image/png"
+    elif lower_source.endswith(".webp"):
+        mime = "image/webp"
+    elif lower_source.endswith(".gif"):
+        mime = "image/gif"
+    else:
+        mime = "image/jpeg"
+        
+    return f"data:{mime};base64,{encoded}"
 
 class CriteriaEvaluation(BaseModel):
     criteria_code: str = Field(description="Kode kriteria, contoh: SNI-8201-M1")
@@ -21,7 +75,7 @@ class VisualAgentResult(BaseModel):
 
 def run_visual_agent(photos: List[str]) -> List[Dict[str, Any]]:
     """
-    Evaluates accessibility criteria based on photo evidence using Gemini-2.0-Flash (multimodal).
+    Evaluates accessibility criteria based on photo evidence using Groq's multimodal model.
     If no photos are provided, immediately bypasses LLM call and returns 'unknown'.
     """
     # Short-circuit if no photos are provided
@@ -59,26 +113,34 @@ def run_visual_agent(photos: List[str]) -> List[Dict[str, Any]]:
         {"type": "text", "text": system_instruction}
     ]
     
-    # Append each photo URL
+    # Append each photo as base64 image URL
     for photo_url in photos:
-        message_content.append({
-            "type": "image_url",
-            "image_url": {"url": photo_url}
-        })
+        try:
+            b64_url = get_image_base64(photo_url)
+            message_content.append({
+                "type": "image_url",
+                "image_url": {"url": b64_url}
+            })
+        except Exception as img_err:
+            print(f"[warn] Gagal memproses gambar {photo_url}: {img_err}")
         
     message = HumanMessage(content=message_content)
     
-    # Initialize Gemini model
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=settings.GEMINI_API_KEY,
+    # Initialize Groq model
+    llm = ChatGroq(
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        groq_api_key=settings.GROQ_API_KEY,
         temperature=0.0
     )
     
     structured_llm = llm.with_structured_output(VisualAgentResult)
     
+    @retry_with_backoff(retries=3, backoff_in_seconds=2)
+    def invoke_with_retry():
+        return structured_llm.invoke([message])
+    
     try:
-        result: VisualAgentResult = structured_llm.invoke([message])
+        result: VisualAgentResult = invoke_with_retry()
         
         # Parse output and map to the required output format
         evaluations_map = {item.criteria_code: item for item in result.evaluations}
