@@ -13,6 +13,7 @@ class DetectedFeature(BaseModel):
     label: str = Field(description="Nama/label fitur aksesibilitas yang dideteksi, contoh: 'Ramp', 'Toilet Difabel', 'Tangga Akses', 'Ubin Pemandu (Tactile)', 'Pintu Otomatis'")
     x_percent: float = Field(description="Posisi horizontal fitur dalam persentase dari lebar gambar (0.0 sampai 100.0), dihitung dari kiri")
     y_percent: float = Field(description="Posisi vertikal fitur dalam persentase dari tinggi gambar (0.0 sampai 100.0), dihitung dari atas")
+    status: str = Field(description="Status kelayakan fitur aksesibilitas tersebut berdasarkan analisis gambar 360°, harus bernilai 'met' (layak/memenuhi kriteria) atau 'not_met' (tidak layak/tidak memenuhi syarat/rusak/terhalang)")
 
 class PanoramaDetectionResult(BaseModel):
     features: List[DetectedFeature]
@@ -26,9 +27,10 @@ def run_panorama_agent(panorama_url: str) -> List[Dict[str, Any]]:
         "Anda adalah AI asisten audit aksesibilitas bangunan.\n"
         "Analisis gambar panorama 360 derajat (equirectangular) berikut.\n"
         "Temukan semua fitur aksesibilitas fisik penting (seperti ramp kursi roda, tangga akses, ubin pemandu/tactile paving, toilet khusus disabilitas, pegangan tangan/grab bars, lift, pintu otomatis, dll.).\n\n"
-        "Untuk setiap fitur yang dideteksi, tentukan posisinya sebagai koordinat titik tengah fitur tersebut dalam persentase:\n"
+        "Untuk setiap fitur yang dideteksi, tentukan posisinya sebagai koordinat titik tengah fitur tersebut dalam persentase, serta kelayakan aksesibilitasnya:\n"
         "- x_percent: Persentase horizontal (0.0 - 100.0), dihitung dari sisi paling kiri gambar ke kanan.\n"
-        "- y_percent: Persentase vertikal (0.0 - 100.0), dihitung dari sisi paling atas gambar ke bawah.\n\n"
+        "- y_percent: Persentase vertikal (0.0 - 100.0), dihitung dari sisi paling atas gambar ke bawah.\n"
+        "- status: Evaluasi kelayakan fitur tersebut berdasarkan standar aksesibilitas dasar yang terlihat, bernilai 'met' (layak/memenuhi kriteria) atau 'not_met' (tidak layak/tidak memenuhi syarat/rusak/terhalang).\n\n"
         "Lakukan analisis secara cermat dan kembalikan seluruh fitur yang terdeteksi dalam satu respon."
     )
 
@@ -56,7 +58,8 @@ def run_panorama_agent(panorama_url: str) -> List[Dict[str, Any]]:
             {
                 "label": item.label,
                 "x_percent": item.x_percent,
-                "y_percent": item.y_percent
+                "y_percent": item.y_percent,
+                "status": item.status
             }
             for item in result.features
         ]

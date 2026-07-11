@@ -218,39 +218,86 @@ async def submit_building_audit(
                 scene_id = scene_response.data[0]["id"]
                 features = run_panorama_agent(panorama_url)
                 if features:
+                    audit_run_id = audit_summary.get("audit_run_id")
                     audit_results_response = supabase.table("audit_results") \
                         .select("*, audit_criteria(*)") \
                         .eq("building_id", building_id_str) \
+                        .eq("audit_run_id", audit_run_id) \
                         .execute()
                     results = audit_results_response.data or []
                     
-                    def find_matching_audit_result(lbl: str, audit_results: list) -> Optional[str]:
-                        lbl_lower = lbl.lower()
-                        for r in audit_results:
+                    # 1. Update audit results if their status is 'unknown'
+                    for item in features:
+                        new_status = item.get("status")
+                        if not new_status or new_status not in ["met", "not_met"]:
+                            continue
+                        
+                        # Find matching audit result object
+                        matched_result = None
+                        lbl_lower = item["label"].lower()
+                        for r in results:
                             criteria = r.get("audit_criteria")
                             if not criteria:
                                 continue
                             desc = criteria.get("description", "").lower()
                             code = criteria.get("code", "").lower()
-                            if "toilet" in lbl_lower and "toilet" in desc:
-                                return r["id"]
-                            if "ramp" in lbl_lower and "ramp" in desc:
-                                return r["id"]
-                            if "tangga" in lbl_lower and "tangga" in desc:
-                                return r["id"]
-                            if ("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc:
-                                return r["id"]
-                            if "pintu" in lbl_lower and "pintu" in desc:
-                                return r["id"]
-                            if lbl_lower in desc or lbl_lower in code:
-                                return r["id"]
-                        return None
+                            if (
+                                ("toilet" in lbl_lower and "toilet" in desc) or
+                                ("ramp" in lbl_lower and "ramp" in desc) or
+                                ("tangga" in lbl_lower and "tangga" in desc) or
+                                (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
+                                ("pintu" in lbl_lower and "pintu" in desc) or
+                                (lbl_lower in desc or lbl_lower in code)
+                            ):
+                                matched_result = r
+                                break
+                        
+                        if matched_result and matched_result.get("status") == "unknown":
+                            # Perform database update
+                            supabase.table("audit_results").update({
+                                "status": new_status,
+                                "source_agent": "panorama_agent",
+                                "reasoning": "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung.",
+                                "evidence_url": None
+                            }).eq("id", matched_result["id"]).execute()
+                            
+                            # Update local results and audit_summary
+                            matched_result["status"] = new_status
+                            matched_result["source_agent"] = "panorama_agent"
+                            matched_result["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
+                            matched_result["evidence_url"] = None
+                            
+                            for r_summary in audit_summary.get("results", []):
+                                if r_summary.get("criteria_code") == matched_result["audit_criteria"]["code"]:
+                                    r_summary["status"] = new_status
+                                    r_summary["source_agent"] = "panorama_agent"
+                                    r_summary["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
 
+                    # 2. Build annotations mapping
                     annotations_to_insert = []
                     for item in features:
                         yaw = (item["x_percent"] / 100) * 360 - 180
                         pitch = 90 - (item["y_percent"] / 100) * 180
-                        match_id = find_matching_audit_result(item["label"], results)
+                        
+                        # Match label to find audit_result_id
+                        match_id = None
+                        lbl_lower = item["label"].lower()
+                        for r in results:
+                            criteria = r.get("audit_criteria")
+                            if not criteria:
+                                continue
+                            desc = criteria.get("description", "").lower()
+                            code = criteria.get("code", "").lower()
+                            if (
+                                ("toilet" in lbl_lower and "toilet" in desc) or
+                                ("ramp" in lbl_lower and "ramp" in desc) or
+                                ("tangga" in lbl_lower and "tangga" in desc) or
+                                (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
+                                ("pintu" in lbl_lower and "pintu" in desc) or
+                                (lbl_lower in desc or lbl_lower in code)
+                            ):
+                                match_id = r["id"]
+                                break
                         
                         annotations_to_insert.append({
                             "scene_id": scene_id,
@@ -446,43 +493,87 @@ async def submit_building(
                 features = run_panorama_agent(panorama_url)
                 
                 if features:
+                    audit_run_id = audit_summary.get("audit_run_id")
                     # Query newly created audit results for keyword mapping
                     audit_results_response = supabase.table("audit_results") \
                         .select("*, audit_criteria(*)") \
                         .eq("building_id", building_id) \
+                        .eq("audit_run_id", audit_run_id) \
                         .execute()
                     results = audit_results_response.data or []
                     
-                    # Helper matching function
-                    def find_matching_audit_result(lbl: str, audit_results: list) -> Optional[str]:
-                        lbl_lower = lbl.lower()
-                        for r in audit_results:
+                    # 1. Update audit results if their status is 'unknown'
+                    for item in features:
+                        new_status = item.get("status")
+                        if not new_status or new_status not in ["met", "not_met"]:
+                            continue
+                        
+                        # Find matching audit result object
+                        matched_result = None
+                        lbl_lower = item["label"].lower()
+                        for r in results:
                             criteria = r.get("audit_criteria")
                             if not criteria:
                                 continue
                             desc = criteria.get("description", "").lower()
                             code = criteria.get("code", "").lower()
-                            # Check keywords
-                            if "toilet" in lbl_lower and "toilet" in desc:
-                                return r["id"]
-                            if "ramp" in lbl_lower and "ramp" in desc:
-                                return r["id"]
-                            if "tangga" in lbl_lower and "tangga" in desc:
-                                return r["id"]
-                            if ("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc:
-                                return r["id"]
-                            if "pintu" in lbl_lower and "pintu" in desc:
-                                return r["id"]
-                            if lbl_lower in desc or lbl_lower in code:
-                                return r["id"]
-                        return None
+                            if (
+                                ("toilet" in lbl_lower and "toilet" in desc) or
+                                ("ramp" in lbl_lower and "ramp" in desc) or
+                                ("tangga" in lbl_lower and "tangga" in desc) or
+                                (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
+                                ("pintu" in lbl_lower and "pintu" in desc) or
+                                (lbl_lower in desc or lbl_lower in code)
+                            ):
+                                matched_result = r
+                                break
+                        
+                        if matched_result and matched_result.get("status") == "unknown":
+                            # Perform database update
+                            supabase.table("audit_results").update({
+                                "status": new_status,
+                                "source_agent": "panorama_agent",
+                                "reasoning": "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung.",
+                                "evidence_url": None
+                            }).eq("id", matched_result["id"]).execute()
+                            
+                            # Update local results and audit_summary
+                            matched_result["status"] = new_status
+                            matched_result["source_agent"] = "panorama_agent"
+                            matched_result["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
+                            matched_result["evidence_url"] = None
+                            
+                            for r_summary in audit_summary.get("results", []):
+                                if r_summary.get("criteria_code") == matched_result["audit_criteria"]["code"]:
+                                    r_summary["status"] = new_status
+                                    r_summary["source_agent"] = "panorama_agent"
+                                    r_summary["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
 
-                    # Format annotations
+                    # 2. Build annotations mapping
                     annotations_to_insert = []
                     for item in features:
                         yaw = (item["x_percent"] / 100) * 360 - 180
                         pitch = 90 - (item["y_percent"] / 100) * 180
-                        match_id = find_matching_audit_result(item["label"], results)
+                        
+                        # Match label to find audit_result_id
+                        match_id = None
+                        lbl_lower = item["label"].lower()
+                        for r in results:
+                            criteria = r.get("audit_criteria")
+                            if not criteria:
+                                continue
+                            desc = criteria.get("description", "").lower()
+                            code = criteria.get("code", "").lower()
+                            if (
+                                ("toilet" in lbl_lower and "toilet" in desc) or
+                                ("ramp" in lbl_lower and "ramp" in desc) or
+                                ("tangga" in lbl_lower and "tangga" in desc) or
+                                (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
+                                ("pintu" in lbl_lower and "pintu" in desc) or
+                                (lbl_lower in desc or lbl_lower in code)
+                            ):
+                                match_id = r["id"]
+                                break
                         
                         annotations_to_insert.append({
                             "scene_id": scene_id,
