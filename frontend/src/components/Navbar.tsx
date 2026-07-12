@@ -76,12 +76,12 @@ export default function Navbar() {
       </div>
 
       {/* Right: Action button & Auth info */}
-      <div className="flex items-center space-x-4 md:space-x-6">
+      <div className="flex items-center space-x-2 sm:space-x-4 md:space-x-6">
         {!loading ? (
           user ? (
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-1.5 sm:space-x-3">
               <svg 
-                className="w-8 h-8 rounded-full border border-line bg-accent/10 text-accent p-1.5" 
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-line bg-accent/10 text-accent p-1 sm:p-1.5" 
                 fill="currentColor" 
                 viewBox="0 0 24 24"
               >
@@ -92,12 +92,14 @@ export default function Navbar() {
               </span>
               <button 
                 onClick={logout}
-                className="inline-flex items-center gap-1.5 font-sans text-sm font-semibold text-status-not-met hover:opacity-80 transition-all cursor-pointer"
+                className="inline-flex items-center gap-1 font-sans text-xs sm:text-sm font-semibold text-status-not-met hover:opacity-80 transition-all cursor-pointer focus:outline-none"
+                title="Keluar"
+                aria-label="Keluar dari akun"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                 </svg>
-                Keluar
+                <span className="hidden sm:inline">Keluar</span>
               </button>
             </div>
           ) : (
@@ -189,7 +191,7 @@ export default function Navbar() {
 
         <Link 
           href="/buildings/submit"
-          className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs sm:text-sm font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-full transition-all whitespace-nowrap"
+          className="hidden sm:inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs sm:text-sm font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-full transition-all whitespace-nowrap"
         >
           Mulai Audit
         </Link>
