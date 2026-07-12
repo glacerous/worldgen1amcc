@@ -15,6 +15,7 @@ interface AuditRun {
   contributor_name: string | null;
   trust_score: number | null;
   created_at: string;
+  photos?: string[];
 }
 
 export default function EditAuditPage({
@@ -86,9 +87,11 @@ export default function EditAuditPage({
       
     Promise.all([fetchResults, fetchScenes])
       .then(([results, scenesList]) => {
-        const closeUps = results
-          .map((r: any) => r.evidence_url)
-          .filter((url: any): url is string => !!url);
+        const closeUps = auditRun?.photos && auditRun.photos.length > 0
+          ? auditRun.photos
+          : results
+              .map((r: any) => r.evidence_url)
+              .filter((url: any): url is string => !!url);
           
         const uniqueCloseUps = Array.from(new Set(closeUps));
         

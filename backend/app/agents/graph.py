@@ -237,28 +237,63 @@ def run_audit_pipeline(
 
     # 4. Insert or update the record in audit_runs
     try:
-        if audit_run_id:
-            supabase.table("audit_runs").update({
-                "contributor_name": contributor_name,
-                "gps_mismatch": gps_mismatch,
-                "gps_distance_meters": gps_distance_meters
-            }).eq("id", audit_run_id).execute()
-        else:
-            audit_run_response = supabase.table("audit_runs").insert({
-                "building_id": building_id,
-                "contributor_name": contributor_name,
-                "gps_mismatch": gps_mismatch,
-                "gps_distance_meters": gps_distance_meters
-            }).execute()
-            
+        # Check if we can save to 'photos' column directly
+        try:
+            if audit_run_id:
+                audit_run_response = supabase.table("audit_runs").update({
+                    "contributor_name": contributor_name,
+                    "photos": photos,
+                    "gps_mismatch": gps_mismatch,
+                    "gps_distance_meters": gps_distance_meters
+                }).eq("id", audit_run_id).execute()
+            else:
+                audit_run_response = supabase.table("audit_runs").insert({
+                    "building_id": building_id,
+                    "contributor_name": contributor_name,
+                    "photos": photos,
+                    "gps_mismatch": gps_mismatch,
+                    "gps_distance_meters": gps_distance_meters
+                }).execute()
+                
             if not audit_run_response.data:
-                raise Exception("Failed to insert audit run")
+                raise Exception("Failed to insert/update audit run with photos column")
+            audit_run_id = audit_run_response.data[0]["id"]
+        except Exception as db_err:
+            # Fallback: if 'photos' column does not exist or fails, serialize it in contributor_name
+            print(f"[info] Fallback: storing photos array inside contributor_name: {db_err}")
+            
+            clean_contributor = contributor_name
+            if contributor_name and "|||" in contributor_name:
+                clean_contributor = contributor_name.split("|||", 1)[0]
+                
+            serialized_contributor = clean_contributor
+            if photos:
+                name_part = clean_contributor or "Anonim"
+                serialized_contributor = f"{name_part}|||{','.join(photos)}"
+                
+            if audit_run_id:
+                audit_run_response = supabase.table("audit_runs").update({
+                    "contributor_name": serialized_contributor,
+                    "gps_mismatch": gps_mismatch,
+                    "gps_distance_meters": gps_distance_meters
+                }).eq("id", audit_run_id).execute()
+            else:
+                audit_run_response = supabase.table("audit_runs").insert({
+                    "building_id": building_id,
+                    "contributor_name": serialized_contributor,
+                    "gps_mismatch": gps_mismatch,
+                    "gps_distance_meters": gps_distance_meters
+                }).execute()
+                
+            if not audit_run_response.data:
+                raise Exception("Failed to insert/update audit run with contributor_name serialization")
             audit_run_id = audit_run_response.data[0]["id"]
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"Gagal mencatat atau memperbarui audit run di database: {str(e)}"
         )
+
 
 
     # 5. Insert new audit results to database linked to the audit_run_id

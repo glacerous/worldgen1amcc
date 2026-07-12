@@ -74,6 +74,27 @@ def get_audit_results(building_id: UUID):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def parse_contributor_and_photos(run_dict: dict, default_photos: List[str] = []) -> tuple[str, List[str]]:
+    # 1. Check if DB has photos column and it has data
+    db_photos = run_dict.get("photos")
+    raw_contrib = run_dict.get("contributor_name")
+    
+    if db_photos is not None:
+        if isinstance(db_photos, list):
+            return raw_contrib or "Anonim", db_photos
+            
+    # 2. Fallback to parsing contributor_name
+    if not raw_contrib:
+        return "Anonim", default_photos
+    if "|||" in raw_contrib:
+        parts = raw_contrib.split("|||", 1)
+        name = parts[0] if parts[0] else "Anonim"
+        photos_str = parts[1]
+        photos = [p.strip() for p in photos_str.split(",") if p.strip()]
+        return name, photos
+    return raw_contrib, default_photos
+
+
 @router.get("/runs/{building_id}")
 def get_building_audit_runs(building_id: UUID):
     """
@@ -89,23 +110,47 @@ def get_building_audit_runs(building_id: UUID):
         if not runs:
             return []
             
+        # Fetch fallback photos for all runs of this building to parse
+        results_res = supabase.table("audit_results") \
+            .select("evidence_url, audit_run_id") \
+            .eq("building_id", str(building_id)) \
+            .execute()
+        fallback_photos_by_run = {}
+        for r in (results_res.data or []):
+            run_id = r.get("audit_run_id")
+            ev_url = r.get("evidence_url")
+            if run_id and ev_url:
+                fallback_photos_by_run.setdefault(str(run_id), []).append(ev_url)
+                
         formatted_runs = []
         for run in runs:
             user_data = run.get("users") or {}
             building_data = run.get("buildings") or {}
+            run_id_str = str(run["id"])
             
             # Trust score resolution (fallback to buildings.trust_score_cache if not directly present in run)
             trust_score = run.get("trust_score")
             if trust_score is None:
                 trust_score = building_data.get("trust_score_cache")
                 
+            raw_contrib = run.get("contributor_name")
+            fallback_photos = list(set(fallback_photos_by_run.get(run_id_str, [])))
+            clean_name, run_photos = parse_contributor_and_photos(run, fallback_photos)
+            
+            # contributor name resolution
+            if run.get("user_id") and user_data.get("display_name"):
+                c_name = user_data["display_name"]
+            else:
+                c_name = clean_name
+                
             formatted_runs.append({
                 "audit_run_id": run["id"],
                 "created_at": run["created_at"],
                 "user_id": run.get("user_id"),
-                "display_name": user_data.get("display_name"),
+                "display_name": c_name,
                 "avatar_url": user_data.get("avatar_url"),
-                "trust_score": trust_score
+                "trust_score": trust_score,
+                "photos": run_photos
             })
             
         # Sort logic: User ID not null first, then by created_at DESC
@@ -142,16 +187,38 @@ def get_audit_run_detail(audit_run_id: UUID):
     run = response.data
     user_data = run.get("users") or {}
 
+    # Fetch fallback photos for this run
+    fallback_photos = []
+    try:
+        res_photos = supabase.table("audit_results") \
+            .select("evidence_url") \
+            .eq("audit_run_id", str(audit_run_id)) \
+            .execute()
+        fallback_photos = [r["evidence_url"] for r in (res_photos.data or []) if r.get("evidence_url")]
+    except Exception as e:
+        print(f"[warn] Failed to fetch fallback photos for detail: {e}")
+
+    raw_contrib = run.get("contributor_name")
+    clean_name, run_photos = parse_contributor_and_photos(run, fallback_photos)
+
+    # contributor name resolution
+    if run.get("user_id") and user_data.get("display_name"):
+        c_name = user_data["display_name"]
+    else:
+        c_name = clean_name
+
     return {
         "id": run["id"],
         "building_id": run["building_id"],
         "user_id": run.get("user_id"),
-        "contributor_name": run.get("contributor_name"),
+        "contributor_name": c_name,
         "trust_score": run.get("trust_score"),
         "created_at": run["created_at"],
         "display_name": user_data.get("display_name"),
         "avatar_url": user_data.get("avatar_url"),
+        "photos": run_photos
     }
+
 
 
 @router.patch("/runs/{audit_run_id}/rerun")
@@ -407,10 +474,21 @@ async def patch_audit_run(
             
     # 5. Determine the list of remaining old photos
     old_photos = []
-    for r in old_results:
-        ev_url = r.get("evidence_url")
-        if ev_url and ev_url not in urls_to_delete:
-            old_photos.append(ev_url)
+    
+    # Try parsing existing photos list from the run
+    _, run_photos = parse_contributor_and_photos(audit_run, [])
+    
+    if run_photos:
+        # If we have the serialized or column-stored photos list, filter out deleted ones
+        for url in run_photos:
+            if url not in urls_to_delete:
+                old_photos.append(url)
+    else:
+        # Fallback for legacy runs: extract from old results' evidence URLs
+        for r in old_results:
+            ev_url = r.get("evidence_url")
+            if ev_url and ev_url not in urls_to_delete:
+                old_photos.append(ev_url)
             
     # Also check matched panoramas
     try:

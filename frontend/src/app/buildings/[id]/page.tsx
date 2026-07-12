@@ -71,6 +71,7 @@ interface AuditRun {
     not_met: number;
     unknown: number;
   };
+  photos?: string[];
 }
 
 export default function BuildingDetailPage({
@@ -260,19 +261,19 @@ export default function BuildingDetailPage({
     ? [building.latitude, building.longitude]
     : [-6.2088, 106.8456];
 
-  // Count the number of results with a non-empty evidence_url
-  const evidenceCount = displayedResults.filter((r) => !!r.evidence_url).length;
+  // Count the number of unique uploaded photos for the active audit run
+  const evidenceCount = selectedRun?.photos && selectedRun.photos.length > 0
+    ? selectedRun.photos.length
+    : Array.from(new Set(displayedResults.map((r) => r.evidence_url).filter((url): url is string => !!url))).length;
 
   // Extract all photos (close-up evidence photos & panorama) for the active audit run
   const activePhotos: string[] = (() => {
     if (!selectedRun) return [];
     
-    // 1. Get unique close-up photos from evidence_url of displayedResults
-    const closeUpPhotos = displayedResults
-      .map((r) => r.evidence_url)
-      .filter((url): url is string => !!url);
-    
-    const uniqueCloseUps = Array.from(new Set(closeUpPhotos));
+    // 1. Get unique close-up photos
+    const closeUpPhotos = selectedRun.photos && selectedRun.photos.length > 0
+      ? selectedRun.photos
+      : Array.from(new Set(displayedResults.map((r) => r.evidence_url).filter((url): url is string => !!url)));
     
     // 2. Find if there's a panorama uploaded in the same audit run
     // Compare timestamps (within 1 minute threshold)
@@ -285,7 +286,7 @@ export default function BuildingDetailPage({
       .map((s) => s.file_url);
       
     // Combine both close-up photos and panorama URLs
-    return Array.from(new Set([...uniqueCloseUps, ...matchedPanoramas]));
+    return Array.from(new Set([...closeUpPhotos, ...matchedPanoramas]));
   })();
 
   // Sort criteria results by code

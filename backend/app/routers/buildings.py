@@ -876,6 +876,27 @@ def get_building(id: UUID):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def parse_contributor_and_photos(run_dict: dict, default_photos: List[str] = []) -> tuple[str, List[str]]:
+    # 1. Check if DB has photos column and it has data
+    db_photos = run_dict.get("photos")
+    raw_contrib = run_dict.get("contributor_name")
+    
+    if db_photos is not None:
+        if isinstance(db_photos, list):
+            return raw_contrib or "Anonim", db_photos
+            
+    # 2. Fallback to parsing contributor_name
+    if not raw_contrib:
+        return "Anonim", default_photos
+    if "|||" in raw_contrib:
+        parts = raw_contrib.split("|||", 1)
+        name = parts[0] if parts[0] else "Anonim"
+        photos_str = parts[1]
+        photos = [p.strip() for p in photos_str.split(",") if p.strip()]
+        return name, photos
+    return raw_contrib, default_photos
+
+
 @router.get("/{id}/audit-runs", response_model=List[dict])
 def get_building_audit_runs_new(id: UUID):
     """
@@ -895,15 +916,16 @@ def get_building_audit_runs_new(id: UUID):
         if not runs:
             return []
             
-        # Fetch all audit results for the building to compute summaries
+        # Fetch all audit results for the building to compute summaries and collect fallback evidence URLs
         results_res = supabase.table("audit_results") \
-            .select("status, audit_run_id") \
+            .select("status, audit_run_id, evidence_url") \
             .eq("building_id", str(id)) \
             .execute()
         results = results_res.data or []
         
-        # Group counts by audit_run_id
+        # Group counts and fallback photos by audit_run_id
         results_by_run = {}
+        fallback_photos_by_run = {}
         for r in results:
             run_id = r.get("audit_run_id")
             if not run_id:
@@ -915,17 +937,25 @@ def get_building_audit_runs_new(id: UUID):
             if status in results_by_run[run_id_str]:
                 results_by_run[run_id_str][status] += 1
                 
+            # Collect fallback evidence URLs
+            ev_url = r.get("evidence_url")
+            if ev_url:
+                fallback_photos_by_run.setdefault(run_id_str, []).append(ev_url)
+                
         formatted_runs = []
         for idx, run in enumerate(runs):
             run_id_str = str(run["id"])
             user_data = run.get("users") or {}
             display_name = user_data.get("display_name")
             
+            fallback_photos = list(set(fallback_photos_by_run.get(run_id_str, [])))
+            clean_name, run_photos = parse_contributor_and_photos(run, fallback_photos)
+            
             # contributor name resolution
             if run.get("user_id") and display_name:
                 c_name = display_name
             else:
-                c_name = run.get("contributor_name") or "Anonim"
+                c_name = clean_name
                 
             run_summary = results_by_run.get(run_id_str, {"met": 0, "not_met": 0, "unknown": 0})
             
@@ -936,12 +966,14 @@ def get_building_audit_runs_new(id: UUID):
                 "created_at": run["created_at"],
                 "summary": run_summary,
                 "is_primary": idx == 0,
-                "user_id": run.get("user_id")
+                "user_id": run.get("user_id"),
+                "photos": run_photos
             })
             
         return formatted_runs
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/{id}/consensus", response_model=List[dict])
