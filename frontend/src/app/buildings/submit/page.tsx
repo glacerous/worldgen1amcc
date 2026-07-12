@@ -291,7 +291,7 @@ export default function SubmitBuildingPage() {
               <label htmlFor="address" className="block text-xs font-sans font-semibold text-ink-muted mb-1.5">
                 Alamat Lengkap {!isExisting && <span className="text-status-not-met">*</span>}
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <textarea
                   id="address"
                   value={address}
@@ -307,7 +307,7 @@ export default function SubmitBuildingPage() {
                     type="button"
                     disabled={isGeocoding}
                     onClick={handleGeocode}
-                    className="flex-shrink-0 inline-flex items-center justify-center border border-line hover:bg-bg/40 font-sans text-xs font-semibold px-4 rounded-md text-ink transition-all disabled:opacity-50 h-auto cursor-pointer"
+                    className="flex-shrink-0 inline-flex items-center justify-center border border-line hover:bg-bg/40 font-sans text-xs font-semibold px-4 py-2 sm:py-0 rounded-md text-ink transition-all disabled:opacity-50 h-10 sm:h-auto cursor-pointer w-full sm:w-auto"
                   >
                     {isGeocoding ? "Mencari..." : "Cari Lokasi"}
                   </button>

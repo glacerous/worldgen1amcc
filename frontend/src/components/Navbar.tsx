@@ -55,18 +55,15 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="sticky top-4 z-50 mx-4 md:mx-12 my-2 bg-surface border border-line rounded-full py-3.5 px-6 md:px-8 flex items-center justify-between shadow-sm transition-all">
-      {/* Left: Branding Wordmark */}
-      <Link href="/" className="group flex items-center gap-2.5">
-        <img 
-          src="/logo.png" 
-          alt="Aksesibel Logo" 
-          className="w-8 h-8 object-contain"
-        />
-        <span className="font-display text-2xl font-bold text-ink group-hover:text-accent transition-all">
-          Aksesibel
-        </span>
-      </Link>
+    <nav className="sticky top-2 sm:top-4 z-50 mx-2 sm:mx-4 md:mx-12 my-2 bg-surface border border-line rounded-full py-2.5 sm:py-3.5 px-4 sm:px-6 md:px-8 flex items-center justify-between shadow-sm transition-all">
+      {/* Left: Brand Logo & Title */}
+      <div className="flex items-center">
+        <Link href="/" className="group flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Aksesibel Logo" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
+          <span className="font-display text-lg sm:text-2xl font-bold text-ink group-hover:text-accent transition-all hidden sm:inline">Aksesibel</span>
+        </Link>
+      </div>
 
       {/* Center: Nav links */}
       <div className="hidden md:flex items-center space-x-8">
@@ -125,7 +122,7 @@ export default function Navbar() {
             aria-expanded={isOpen}
             aria-label="Ubah ukuran teks"
           >
-            <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider">Axs:</span>
+            <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider hidden sm:inline">Axs:</span>
             <span className="font-sans font-semibold">
               {textSize === "normal" && "AA"}
               {textSize === "besar" && "AA+"}
@@ -192,7 +189,7 @@ export default function Navbar() {
 
         <Link 
           href="/buildings/submit"
-          className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-sm font-semibold px-4 py-2 rounded-full transition-all"
+          className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs sm:text-sm font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-full transition-all whitespace-nowrap"
         >
           Mulai Audit
         </Link>

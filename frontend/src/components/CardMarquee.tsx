@@ -63,10 +63,9 @@ const doubledCards = [...sampleCards, ...sampleCards];
 export default function CardMarquee() {
   return (
     <div
+      className="h-[320px] sm:h-[400px] md:h-[640px] relative overflow-hidden"
       style={{
         position: "relative",
-        height: "640px",
-        overflow: "hidden",
         maskImage:
           "linear-gradient(to bottom, transparent 0%, white 14%, white 86%, transparent 100%)",
         WebkitMaskImage:

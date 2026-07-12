@@ -439,7 +439,7 @@ export default function TourViewer({
         const statusConfig = statusMap[selectedHotspot.audit_results.status] || statusMap.unknown;
 
         return (
-          <div className="absolute top-4 right-4 z-10 max-w-sm w-80 bg-surface border border-line rounded-md p-4 shadow-md font-sans text-xs">
+          <div className="absolute top-4 right-4 left-4 sm:left-auto z-10 max-w-sm sm:w-80 bg-surface/95 backdrop-blur-md border border-line rounded-md p-4 shadow-md font-sans text-xs max-h-[70vh] overflow-y-auto">
             {/* Header: criteria code & badge */}
             <div className="flex items-center justify-between pb-2 border-b border-line mb-3">
               <span className="font-mono font-medium text-[11px] text-ink-muted tracking-wider">
