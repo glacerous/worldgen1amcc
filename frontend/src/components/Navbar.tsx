@@ -1,10 +1,30 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Navbar() {
   const { user, login, logout, loading } = useAuth();
+  const [textSize, setTextSize] = useState<"normal" | "besar" | "sangat-besar">("normal");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("aksesibel-text-size");
+    if (saved === "normal" || saved === "besar" || saved === "sangat-besar") {
+      setTextSize(saved);
+    }
+  }, []);
+
+  const handleTextSizeChange = (size: "normal" | "besar" | "sangat-besar") => {
+    setTextSize(size);
+    const sizeMap = {
+      normal: "16px",
+      besar: "18px",
+      "sangat-besar": "20px",
+    };
+    document.documentElement.style.setProperty("--base-font-size", sizeMap[size]);
+    localStorage.setItem("aksesibel-text-size", size);
+  };
 
   return (
     <nav className="sticky top-4 z-50 mx-4 md:mx-12 my-2 bg-surface border border-line rounded-full py-3.5 px-6 md:px-8 flex items-center justify-between shadow-sm transition-all">
@@ -66,6 +86,21 @@ export default function Navbar() {
         ) : (
           <div className="w-9 h-5"></div>
         )}
+
+        {/* Text Size (A11y Toggle) */}
+        <div className="flex items-center space-x-1 border border-line rounded-full px-2.5 py-1 bg-bg/20">
+          <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider hidden lg:inline">Axs</span>
+          <select
+            value={textSize}
+            onChange={(e) => handleTextSizeChange(e.target.value as any)}
+            className="bg-transparent text-xs font-sans text-ink font-semibold focus:outline-none cursor-pointer border-none py-0.5 pr-1"
+            aria-label="Ukuran Teks"
+          >
+            <option value="normal">AA (Normal)</option>
+            <option value="besar">AA+ (Besar)</option>
+            <option value="sangat-besar">AA++ (Sangat Besar)</option>
+          </select>
+        </div>
 
         <Link 
           href="/buildings/submit"

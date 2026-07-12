@@ -38,7 +38,29 @@ export default function RootLayout({
     <html
       lang="id"
       className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                const saved = localStorage.getItem("aksesibel-text-size");
+                if (saved) {
+                  const sizeMap = {
+                    normal: "16px",
+                    besar: "18px",
+                    "sangat-besar": "20px"
+                  };
+                  if (sizeMap[saved]) {
+                    document.documentElement.style.setProperty("--base-font-size", sizeMap[saved]);
+                  }
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <AuthProvider>
           {children}

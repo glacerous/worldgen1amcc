@@ -95,6 +95,20 @@ export default function BuildingDetailPage({
   const [scenes, setScenes] = useState<any[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightboxImage(null);
+      }
+    };
+    if (lightboxImage) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [lightboxImage]);
+
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   // Fetch building info
@@ -578,12 +592,21 @@ export default function BuildingDetailPage({
                   <div
                     key={idx}
                     onClick={() => setLightboxImage(url)}
-                    className="aspect-square rounded-md overflow-hidden border border-line hover:border-accent/60 transition-all group relative bg-bg/40 cursor-pointer shadow-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setLightboxImage(url);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Lihat foto bukti audit ke-${idx + 1} ukuran penuh`}
+                    className="aspect-square rounded-md overflow-hidden border border-line hover:border-accent/60 transition-all group relative bg-bg/40 cursor-pointer shadow-xs focus:outline-none"
                   >
                     <img
                       src={url}
                       className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300"
-                      alt={`Foto audit ${idx + 1}`}
+                      alt={`Foto bukti audit ke-${idx + 1} untuk gedung ${building?.name || "ini"}`}
                     />
                     {isPanorama && (
                       <span className="absolute bottom-1 right-1 bg-accent/90 backdrop-blur-xs text-white text-[8px] font-sans font-bold px-1.5 py-0.5 rounded shadow-xs">
@@ -651,13 +674,14 @@ export default function BuildingDetailPage({
             >
               <img
                 src={lightboxImage}
-                alt="Enlarged audit photo"
+                alt={`Foto bukti audit diperbesar untuk gedung ${building?.name || "ini"}`}
                 className="max-w-full max-h-[85vh] rounded-md object-contain shadow-2xl border border-white/10"
               />
               <button
                 onClick={() => setLightboxImage(null)}
                 className="absolute -top-10 right-0 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all focus:outline-none cursor-pointer flex items-center justify-center"
                 title="Tutup"
+                aria-label="Tutup foto diperbesar"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

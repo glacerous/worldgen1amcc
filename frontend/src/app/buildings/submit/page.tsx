@@ -479,13 +479,14 @@ export default function SubmitBuildingPage() {
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={objectUrl}
-                            alt={`Preview ${idx + 1}`}
+                            alt={`Preview foto bukti ke-${idx + 1} yang diunggah`}
                             className="w-full h-full object-cover"
                           />
                           <button
                             type="button"
                             onClick={() => removeFile(idx)}
                             className="absolute top-0 right-0 bg-ink-muted text-white w-4 h-4 flex items-center justify-center text-[9px] hover:bg-status-not-met transition-colors focus:outline-none cursor-pointer"
+                            aria-label={`Batal pilih foto preview ke-${idx + 1}`}
                           >
                             ×
                           </button>

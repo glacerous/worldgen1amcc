@@ -399,7 +399,7 @@ export default function BuildingsPage() {
                           {/* Left Thumbnail */}
                           <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-md bg-bg overflow-hidden flex-shrink-0 relative border border-line/45">
                             {thumbnailUrl ? (
-                              <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300" alt="" />
+                              <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300" alt={`Foto bangunan ${building.name}`} />
                             ) : (
                               <div className="w-full h-full bg-gradient-to-br from-bg to-line/30 flex items-center justify-center">
                                 <svg className="w-6 h-6 text-ink-muted/30" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
@@ -487,7 +487,7 @@ export default function BuildingsPage() {
                         className="w-full md:w-36 h-36 md:h-36 rounded-md bg-bg overflow-hidden flex-shrink-0 relative border border-line/50 mt-6 md:mt-0"
                       >
                         {thumbnailUrl ? (
-                          <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="" />
+                          <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={`Foto bangunan utama ${featuredBuilding.name}`} />
                         ) : (
                           <div className="w-full h-full bg-gradient-to-br from-bg to-line/40 flex items-center justify-center">
                             <svg className="w-10 h-10 text-ink-muted/40" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
@@ -550,7 +550,7 @@ export default function BuildingsPage() {
                         {/* Card Thumbnail */}
                         <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-md bg-bg overflow-hidden flex-shrink-0 relative border border-line/45">
                           {thumbnailUrl ? (
-                            <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300" alt="" />
+                            <img src={thumbnailUrl} className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300" alt={`Foto bangunan ${building.name}`} />
                           ) : (
                             <div className="w-full h-full bg-gradient-to-br from-bg to-line/30 flex items-center justify-center">
                               <svg className="w-8 h-8 text-ink-muted/30" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">

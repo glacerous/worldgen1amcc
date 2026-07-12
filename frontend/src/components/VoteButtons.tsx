@@ -125,6 +125,7 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
           activeVote === "up" ? "text-status-met bg-status-met/10" : "text-ink-muted hover:text-status-met"
         } disabled:opacity-50`}
         title="Akurat"
+        aria-label="Tandai data akurat"
       >
         <svg className="w-4 h-4" fill={activeVote === "up" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M7 10v12" />
@@ -143,6 +144,7 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
           activeVote === "down" ? "text-status-not-met bg-status-not-met/10" : "text-ink-muted hover:text-status-not-met"
         } disabled:opacity-50`}
         title="Tidak Akurat"
+        aria-label="Tandai data tidak akurat"
       >
         <svg className="w-4 h-4" fill={activeVote === "down" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M17 14V2" />

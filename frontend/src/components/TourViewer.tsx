@@ -53,6 +53,21 @@ export default function TourViewer({
   pannellumRef,
 }: TourViewerProps) {
   const [selectedHotspot, setSelectedHotspot] = useState<Annotation | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedHotspot(null);
+      }
+    };
+    if (selectedHotspot) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedHotspot]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
   const isNavigatingRef = useRef(false);

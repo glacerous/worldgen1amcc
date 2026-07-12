@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AuditResult {
@@ -32,6 +32,20 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportSuccess, setReportSuccess] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setReportResultId(null);
+      }
+    };
+    if (reportResultId) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [reportResultId]);
 
   const toggleExpand = (category: string, code: string) => {
     setExpandedCriteria((prev) => ({
@@ -174,7 +188,16 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
                     {/* Collapsed Bar Row */}
                     <div
                       onClick={() => toggleExpand(category, result.criteria_code)}
-                      className="p-[16px] flex items-center justify-between gap-4 cursor-pointer hover:bg-bg/5 transition-colors"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleExpand(category, result.criteria_code);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-expanded={isExpanded}
+                      className="p-[16px] flex items-center justify-between gap-4 cursor-pointer hover:bg-bg/5 transition-colors focus:outline-none"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {/* Small Status Icon */}
@@ -291,7 +314,7 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     src={result.evidence_url}
-                                    alt={`Evidence for ${result.criteria_code}`}
+                                    alt={`Foto bukti visual kriteria ${result.criteria_code}: ${result.short_label || result.description}`}
                                     className="w-full h-auto object-cover max-h-48"
                                   />
                                 </div>

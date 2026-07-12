@@ -295,7 +295,7 @@ export default function EditAuditPage({
                       >
                         <img
                           src={url}
-                          alt="Audit Photo"
+                          alt="Foto bukti audit yang sudah terunggah"
                           className="w-full h-full object-cover"
                         />
                         {isPanorama && (
@@ -309,6 +309,7 @@ export default function EditAuditPage({
                             onClick={() => setPhotoUrlsToDelete((prev) => [...prev, url])}
                             className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px] shadow-xs cursor-pointer focus:outline-none transition-colors"
                             title="Hapus foto ini"
+                            aria-label="Tandai foto bukti ini untuk dihapus"
                           >
                             ✕
                           </button>
@@ -383,13 +384,14 @@ export default function EditAuditPage({
                         >
                           <img
                             src={objectUrl}
-                            alt={`Preview ${idx + 1}`}
+                            alt={`Preview foto bukti baru ke-${idx + 1} yang akan diunggah`}
                             className="w-full h-full object-cover"
                           />
                           <button
                             type="button"
                             onClick={() => removeFile(idx)}
                             className="absolute top-0 right-0 bg-ink-muted text-white w-4.5 h-4.5 flex items-center justify-center text-[9px] hover:bg-status-not-met transition-colors focus:outline-none cursor-pointer"
+                            aria-label={`Batal pilih foto preview baru ke-${idx + 1}`}
                           >
                             ×
                           </button>

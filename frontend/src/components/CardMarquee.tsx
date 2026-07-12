@@ -85,12 +85,14 @@ export default function CardMarquee() {
         {doubledCards.map((card, idx) => (
           <div
             key={idx}
+            className="staggered-card"
             style={{
               background: "#FFFFFF",
               border: "1px solid #DFD9CD",
               borderRadius: "6px",
               padding: "18px 20px",
               transition: "border-color 0.2s",
+              animationDelay: `${idx * 0.15}s`,
             }}
           >
             {/* Card header */}

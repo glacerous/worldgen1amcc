@@ -11,7 +11,7 @@
   
   --color-status-met: #2F6F4E;
   --color-status-not-met: #B34632;
-  --color-status-unknown: #8A8578;
+  --color-status-unknown: #706C60;
   --color-status-na: #4A6FA5;
 
   /* Fonts */
@@ -28,11 +28,43 @@
   to   { transform: translateY(0%);   }
 }
 
+@keyframes card-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.staggered-card {
+  opacity: 0;
+  animation: card-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+:root {
+  --base-font-size: 16px;
+}
+
 /* Global Reset & Base Styles */
 html {
+  font-size: var(--base-font-size) !important;
   scroll-behavior: smooth;
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+}
+
+/* Accessible focus ring for keyboard users */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2.5px solid var(--color-accent) !important;
+  outline-offset: 2.5px !important;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
