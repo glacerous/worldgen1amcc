@@ -260,7 +260,7 @@ export default function DevelopersPage() {
                 /* STATE 2: LOGGED IN, NO API KEY */
                 <div className="w-full bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs flex flex-col items-start">
                   <h2 className="font-display text-2xl font-normal text-ink mb-2">
-                    Halo, {user.display_name}
+                    Halo, {user?.display_name}
                   </h2>
                   <p className="font-sans text-sm text-ink-muted leading-relaxed mb-6">
                     Anda belum memiliki Developer API Key. Silakan daftarkan kunci API Anda di bawah ini untuk 

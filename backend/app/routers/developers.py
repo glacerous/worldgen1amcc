@@ -2,47 +2,91 @@ import secrets
 from datetime import datetime, timezone
 from uuid import UUID
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Security, status
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
 from app.db import supabase
 from app.auth_utils import get_current_user, check_api_key
 from app.routers.admin import require_admin
 
-router = APIRouter(tags=["developers"])
-admin_dev_router = APIRouter(prefix="/admin/developers", tags=["admin"])
+# ---------------------------------------------------------------------------
+# Routers — with separated Swagger tags for clarity
+# ---------------------------------------------------------------------------
+dev_reg_router = APIRouter(tags=["🔑 Developer Registration"])
+admin_dev_router = APIRouter(prefix="/admin/developers", tags=["🔒 Admin"])
+public_v1_router = APIRouter(tags=["📡 Public API v1"])
 
+# Internal-only router (endpoints NOT shown in docs)
+internal_router = APIRouter(tags=["_internal"])
+
+# Keep `router` as an alias so main.py include_router calls still work
+router = dev_reg_router
+
+# ---------------------------------------------------------------------------
+# Security scheme — lets FastAPI render 🔒 lock icon in Swagger UI
+# ---------------------------------------------------------------------------
+api_key_header_scheme = APIKeyHeader(
+    name="X-API-Key",
+    description="API key issued via POST /developers/register. Pass in the `X-API-Key` request header.",
+    auto_error=False,
+)
+
+# ---------------------------------------------------------------------------
 # Pydantic Schemas
+# ---------------------------------------------------------------------------
+
 class APIKeyResponse(BaseModel):
-    api_key: str
-    tier: str
-    rate_limit_per_day: int
-    is_active: bool
-    pro_requested_at: Optional[datetime] = None
-    pro_approved_at: Optional[datetime] = None
+    api_key: str = Field(description="The raw API key string. Store this securely.")
+    tier: str = Field(description="Current tier: 'free' (100 req/day) or 'pro' (2000 req/day).")
+    rate_limit_per_day: int = Field(description="Maximum number of public API requests allowed per calendar day (UTC).")
+    is_active: bool = Field(description="Whether the API key is currently active and usable.")
+    pro_requested_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp when a PRO upgrade was requested. Null if no request has been made."
+    )
+    pro_approved_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp when the PRO upgrade was approved by an admin. Null if not yet approved."
+    )
 
 class MessageResponse(BaseModel):
-    message: str
+    message: str = Field(description="Human-readable status message describing the result of the operation.")
 
 class UserDetail(BaseModel):
-    email: Optional[str] = None
-    display_name: Optional[str] = None
+    email: Optional[str] = Field(default=None, description="Email address of the developer account owner.")
+    display_name: Optional[str] = Field(default=None, description="Display name synced from Google OAuth.")
 
 class PendingRequestResponse(BaseModel):
-    id: UUID
-    user_id: UUID
-    api_key: str
-    tier: str
-    rate_limit_per_day: int
-    pro_requested_at: Optional[datetime] = None
-    users: Optional[UserDetail] = None
+    id: UUID = Field(description="Unique ID of the api_keys table row (used for approval actions).")
+    user_id: UUID = Field(description="Internal user UUID of the developer who owns this key.")
+    api_key: str = Field(description="The developer's API key string.")
+    tier: str = Field(description="Current tier: 'free' or 'pro'.")
+    rate_limit_per_day: int = Field(description="Current rate limit per day.")
+    pro_requested_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp when the developer requested a PRO upgrade."
+    )
+    users: Optional[UserDetail] = Field(
+        default=None,
+        description="Linked user profile data (email and display name)."
+    )
 
-# Endpoints
-@router.get(
+
+# ---------------------------------------------------------------------------
+# Developer Registration Endpoints
+# ---------------------------------------------------------------------------
+
+@dev_reg_router.get(
     "/developers/key",
     response_model=Optional[APIKeyResponse],
     summary="Get Current User's API Key",
-    description="Returns the developer API key data for the logged-in OAuth user, or null if they don't have one."
+    description=(
+        "Returns the developer API key data for the currently logged-in OAuth user.\n\n"
+        "Returns `null` (HTTP 200 with empty body) if the user has not yet registered a key.\n\n"
+        "**Authentication:** Requires a valid Google OAuth session (Bearer token in `Authorization` header).\n\n"
+        "**Use this endpoint** to check if a user already has a key before calling `/developers/register`."
+    ),
 )
 def get_user_api_key(current_user: dict = Depends(get_current_user)):
     user_id = current_user["user_id"]
@@ -66,15 +110,21 @@ def get_user_api_key(current_user: dict = Depends(get_current_user)):
     return None
 
 
-@router.post(
+@dev_reg_router.post(
     "/developers/register",
     response_model=APIKeyResponse,
     summary="Register / Retrieve Developer API Key",
-    description="Registers a new Developer API Key for the logged-in OAuth user. If the user already has a key, returns the existing key."
+    description=(
+        "Registers a new Developer API Key for the currently logged-in OAuth user.\n\n"
+        "- If the user **already has a key**, returns the **existing key** (idempotent).\n"
+        "- If the user **does not yet have a key**, generates a new one with **Free tier** (100 req/day).\n\n"
+        "**Authentication:** Requires a valid Google OAuth session (Bearer token in `Authorization` header).\n\n"
+        "**Starting tier:** `free` — 100 requests/day. To upgrade, use `POST /developers/request-pro`."
+    ),
 )
 def register_developer_key(current_user: dict = Depends(get_current_user)):
     user_id = current_user["user_id"]
-    
+
     # 1. Check if user already has a key
     try:
         res = supabase.table("api_keys").select("*").eq("user_id", user_id).execute()
@@ -83,7 +133,7 @@ def register_developer_key(current_user: dict = Depends(get_current_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal memeriksa data API key: {str(e)}"
         )
-        
+
     if res.data:
         key_data = res.data[0]
         return {
@@ -94,7 +144,7 @@ def register_developer_key(current_user: dict = Depends(get_current_user)):
             "pro_requested_at": key_data.get("pro_requested_at"),
             "pro_approved_at": key_data.get("pro_approved_at")
         }
-        
+
     # 2. Generate new key
     new_key = secrets.token_urlsafe(32)
     try:
@@ -110,13 +160,13 @@ def register_developer_key(current_user: dict = Depends(get_current_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal membuat API key baru: {str(e)}"
         )
-        
+
     if not insert_res.data:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Gagal menyimpan API key baru."
         )
-        
+
     key_data = insert_res.data[0]
     return {
         "api_key": key_data["api_key"],
@@ -128,15 +178,22 @@ def register_developer_key(current_user: dict = Depends(get_current_user)):
     }
 
 
-@router.post(
+@dev_reg_router.post(
     "/developers/request-pro",
     response_model=MessageResponse,
-    summary="Request PRO Tier API Key",
-    description="Submits a request to upgrade the OAuth user's API key to the PRO tier (requires an existing key)."
+    summary="Request PRO Tier Upgrade",
+    description=(
+        "Submits a request to upgrade the current user's API key from **Free** to **PRO** tier.\n\n"
+        "- Requires an existing API key (register first via `POST /developers/register`).\n"
+        "- Cannot be called if already on PRO tier or if a request is already pending.\n"
+        "- After submitting, an admin reviews and approves via `POST /admin/developers/{id}/approve-pro`.\n\n"
+        "**PRO tier benefits:** 2,000 requests/day + access to `GET /v1/public/buildings/{id}/tour`.\n\n"
+        "**Authentication:** Requires a valid Google OAuth session (Bearer token in `Authorization` header)."
+    ),
 )
 def request_pro_tier(current_user: dict = Depends(get_current_user)):
     user_id = current_user["user_id"]
-    
+
     # 1. Find user's key
     try:
         res = supabase.table("api_keys").select("*").eq("user_id", user_id).execute()
@@ -145,28 +202,28 @@ def request_pro_tier(current_user: dict = Depends(get_current_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal mengambil data API key: {str(e)}"
         )
-        
+
     if not res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="API Key tidak ditemukan. Silakan register terlebih dahulu."
         )
-        
+
     key_data = res.data[0]
-    
+
     # 2. Check if already PRO or pending
     if key_data.get("pro_approved_at") or key_data.get("tier") == "pro":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Akun Anda sudah berada pada tier PRO."
         )
-        
+
     if key_data.get("pro_requested_at"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="sudah pernah request, menunggu approval"
         )
-        
+
     # 3. Update pro_requested_at to now()
     now_str = datetime.now(timezone.utc).isoformat()
     try:
@@ -178,21 +235,31 @@ def request_pro_tier(current_user: dict = Depends(get_current_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal memperbarui data request PRO: {str(e)}"
         )
-        
+
     if not update_res.data:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Gagal memperbarui status request PRO."
         )
-        
+
     return {"message": "Request PRO berhasil dikirim, menunggu approval admin."}
 
+
+# ---------------------------------------------------------------------------
+# Admin Endpoints
+# ---------------------------------------------------------------------------
 
 @admin_dev_router.get(
     "/pending",
     response_model=List[PendingRequestResponse],
-    summary="Get Pending PRO Requests",
-    description="Admin endpoint to list all API keys that have requested a PRO upgrade and are pending approval."
+    summary="List Pending PRO Upgrade Requests",
+    description=(
+        "**Admin only.** Lists all API keys that have submitted a PRO tier upgrade request and are awaiting approval.\n\n"
+        "Only returns entries where `pro_requested_at` is set and `pro_approved_at` is null.\n\n"
+        "**Authentication:** Requires admin-level Google OAuth session. "
+        "Non-admin requests will receive `403 Forbidden`.\n\n"
+        "Use `POST /admin/developers/{id}/approve-pro` to approve an entry from this list."
+    ),
 )
 def get_pending_pro_requests(admin: dict = Depends(require_admin)):
     try:
@@ -207,19 +274,27 @@ def get_pending_pro_requests(admin: dict = Depends(require_admin)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal mengambil data request pending dari database: {str(e)}"
         )
-        
+
     return res.data or []
 
 
 @admin_dev_router.post(
     "/{id}/approve-pro",
     response_model=MessageResponse,
-    summary="Approve PRO Tier Request",
-    description="Admin endpoint to approve a developer's PRO request, updating their rate limit and tier."
+    summary="Approve PRO Tier Upgrade Request",
+    description=(
+        "**Admin only.** Approves a pending PRO tier request for a specific API key.\n\n"
+        "- Sets the `tier` field to `'pro'`.\n"
+        "- Raises `rate_limit_per_day` from 100 to 2,000.\n"
+        "- Records the `pro_approved_at` timestamp and the approving admin's email.\n\n"
+        "**Path parameter `id`:** The UUID of the `api_keys` table row (obtained from `GET /admin/developers/pending`).\n\n"
+        "**Authentication:** Requires admin-level Google OAuth session. "
+        "Non-admin requests will receive `403 Forbidden`."
+    ),
 )
 def approve_pro_request(id: UUID, admin: dict = Depends(require_admin)):
     admin_email = admin.get("email") or "system"
-    
+
     # 1. Check if key exists
     try:
         res = supabase.table("api_keys").select("*").eq("id", str(id)).execute()
@@ -228,20 +303,20 @@ def approve_pro_request(id: UUID, admin: dict = Depends(require_admin)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal memeriksa API key: {str(e)}"
         )
-        
+
     if not res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"API Key dengan ID {id} tidak ditemukan."
         )
-        
+
     key_data = res.data[0]
     if key_data.get("pro_approved_at") or key_data.get("tier") == "pro":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="API Key ini sudah disetujui sebagai PRO."
         )
-        
+
     # 2. Update to PRO
     now_str = datetime.now(timezone.utc).isoformat()
     try:
@@ -256,21 +331,24 @@ def approve_pro_request(id: UUID, admin: dict = Depends(require_admin)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal menyetujui request PRO: {str(e)}"
         )
-        
+
     if not update_res.data:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Gagal memperbarui status ke PRO di database."
         )
-        
+
     return {"message": "Upgrade PRO berhasil disetujui."}
 
 
-@router.get(
+# ---------------------------------------------------------------------------
+# Internal / debug endpoint — hidden from Swagger docs
+# ---------------------------------------------------------------------------
+
+@internal_router.get(
     "/public/test-auth",
     response_model=dict,
-    summary="Test Public API Authentication",
-    description="A public test endpoint that requires a valid and active API key passed in the X-API-Key header."
+    include_in_schema=False,  # Hidden from Swagger UI — internal debug only
 )
 def test_public_api_auth(api_key_data: dict = Depends(check_api_key)):
     return {
@@ -282,6 +360,10 @@ def test_public_api_auth(api_key_data: dict = Depends(check_api_key)):
     }
 
 
+# ---------------------------------------------------------------------------
+# PRO tier dependency
+# ---------------------------------------------------------------------------
+
 def require_pro_tier(api_key_data: dict = Depends(check_api_key)):
     if api_key_data.get("tier") != "pro":
         raise HTTPException(
@@ -291,45 +373,95 @@ def require_pro_tier(api_key_data: dict = Depends(check_api_key)):
     return api_key_data
 
 
+# ---------------------------------------------------------------------------
+# Pydantic Schemas — Public API v1
+# ---------------------------------------------------------------------------
+
 class PublicBuildingResponse(BaseModel):
-    id: UUID
-    name: str
-    address: Optional[str] = None
-    lat: Optional[float] = None
-    lng: Optional[float] = None
+    id: UUID = Field(description="Unique UUID of the building.")
+    name: str = Field(description="Official name of the building.")
+    address: Optional[str] = Field(default=None, description="Street address of the building, if available.")
+    lat: Optional[float] = Field(default=None, description="Latitude coordinate (WGS84).")
+    lng: Optional[float] = Field(default=None, description="Longitude coordinate (WGS84).")
 
 class PublicAuditResult(BaseModel):
-    code: str
-    description: str
-    category: str
-    status: str
-    is_disputed: bool
+    code: str = Field(description="SNI accessibility criteria code, e.g. 'SNI-8201-M1'.")
+    description: str = Field(description="Human-readable description of the criteria requirement.")
+    category: str = Field(description="Accessibility category, e.g. 'mobilitas', 'komunikasi', 'orientasi'.")
+    status: str = Field(description="Consensus status: 'met', 'not_met', or 'not_applicable'.")
+    is_disputed: bool = Field(
+        description="True if different auditors submitted conflicting statuses for this criteria across all audit runs."
+    )
 
 class PublicAuditResponse(BaseModel):
-    building_id: UUID
-    building_name: str
-    audit_run_id: UUID
-    created_at: datetime
-    results: List[PublicAuditResult]
+    building_id: UUID = Field(description="UUID of the audited building.")
+    building_name: str = Field(description="Name of the audited building.")
+    audit_run_id: UUID = Field(description="UUID of the primary (oldest) audit run used as the consensus source.")
+    created_at: datetime = Field(description="Timestamp when the primary audit run was created.")
+    results: List[PublicAuditResult] = Field(description="List of criteria evaluations from the primary audit run.")
+
+class PublicCriteriaDetail(BaseModel):
+    code: str = Field(description="SNI accessibility criteria code.")
+    description: str = Field(description="Human-readable description of the criteria requirement.")
+    category: str = Field(description="Accessibility category of the criteria.")
+    status: str = Field(description="Evaluated status for this criteria: 'met', 'not_met', or 'not_applicable'.")
+
+class PublicAnnotationResponse(BaseModel):
+    id: UUID = Field(description="Unique ID of the annotation (hotspot).")
+    label: str = Field(description="Short label text for this hotspot, e.g. 'Tersedia Ramp'.")
+    pitch: float = Field(description="Vertical angle of the hotspot in the 360° panorama (degrees, -90 to 90).")
+    yaw: float = Field(description="Horizontal angle of the hotspot in the 360° panorama (degrees, 0 to 360).")
+    criteria: PublicCriteriaDetail = Field(description="Accessibility criteria linked to this annotation.")
+
+class PublicSceneResponse(BaseModel):
+    id: UUID = Field(description="Unique ID of the scene (panorama image).")
+    label: Optional[str] = Field(default=None, description="Descriptive label for this scene, e.g. 'Main Entrance'.")
+    file_url: str = Field(description="Public URL to the 360° panorama image file.")
+    type: str = Field(description="Scene type, typically 'panorama_360'.")
+    created_at: datetime = Field(description="Timestamp when the scene was uploaded.")
+    annotations: List[PublicAnnotationResponse] = Field(
+        description="List of hotspot annotations in this scene, each linked to an accessibility criteria."
+    )
+
+class PublicTourResponse(BaseModel):
+    building_id: UUID = Field(description="UUID of the building for this tour.")
+    building_name: str = Field(description="Name of the building.")
+    audit_run_id: UUID = Field(description="UUID of the primary audit run these scenes belong to.")
+    scenes: List[PublicSceneResponse] = Field(description="Ordered list of 360° panorama scenes with annotations.")
 
 
-@router.get(
+# ---------------------------------------------------------------------------
+# Public API v1 Endpoints
+# ---------------------------------------------------------------------------
+
+@public_v1_router.get(
     "/v1/public/buildings",
     response_model=List[PublicBuildingResponse],
-    summary="List Verified / Approved Buildings",
-    description="Returns a list of all verified and approved buildings. Excludes internal audit metrics or draft statuses.\n\n"
-                "**Example Response:**\n"
-                "```json\n"
-                "[\n"
-                "  {\n"
-                "    \"id\": \"d3b07384-d113-4956-b7e0-9118c634af5a\",\n"
-                "    \"name\": \"Margo City\",\n"
-                "    \"address\": \"Jl. Margonda Raya No.358\",\n"
-                "    \"lat\": -6.3725,\n"
-                "    \"lng\": 106.8331\n"
-                "  }\n"
-                "]\n"
-                "```"
+    summary="List Verified & Approved Buildings",
+    description=(
+        "Returns a paginated list of all buildings that have been verified and approved in the system.\n\n"
+        "Excludes buildings in draft or under-review status. Internal audit metrics, auditor identities, "
+        "and voting logs are **not** included.\n\n"
+        "**Authentication:** Pass your API key in the `X-API-Key` request header.\n\n"
+        "**Access Tiers:**\n"
+        "- **Free Tier**: ✅ Allowed — up to 100 requests/day.\n"
+        "- **Pro Tier**: ✅ Allowed — up to 2,000 requests/day.\n\n"
+        "**Query Parameters:**\n"
+        "- `limit` (default: 20) — number of results to return.\n"
+        "- `offset` (default: 0) — number of results to skip (for pagination).\n\n"
+        "**Example Response:**\n"
+        "```json\n"
+        "[\n"
+        "  {\n"
+        "    \"id\": \"d3b07384-d113-4956-b7e0-9118c634af5a\",\n"
+        "    \"name\": \"Margo City\",\n"
+        "    \"address\": \"Jl. Margonda Raya No.358\",\n"
+        "    \"lat\": -6.3725,\n"
+        "    \"lng\": 106.8331\n"
+        "  }\n"
+        "]\n"
+        "```"
+    ),
 )
 def get_public_buildings(
     limit: int = 20,
@@ -347,7 +479,7 @@ def get_public_buildings(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal mengambil data gedung dari database: {str(e)}"
         )
-        
+
     output = []
     for b in (res.data or []):
         output.append({
@@ -360,33 +492,39 @@ def get_public_buildings(
     return output
 
 
-@router.get(
+@public_v1_router.get(
     "/v1/public/buildings/{id}/audit",
     response_model=PublicAuditResponse,
     summary="Get Primary Audit Details of a Building",
-    description="Returns the primary (oldest) audit run details and consensus criteria status evaluations for a verified building. "
-                "Excludes auditor identity, photos, and voting logs.\n\n"
-                "**Access Tiers:**\n"
-                "- **Free Tier**: Allowed. Rates limited to 100 requests/day.\n"
-                "- **Pro Tier**: Allowed. Rates limited to 2000 requests/day.\n\n"
-                "**Example Response:**\n"
-                "```json\n"
-                "{\n"
-                "  \"building_id\": \"d3b07384-d113-4956-b7e0-9118c634af5a\",\n"
-                "  \"building_name\": \"Margo City\",\n"
-                "  \"audit_run_id\": \"12345678-1234-1234-1234-123456789012\",\n"
-                "  \"created_at\": \"2026-07-15T00:00:00Z\",\n"
-                "  \"results\": [\n"
-                "    {\n"
-                "      \"code\": \"SNI-8201-M1\",\n"
-                "      \"description\": \"Tersedia ramp landai\",\n"
-                "      \"category\": \"mobilitas\",\n"
-                "      \"status\": \"met\",\n"
-                "      \"is_disputed\": false\n"
-                "    }\n"
-                "  ]\n"
-                "}"
-                "```"
+    description=(
+        "Returns the **primary audit run** details and consensus criteria status evaluations for a verified building.\n\n"
+        "The primary audit run is defined as the **oldest approved audit run** for the building. "
+        "Each criteria result includes an `is_disputed` flag — `true` if different auditors "
+        "submitted conflicting statuses across all audit runs for this building.\n\n"
+        "Excludes: auditor identities, uploaded photos, and raw voting logs.\n\n"
+        "**Authentication:** Pass your API key in the `X-API-Key` request header.\n\n"
+        "**Access Tiers:**\n"
+        "- **Free Tier**: ✅ Allowed — up to 100 requests/day.\n"
+        "- **Pro Tier**: ✅ Allowed — up to 2,000 requests/day.\n\n"
+        "**Example Response:**\n"
+        "```json\n"
+        "{\n"
+        "  \"building_id\": \"d3b07384-d113-4956-b7e0-9118c634af5a\",\n"
+        "  \"building_name\": \"Margo City\",\n"
+        "  \"audit_run_id\": \"12345678-1234-1234-1234-123456789012\",\n"
+        "  \"created_at\": \"2026-07-15T00:00:00Z\",\n"
+        "  \"results\": [\n"
+        "    {\n"
+        "      \"code\": \"SNI-8201-M1\",\n"
+        "      \"description\": \"Tersedia ramp landai\",\n"
+        "      \"category\": \"mobilitas\",\n"
+        "      \"status\": \"met\",\n"
+        "      \"is_disputed\": false\n"
+        "    }\n"
+        "  ]\n"
+        "}"
+        "```"
+    ),
 )
 def get_public_building_audit(
     id: UUID,
@@ -400,7 +538,7 @@ def get_public_building_audit(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal memeriksa data gedung: {str(e)}"
         )
-        
+
     if not b_res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -421,7 +559,7 @@ def get_public_building_audit(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal mengambil data audit run: {str(e)}"
         )
-        
+
     if not runs_res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -440,7 +578,7 @@ def get_public_building_audit(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal mengambil seluruh data audit hasil untuk konsensus: {str(e)}"
         )
-        
+
     statuses_by_criteria = {}
     for r in (all_results_res.data or []):
         criteria = r.get("audit_criteria")
@@ -461,7 +599,7 @@ def get_public_building_audit(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal mengambil hasil audit: {str(e)}"
         )
-        
+
     output_results = []
     for r in (results_res.data or []):
         criteria = r.get("audit_criteria") or {}
@@ -474,7 +612,7 @@ def get_public_building_audit(
             "status": r.get("status") or "",
             "is_disputed": is_disputed
         })
-        
+
     return {
         "building_id": building["id"],
         "building_name": building["name"],
@@ -484,73 +622,52 @@ def get_public_building_audit(
     }
 
 
-class PublicCriteriaDetail(BaseModel):
-    code: str
-    description: str
-    category: str
-    status: str
-
-class PublicAnnotationResponse(BaseModel):
-    id: UUID
-    label: str
-    pitch: float
-    yaw: float
-    criteria: PublicCriteriaDetail
-
-class PublicSceneResponse(BaseModel):
-    id: UUID
-    label: Optional[str] = None
-    file_url: str
-    type: str
-    created_at: datetime
-    annotations: List[PublicAnnotationResponse]
-
-class PublicTourResponse(BaseModel):
-    building_id: UUID
-    building_name: str
-    audit_run_id: UUID
-    scenes: List[PublicSceneResponse]
-
-
-@router.get(
+@public_v1_router.get(
     "/v1/public/buildings/{id}/tour",
     response_model=PublicTourResponse,
     summary="Get 360° Virtual Tour of a Building (Pro Tier Only)",
-    description="Returns all 360° panorama scenes and their related audit annotations for the building's primary audit run.\n\n"
-                "**Access Tiers:**\n"
-                "- **Free Tier**: Returns 403 Forbidden.\n"
-                "- **Pro Tier**: Allowed. Rates limited to 2000 requests/day.\n\n"
-                "**Example Response:**\n"
-                "```json\n"
-                "{\n"
-                "  \"building_id\": \"d3b07384-d113-4956-b7e0-9118c634af5a\",\n"
-                "  \"building_name\": \"Margo City\",\n"
-                "  \"audit_run_id\": \"12345678-1234-1234-1234-123456789012\",\n"
-                "  \"scenes\": [\n"
-                "    {\n"
-                "      \"id\": \"abcd-efgh-...\",\n"
-                "      \"label\": \"Main Entrance\",\n"
-                "      \"file_url\": \"https://.../panorama.jpg\",\n"
-                "      \"type\": \"panorama_360\",\n"
-                "      \"created_at\": \"2026-07-15T00:00:00Z\",\n"
-                "      \"annotations\": [\n"
-                "        {\n"
-                "          \"id\": \"xyz-123-...\",\n"
-                "          \"label\": \"Tersedia Ramp\",\n"
-                "          \"pitch\": -12.5,\n"
-                "          \"yaw\": 45.2,\n"
-                "          \"criteria\": {\n"
-                "            \"code\": \"SNI-8201-M1\",\n"
-                "            \"description\": \"Tersedia ramp landai\",\n"
-                "            \"category\": \"mobilitas\",\n"
-                "            \"status\": \"met\"\n"
-                "          }\n"
-                "        }\n"
-                "      ]\n"
-                "    }\n"
-                "  ]\n"
-                "}"
-                "```"
+    description=(
+        "Returns all **360° panorama scenes** and their associated **accessibility annotation hotspots** "
+        "for a building's primary audit run.\n\n"
+        "Each scene includes a `file_url` pointing to the panorama image, and an `annotations` list. "
+        "Each annotation specifies a hotspot position (`pitch`, `yaw`) and the linked accessibility criteria.\n\n"
+        "Auditor identities and internal metadata are **not** exposed.\n\n"
+        "**Authentication:** Pass your PRO-tier API key in the `X-API-Key` request header.\n\n"
+        "**Access Tiers:**\n"
+        "- **Free Tier**: ❌ Returns `403 Forbidden`. Upgrade via `POST /developers/request-pro`.\n"
+        "- **Pro Tier**: ✅ Allowed — up to 2,000 requests/day.\n\n"
+        "**Example Response:**\n"
+        "```json\n"
+        "{\n"
+        "  \"building_id\": \"d3b07384-d113-4956-b7e0-9118c634af5a\",\n"
+        "  \"building_name\": \"Margo City\",\n"
+        "  \"audit_run_id\": \"12345678-1234-1234-1234-123456789012\",\n"
+        "  \"scenes\": [\n"
+        "    {\n"
+        "      \"id\": \"abcd-efgh-...\",\n"
+        "      \"label\": \"Main Entrance\",\n"
+        "      \"file_url\": \"https://.../panorama.jpg\",\n"
+        "      \"type\": \"panorama_360\",\n"
+        "      \"created_at\": \"2026-07-15T00:00:00Z\",\n"
+        "      \"annotations\": [\n"
+        "        {\n"
+        "          \"id\": \"xyz-123-...\",\n"
+        "          \"label\": \"Tersedia Ramp\",\n"
+        "          \"pitch\": -12.5,\n"
+        "          \"yaw\": 45.2,\n"
+        "          \"criteria\": {\n"
+        "            \"code\": \"SNI-8201-M1\",\n"
+        "            \"description\": \"Tersedia ramp landai\",\n"
+        "            \"category\": \"mobilitas\",\n"
+        "            \"status\": \"met\"\n"
+        "          }\n"
+        "        }\n"
+        "      ]\n"
+        "    }\n"
+        "  ]\n"
+        "}"
+        "```"
+    ),
 )
 def get_public_building_tour(
     id: UUID,
@@ -564,7 +681,7 @@ def get_public_building_tour(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal memeriksa data gedung: {str(e)}"
         )
-        
+
     if not b_res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -585,7 +702,7 @@ def get_public_building_tour(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal mengambil data audit run: {str(e)}"
         )
-        
+
     if not runs_res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

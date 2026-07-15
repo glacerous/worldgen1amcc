@@ -31,8 +31,10 @@ app.include_router(trust.router)
 app.include_router(trust.admin_trust_router)
 app.include_router(admin_router)
 app.include_router(public_router)
-app.include_router(developers.router)
+app.include_router(developers.dev_reg_router)
 app.include_router(developers.admin_dev_router)
+app.include_router(developers.public_v1_router)
+app.include_router(developers.internal_router)
 
 def custom_openapi():
     if app.openapi_schema:
