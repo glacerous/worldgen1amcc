@@ -29,6 +29,8 @@ export default function SubmitBuildingPage() {
   const [mapCenter, setMapCenter] = useState<[number, number]>([-6.2088, 106.8456]); // Default: Jakarta center
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [panoramaFiles, setPanoramaFiles] = useState<File[]>([]);
+  const [isDraggingPhotos, setIsDraggingPhotos] = useState(false);
+  const [isDraggingPanoramas, setIsDraggingPanoramas] = useState(false);
   
   const [isLoading, setIsLoading] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -145,6 +147,56 @@ export default function SubmitBuildingPage() {
   // Remove a selected file from the preview list
   const removeFile = (indexToRemove: number) => {
     setSelectedFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  // Drag & Drop handlers for regular photos
+  const handlePhotosDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingPhotos(true);
+  };
+
+  const handlePhotosDragLeave = () => {
+    setIsDraggingPhotos(false);
+  };
+
+  const handlePhotosDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingPhotos(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const filesArray = Array.from(e.dataTransfer.files);
+      const invalidFiles = filesArray.some((file) => !file.type.startsWith("image/"));
+      if (invalidFiles) {
+        setError("Hanya berkas gambar (image/*) yang diperbolehkan.");
+        return;
+      }
+      setSelectedFiles((prev) => [...prev, ...filesArray]);
+      setError(null);
+    }
+  };
+
+  // Drag & Drop handlers for 360 panoramas
+  const handlePanoramasDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingPanoramas(true);
+  };
+
+  const handlePanoramasDragLeave = () => {
+    setIsDraggingPanoramas(false);
+  };
+
+  const handlePanoramasDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingPanoramas(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const filesArray = Array.from(e.dataTransfer.files);
+      const invalidFiles = filesArray.some((file) => !file.type.startsWith("image/"));
+      if (invalidFiles) {
+        setError("Semua berkas panorama harus berupa file gambar.");
+        return;
+      }
+      setPanoramaFiles((prev) => [...prev, ...filesArray]);
+      setError(null);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -446,13 +498,20 @@ export default function SubmitBuildingPage() {
               {/* Fake file pick area */}
               <div 
                 onClick={() => document.getElementById("photo-picker")?.click()}
-                className="border border-dashed border-line hover:border-accent/40 rounded-md p-6 text-center cursor-pointer transition-colors"
+                onDragOver={handlePhotosDragOver}
+                onDragLeave={handlePhotosDragLeave}
+                onDrop={handlePhotosDrop}
+                className={`border border-dashed rounded-md p-6 text-center cursor-pointer transition-colors ${
+                  isDraggingPhotos
+                    ? "border-accent bg-accent/5"
+                    : "border-line hover:border-accent/40 bg-surface/10"
+                }`}
               >
                 <svg className="w-8 h-8 text-ink-muted/70 mx-auto mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p className="font-sans text-[11px] text-ink-muted">
-                  Klik untuk memilih foto-foto bukti standar gedung (Ramp, Pintu, Toilet, dll.)
+                  Klik atau seret foto-foto bukti standar gedung ke sini (Ramp, Pintu, Toilet, dll.)
                 </p>
               </div>
               
@@ -506,7 +565,14 @@ export default function SubmitBuildingPage() {
               
               <div 
                 onClick={() => document.getElementById("panorama-picker")?.click()}
-                className="border border-dashed border-line hover:border-accent/40 rounded-md p-4 text-center cursor-pointer transition-colors bg-surface/40"
+                onDragOver={handlePanoramasDragOver}
+                onDragLeave={handlePanoramasDragLeave}
+                onDrop={handlePanoramasDrop}
+                className={`border border-dashed rounded-md p-4 text-center cursor-pointer transition-colors ${
+                  isDraggingPanoramas
+                    ? "border-accent bg-accent/5"
+                    : "border-line hover:border-accent/40 bg-surface/40"
+                }`}
               >
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <svg className="w-6 h-6 text-accent/70" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -518,7 +584,7 @@ export default function SubmitBuildingPage() {
                   </span>
                 </div>
                 <p className="font-sans text-[11px] text-ink-muted">
-                  {panoramaFiles.length > 0 ? `Terpilih: ${panoramaFiles.length} foto 360°` : "Tambahkan foto 360° untuk tur virtual dengan penanda otomatis oleh AI"}
+                  {panoramaFiles.length > 0 ? `Terpilih: ${panoramaFiles.length} foto 360°` : "Klik atau seret foto-foto 360° ke sini untuk tur virtual dengan penanda otomatis oleh AI"}
                 </p>
               </div>
 
