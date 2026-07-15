@@ -164,10 +164,10 @@ export default function DevelopersPage() {
         )}
 
         {/* LOADING STATE */}
-        {loading || isFetching ? (
+        {loading ? (
           <div className="w-full bg-surface border border-line rounded-md p-8 flex flex-col items-center justify-center min-h-[300px]">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mb-4"></div>
-            <span className="font-sans text-sm text-ink-muted">Memuat data akses developer...</span>
+            <span className="font-sans text-sm text-ink-muted">Memuat data akses...</span>
           </div>
         ) : !user ? (
           /* STATE 1: NOT LOGGED IN */
@@ -255,7 +255,13 @@ export default function DevelopersPage() {
 
             {/* Right Main Content */}
             <div className="space-y-8 min-w-0">
-              {!apiKeyData ? (
+              {isFetching ? (
+                /* INNER LOADING STATE FOR API KEY FETCHING */
+                <div className="w-full bg-surface border border-line rounded-md p-8 flex flex-col items-center justify-center min-h-[300px]">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mb-4"></div>
+                  <span className="font-sans text-sm text-ink-muted">Memuat data akses developer...</span>
+                </div>
+              ) : !apiKeyData ? (
                 /* STATE 2: LOGGED IN, NO API KEY */
                 <div className="w-full bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs flex flex-col items-start">
                   <h2 className="font-display text-2xl font-normal text-ink mb-2">
