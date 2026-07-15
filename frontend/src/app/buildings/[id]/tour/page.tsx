@@ -92,6 +92,11 @@ export default function BuildingTourPage() {
   const [auditRuns, setAuditRuns] = useState<any[]>([]);
   const [isAuditOwner, setIsAuditOwner] = useState(false);
 
+  // New Annotation states
+  const [auditResults, setAuditResults] = useState<any[]>([]);
+  const [selectedAuditResultId, setSelectedAuditResultId] = useState("");
+  const [isAddingAnnotation, setIsAddingAnnotation] = useState(false);
+
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   // Load building and list of scenes
@@ -125,10 +130,11 @@ export default function BuildingTourPage() {
 
   async function loadBuildingAndScenes() {
     try {
-      const [buildingRes, scenesRes, runsRes] = await Promise.all([
+      const [buildingRes, scenesRes, runsRes, resultsRes] = await Promise.all([
         fetch(`${BACKEND_URL}/buildings/${id}`),
         fetch(`${BACKEND_URL}/scenes?building_id=${id}`),
         fetch(`${BACKEND_URL}/audit/runs/${id}`),
+        fetch(`${BACKEND_URL}/audit/results/${id}`),
       ]);
 
       if (!buildingRes.ok) {
@@ -149,9 +155,11 @@ export default function BuildingTourPage() {
       const buildingData = await buildingRes.json();
       const scenesData: Scene[] = await scenesRes.json();
       const runsData = runsRes.ok ? await runsRes.json() : [];
+      const auditResultsData = resultsRes.ok ? await resultsRes.json() : [];
 
       setBuilding(buildingData);
       setAuditRuns(runsData);
+      setAuditResults(auditResultsData);
       
       const panoramaScenes = scenesData.filter((s) => s.type === "panorama_360");
       setScenes(panoramaScenes);
@@ -370,6 +378,87 @@ export default function BuildingTourPage() {
       // Reload scene links for active scene
       await loadActiveSceneData(activeScene.id);
       alert("Penanda navigasi berhasil dihapus.");
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Add manual audit annotation
+  const handleCreateAnnotation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeScene) return;
+    if (!selectedAuditResultId) {
+      alert("Silakan pilih kriteria audit.");
+      return;
+    }
+
+    let pitch = 0;
+    let yaw = 0;
+    try {
+      const viewer = pannellumRef.current?.getViewer();
+      if (viewer) {
+        pitch = viewer.getPitch();
+        yaw = viewer.getYaw();
+      }
+    } catch (err) {
+      console.error("Gagal mendapatkan koordinat dari penonton pannellum:", err);
+      alert("Gagal mengambil orientasi kamera. Pastikan penonton sudah termuat sepenuhnya.");
+      return;
+    }
+
+    setIsAddingAnnotation(true);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/scenes/${activeScene.id}/annotations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          audit_result_id: selectedAuditResultId,
+          pitch: pitch,
+          yaw: yaw,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Gagal membuat anotasi audit.");
+      }
+
+      // Reset selection
+      setSelectedAuditResultId("");
+
+      // Reload data
+      await loadActiveSceneData(activeScene.id);
+      alert("Anotasi audit berhasil ditambahkan ke arah bidikan kamera!");
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsAddingAnnotation(false);
+    }
+  };
+
+  // Delete specific audit annotation
+  const handleDeleteAnnotation = async (annotationId: string) => {
+    if (!activeScene) return;
+    if (!confirm("Apakah Anda yakin ingin menghapus anotasi audit ini?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/scenes/annotations/${annotationId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Gagal menghapus anotasi.");
+      }
+
+      // Reload data
+      await loadActiveSceneData(activeScene.id);
+      alert("Anotasi berhasil dihapus.");
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     }
@@ -685,6 +774,79 @@ export default function BuildingTourPage() {
                             </div>
                           );
                         })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Create Annotation Panel */}
+                  <div className="bg-surface border border-line rounded-md p-4 space-y-3.5 shadow-sm">
+                    <div>
+                      <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
+                        Tambah Anotasi Audit
+                      </h3>
+                      <p className="text-[10px] text-ink-muted mt-1 leading-relaxed">
+                        Arahkan kamera 360° ke objek fitur yang dimaksud, pilih kriteria audit, lalu pasang:
+                      </p>
+                    </div>
+
+                    <form onSubmit={handleCreateAnnotation} className="space-y-3">
+                      <div>
+                        <label className="block text-[9px] font-bold text-ink uppercase mb-1">Pilih Kriteria Audit</label>
+                        <select
+                          value={selectedAuditResultId}
+                          onChange={(e) => setSelectedAuditResultId(e.target.value)}
+                          className="w-full bg-bg/40 border border-line rounded p-2 text-xs font-sans text-ink focus:outline-none focus:border-accent cursor-pointer"
+                          required
+                        >
+                          <option value="">-- Pilih Kriteria --</option>
+                          {auditResults.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.audit_criteria?.short_label || r.audit_criteria?.code} ({r.status === "met" ? "Terpenuhi" : "Tidak Terpenuhi"})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isAddingAnnotation}
+                        className="w-full bg-accent text-white py-2 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isAddingAnnotation ? "Menyimpan..." : "Pasang di Arah Bidikan"}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Annotations List Manager */}
+                  <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
+                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
+                      Anotasi di Ruangan Ini
+                    </h3>
+                    {annotations.length === 0 ? (
+                      <p className="text-[10px] text-ink-muted italic">Belum ada anotasi audit di area ini.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {annotations.map((ann) => (
+                          <div
+                            key={ann.id}
+                            className="flex justify-between items-center bg-bg/30 border border-line/60 p-2 rounded text-xs font-sans"
+                          >
+                            <div className="truncate pr-2">
+                              <span className="font-semibold text-ink">
+                                {ann.audit_results?.audit_criteria?.short_label || ann.audit_results?.audit_criteria?.code || ann.label}
+                              </span>
+                              <span className="block text-[9px] text-ink-muted truncate">
+                                Status: {ann.audit_results?.status === "met" ? "Terpenuhi" : "Tidak Terpenuhi"}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteAnnotation(ann.id)}
+                              className="text-[10px] text-status-not-met hover:underline font-semibold cursor-pointer shrink-0"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

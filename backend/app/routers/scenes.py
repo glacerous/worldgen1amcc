@@ -24,6 +24,13 @@ class SceneLinkCreate(BaseModel):
     label: str = None
 
 
+class AnnotationCreate(BaseModel):
+    audit_result_id: UUID
+    pitch: float
+    yaw: float
+    label: str = None
+
+
 # ── Scenes ─────────────────────────────────────────────────────────────────
 
 @router.get("", response_model=List[dict])
@@ -152,6 +159,64 @@ def get_scene_annotations(scene_id: UUID):
         return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil data anotasi scene dari database: {str(e)}")
+
+@router.post("/{scene_id}/annotations", response_model=dict)
+def create_annotation(scene_id: UUID, payload: AnnotationCreate):
+    """
+    Create a new annotation (Penanda Info) in a scene.
+    """
+    try:
+        # Determine the label if not provided
+        label = payload.label
+        if not label:
+            res = supabase.table("audit_results") \
+                .select("*, audit_criteria(code, short_label)") \
+                .eq("id", str(payload.audit_result_id)) \
+                .execute()
+            if res.data:
+                audit_res = res.data[0]
+                criteria = audit_res.get("audit_criteria")
+                if criteria:
+                    label = criteria.get("short_label") or criteria.get("code")
+            if not label:
+                label = "Kriteria"
+
+        new_ann = {
+            "scene_id": str(scene_id),
+            "audit_result_id": str(payload.audit_result_id),
+            "pitch": payload.pitch,
+            "yaw": payload.yaw,
+            "label": label,
+        }
+        response = supabase.table("annotations").insert(new_ann).execute()
+
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Gagal menyimpan anotasi ke database.")
+
+        return response.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal membuat anotasi: {str(e)}")
+
+@router.delete("/annotations/{annotation_id}", response_model=dict)
+def delete_annotation(annotation_id: UUID):
+    """
+    Delete a specific annotation (Penanda Info) by its ID.
+    """
+    try:
+        response = supabase.table("annotations") \
+            .delete() \
+            .eq("id", str(annotation_id)) \
+            .execute()
+
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Anotasi tidak ditemukan.")
+
+        return {"status": "success", "message": "Anotasi berhasil dihapus"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal menghapus anotasi: {str(e)}")
+
 
 
 # ── Scene Links (Penanda Navigasi) ─────────────────────────────────────────

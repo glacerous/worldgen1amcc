@@ -275,7 +275,7 @@ export default function TourViewer({
             pitch: ann.pitch,
             yaw: ann.yaw,
             type: "info",
-            text: ann.audit_results?.audit_criteria?.code || "Kriteria",
+            text: ann.audit_results?.audit_criteria?.short_label || ann.audit_results?.audit_criteria?.code || "Kriteria",
             clickHandlerFunc: () => {
               setSelectedHotspot(ann);
             },
@@ -440,14 +440,21 @@ export default function TourViewer({
 
         return (
           <div className="absolute top-4 right-4 left-4 sm:left-auto z-10 max-w-sm sm:w-80 bg-surface/95 backdrop-blur-md border border-line rounded-md p-4 shadow-md font-sans text-xs max-h-[70vh] overflow-y-auto">
-            {/* Header: criteria code & badge */}
-            <div className="flex items-center justify-between pb-2 border-b border-line mb-3">
-              <span className="font-mono font-medium text-[11px] text-ink-muted tracking-wider">
-                {criteria.code}
-              </span>
-              <span className={`px-2 py-0.5 border rounded-md text-[9px] font-sans font-bold uppercase tracking-wider ${statusConfig.colorClass}`}>
-                {statusConfig.label}
-              </span>
+            {/* Header: criteria short label & badge */}
+            <div className="flex flex-col gap-1.5 pb-2 border-b border-line mb-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-sans font-semibold text-[13px] text-ink leading-tight">
+                  {criteria.short_label || criteria.code}
+                </span>
+                <span className={`px-2 py-0.5 border rounded-md text-[9px] font-sans font-bold uppercase tracking-wider shrink-0 ${statusConfig.colorClass}`}>
+                  {statusConfig.label}
+                </span>
+              </div>
+              {criteria.short_label && (
+                <span className="font-mono text-[9px] text-ink-muted uppercase tracking-wider">
+                  Kode: {criteria.code}
+                </span>
+              )}
             </div>
 
             {/* Body Description */}

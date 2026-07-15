@@ -83,7 +83,7 @@ def run_panorama_agent(panorama_url: str) -> List[Dict[str, Any]]:
         "Temukan semua fitur aksesibilitas fisik penting (seperti ramp kursi roda, tangga akses, ubin pemandu/tactile paving, toilet khusus disabilitas, pegangan tangan/grab bars, lift, pintu otomatis, dll.).\n\n"
         "Untuk setiap fitur yang dideteksi, tentukan posisinya sebagai koordinat titik tengah fitur tersebut dalam persentase, serta kelayakan aksesibilitasnya:\n"
         "- x_percent: Persentase horizontal (0.0 - 100.0), dihitung dari sisi paling kiri gambar ke kanan.\n"
-        "- y_percent: Persentase vertikal (0.0 - 100.0), dihitung dari sisi paling atas gambar ke bawah.\n"
+        "- y_percent: Persentase vertikal (0.0 - 100.0), dihitung dari sisi paling atas gambar ke bawah. Catatan penting: garis cakrawala (horizon) berada tepat di tengah gambar (50.0%). Fitur di lantai/tanah yang berada di latar belakang atau jarak menengah (seperti tangga atau ramp yang agak jauh) biasanya terletak sangat dekat di bawah horizon, yaitu antara 52.0% hingga 58.0%. Hanya fitur di lantai yang letaknya sangat dekat/persis di bawah kamera yang memiliki y_percent 65.0% ke atas. Jangan menempatkan fitur jarak menengah pada y_percent yang terlalu besar (misal 65%+ atau 70%+), karena itu akan memproyeksikan fitur tersebut ke lantai terdekat di bawah kamera.\n"
         "- status: Evaluasi kelayakan fitur tersebut berdasarkan standar aksesibilitas dasar yang terlihat, bernilai 'met' (layak/memenuhi kriteria) atau 'not_met' (tidak layak/tidak memenuhi syarat/rusak/terhalang).\n\n"
         "Lakukan analisis secara cermat dan kembalikan seluruh fitur yang terdeteksi dalam satu respon."
     )
