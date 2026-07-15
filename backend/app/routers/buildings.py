@@ -143,6 +143,14 @@ async def submit_building_audit(
             if not p.content_type or not p.content_type.startswith("image/"):
                 raise HTTPException(status_code=400, detail="Semua berkas panorama yang diunggah harus berupa file gambar.")
 
+    if not contributor_name or not contributor_name.strip():
+        if current_user:
+            contributor_name = current_user.get("display_name") or current_user.get("email") or "Anonim"
+        else:
+            contributor_name = "Anonim"
+    else:
+        contributor_name = contributor_name.strip()
+
     # 3. Upload photo files to Supabase Storage bucket "photos"
     photo_urls = []
     for photo in photos:
@@ -348,6 +356,14 @@ async def submit_building(
         for p in panoramas:
             if not p.content_type or not p.content_type.startswith("image/"):
                 raise HTTPException(status_code=400, detail="Semua berkas panorama yang diunggah harus berupa file gambar.")
+
+    if not contributor_name or not contributor_name.strip():
+        if current_user:
+            contributor_name = current_user.get("display_name") or current_user.get("email") or "Anonim"
+        else:
+            contributor_name = "Anonim"
+    else:
+        contributor_name = contributor_name.strip()
 
     # 3. GPS EXIF check from the first photo (AWAL)
     gps_mismatch = False
