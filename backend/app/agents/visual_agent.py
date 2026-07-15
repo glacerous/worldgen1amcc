@@ -101,11 +101,15 @@ def run_visual_agent(photos: List[str]) -> List[Dict[str, Any]]:
         "Tugas Anda adalah mendeteksi elemen aksesibilitas dalam rangkaian FOTO bukti yang dilampirkan.\n\n"
         f"Daftar kriteria yang harus dievaluasi:\n{criteria_str}\n\n"
         "Panduan Evaluasi:\n"
-        "- Gunakan status 'met' jika Anda melihat bukti visual yang sangat jelas bahwa kriteria tersebut dipenuhi (misalnya: tampak ramp dengan kemiringan landai, pintu masuk lebar tanpa tangga, toilet difabel dengan grab bar, ubin pemandu di lantai, alarm strobo, dll).\n"
-        "- Gunakan status 'not_met' jika Anda melihat bukti visual yang bertentangan (misalnya: pintu masuk utama hanya berupa tangga curam tanpa ramp sama sekali, toilet sempit, dll).\n"
+        "- Gunakan status 'met' jika Anda melihat bukti visual yang sangat jelas bahwa kriteria tersebut dipenuhi.\n"
+        "- Gunakan status 'not_met' jika Anda melihat bukti visual yang bertentangan (tidak terpenuhi).\n"
         "- Gunakan status 'na' jika kriteria tidak relevan atau tidak berlaku pada tipe area/elemen yang difoto.\n"
         "- Gunakan status 'unknown' jika bukti visual pada foto tidak cukup jelas, terpotong, atau tidak menunjukkan elemen tersebut sama sekali. JANGAN menebak jika bukti tidak terlihat di foto.\n\n"
-        "Sangat wajar jika kriteria tertentu (terutama kategori netra/rungu) menghasilkan status 'unknown' karena keterbatasan bukti visual dari foto statis. Jangan menebak-nebak."
+        "PENTING UNTUK REASONING (ANALISIS PENALARAN):\n"
+        "- Tuliskan analisis penalaran (reasoning) secara spesifik, objektif, dan faktual berdasarkan apa yang terlihat langsung di foto. Jelaskan kondisi objek, bentuk, atau kekurangannya.\n"
+        "- JANGAN PERNAH menyalin, mengulang, atau menjiplak teks deskripsi kriteria sebagai isi reasoning Anda. Reasoning harus berupa deskripsi hasil pengamatan visual Anda terhadap foto!\n"
+        "- Untuk status 'not_met', jelaskan secara detail rintangan atau ketidaksesuaian yang Anda amati di foto (misalnya: 'Hanya terdapat tangga masuk utama tanpa adanya ramp landai untuk kursi roda, hanya ada rel logam sempit yang terlalu curam').\n"
+        "- Hindari penggunaan kata-kata spekulatif seperti 'biasanya', 'mungkin', 'sepertinya', atau 'kemungkinan besar' karena terdengar meragukan dan tidak profesional. Berbicaralah secara tegas berdasarkan bukti visual yang ada."
     )
     
     # Formulate message content

@@ -58,11 +58,15 @@ def run_text_agent(building_name: str, building_address: str) -> List[Dict[str, 
             "Anda adalah Text Agent dalam sistem audit aksesibilitas gedung.\n"
             "Tugas Anda adalah mengevaluasi apakah ada indikasi pemenuhan kriteria aksesibilitas berdasarkan NAMA dan ALAMAT gedung saja.\n\n"
             "Mengingat informasi tekstual sangat terbatas, Anda harus berhati-hati:\n"
-            "- Gunakan status 'met' jika nama/alamat gedung mengindikasikan dengan sangat kuat kriteria tersebut dipenuhi (misalnya gedung modern bertingkat tinggi kemungkinan besar memiliki lift/elevator).\n"
+            "- Gunakan status 'met' jika nama/alamat gedung mengindikasikan dengan sangat kuat kriteria tersebut dipenuhi.\n"
             "- Gunakan status 'not_met' jika ada indikasi kuat bahwa kriteria tidak dipenuhi.\n"
-            "- Gunakan status 'na' jika kriteria tidak relevan dengan tipe gedung ini (misalnya lift/elevator di gedung satu lantai).\n"
+            "- Gunakan status 'na' jika kriteria tidak relevan dengan tipe gedung ini.\n"
             "- Gunakan status 'unknown' jika tidak ada informasi sama sekali dari nama/alamat gedung yang bisa menentukan kriteria ini. Ini adalah status default yang paling aman jika Anda ragu.\n\n"
-            "Daftar kriteria yang harus dievaluasi:\n{criteria_list}"
+            "Daftar kriteria yang harus dievaluasi:\n{criteria_list}\n\n"
+            "PENTING UNTUK REASONING (ANALISIS PENALARAN):\n"
+            "- Tuliskan analisis secara logis, ringkas, dan percaya diri. Jelaskan alasan deduksi Anda secara objektif berdasarkan standar rancangan gedung sejenis.\n"
+            "- JANGAN PERNAH menyalin, mengulang, atau menjiplak teks deskripsi kriteria sebagai isi reasoning Anda.\n"
+            "- Hindari penggunaan kata-kata spekulatif seperti 'biasanya', 'kemungkinan besar', 'sepertinya', atau 'mungkin' karena terdengar meragukan. Sampaikan argumen secara tegas dan asertif (contoh: 'Sebagai stasiun MRT modern yang bertingkat, gedung dirancang inklusif dengan menyediakan lift khusus bagi disabilitas')."
         )),
         ("user", "Nama Gedung: {building_name}\nAlamat Gedung: {building_address}")
     ])

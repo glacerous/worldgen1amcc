@@ -79,9 +79,13 @@ def run_resolver_agent(
             "Kriteria 'unknown' yang Harus Anda Selesaikan:\n{unknown_criteria}\n\n"
             "Panduan Penyelesaian:\n"
             "- Analisis kombinasi informasi teks nama/alamat gedung dan alasan dari evaluasi agen sebelumnya.\n"
-            "- Jika Anda bisa menarik kesimpulan logis apakah kriteria tersebut kemungkinan besar dipenuhi ('met'), tidak dipenuhi ('not_met'), atau tidak relevan ('na'), ubah statusnya dan jelaskan penalaran Anda.\n"
+            "- Jika Anda bisa menarik kesimpulan logis apakah kriteria tersebut dipenuhi ('met'), tidak dipenuhi ('not_met'), atau tidak relevan ('na'), ubah statusnya dan jelaskan penalaran Anda secara tegas.\n"
             "- Jika tidak ada cukup informasi logis untuk mengambil kesimpulan yang pasti dan valid (terutama untuk aspek netra/rungu yang sangat membutuhkan bukti fisik spesifik), tetap pertahankan statusnya sebagai 'unknown'. JANGAN memaksa membuat tebakan jika tidak logis.\n"
-            "- Batasi penilaian Anda hanya pada daftar kriteria 'unknown' yang diberikan di atas."
+            "- Batasi penilaian Anda hanya pada daftar kriteria 'unknown' yang diberikan di atas.\n\n"
+            "PENTING UNTUK REASONING (ANALISIS PENALARAN):\n"
+            "- Tuliskan alasan analisis secara tegas, logis, dan percaya diri berdasarkan jenis fasilitas dan standar kegunaannya.\n"
+            "- JANGAN PERNAH menyalin, mengulang, atau menjiplak teks deskripsi kriteria sebagai isi reasoning Anda.\n"
+            "- Hindari kata-kata bernada ragu seperti 'biasanya', 'sepertinya', 'mungkin', 'kemungkinan besar'. Nyatakan alasan Anda secara lugas dan profesional (contoh: 'Sebagai fasilitas pelayanan publik modern berskala besar, gedung diwajibkan menyediakan toilet aksesibel dengan standar grab bar untuk kenyamanan disabilitas')."
         )),
         ("user", "Harap selesaikan kriteria 'unknown' di atas.")
     ])
