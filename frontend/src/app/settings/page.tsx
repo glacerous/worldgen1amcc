@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Link from "next/link";
@@ -7,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 export default function SettingsPage() {
   const { user, login, loading, textSize, setTextSize } = useAuth();
+  const [activeTab, setActiveTab] = useState<"profile" | "appearance">("profile");
 
   return (
     <div className="min-h-screen flex flex-col bg-bg relative overflow-x-hidden">
@@ -20,17 +22,17 @@ export default function SettingsPage() {
 
       <Navbar />
 
-      <main className="flex-1 max-w-3xl w-full mx-auto px-6 py-12 flex flex-col justify-start">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-12 flex flex-col justify-start">
         {/* Title Section */}
-        <div className="mb-10 text-left">
+        <div className="mb-8 text-left border-b border-line pb-6">
           <span className="font-sans text-xs tracking-widest text-accent uppercase font-semibold">
             Pengaturan Aplikasi
           </span>
           <h1 className="font-display text-4xl md:text-5xl font-normal text-ink mt-2">
             Pengaturan
           </h1>
-          <p className="font-display italic text-lg text-ink-muted mt-2">
-            Kelola preferensi akun dan akses integrasi Anda.
+          <p className="font-display italic text-base text-ink-muted mt-2">
+            Kelola preferensi akun dan akses integrasi API Anda.
           </p>
         </div>
 
@@ -42,7 +44,7 @@ export default function SettingsPage() {
           </div>
         ) : !user ? (
           /* NOT LOGGED IN STATE */
-          <div className="bg-surface border-l-4 border-status-not-met p-6 md:p-8 rounded-r-md border border-line shadow-xs">
+          <div className="max-w-3xl w-full mx-auto bg-surface border-l-4 border-status-not-met p-6 md:p-8 rounded-r-md border border-line shadow-xs">
             <h2 className="font-display text-2xl font-normal text-ink mb-3">
               Akses Terbatas
             </h2>
@@ -60,114 +62,142 @@ export default function SettingsPage() {
             </button>
           </div>
         ) : (
-          /* LOGGED IN SETTINGS PANEL */
-          <div className="space-y-8">
+          /* LOGGED IN SETTINGS WORKSPACE (WITH SIDEBAR) */
+          <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-10 items-start">
             
-            {/* 1. User Profile Card */}
-            <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-4">
-              <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
-                Profil Pengguna
-              </h2>
+            {/* Sidebar on the Left */}
+            <aside className="flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible pb-4 md:pb-0 border-b md:border-b-0 md:border-r border-line/65 gap-1 md:gap-6 pr-0 md:pr-6 whitespace-nowrap">
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <span className="font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase">
-                    Nama Akun
-                  </span>
-                  <p className="font-sans text-sm font-semibold text-ink mt-0.5">
-                    {user.display_name}
-                  </p>
-                </div>
-                <div>
-                  <span className="font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase">
-                    Alamat Email
-                  </span>
-                  <p className="font-sans text-sm text-ink-muted mt-0.5">
-                    {user.email}
-                  </p>
-                </div>
-                <div className="sm:col-span-2">
-                  <span className="font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase">
-                    User ID (Database ID)
-                  </span>
-                  <p className="font-mono text-xs text-ink-muted bg-bg/30 border border-line/45 rounded px-2.5 py-1.5 mt-1 overflow-x-auto select-all">
-                    {user.id}
-                  </p>
-                </div>
-              </div>
-              <p className="font-sans text-[11px] text-ink-muted italic pt-2">
-                * Data profil di atas disinkronkan secara otomatis melalui akun Google Anda.
-              </p>
-            </div>
-
-            {/* 2. Accessibility Preference Card */}
-            <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-4">
-              <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
-                Aksesibilitas Teks
-              </h2>
-              <p className="font-sans text-sm text-ink-muted leading-relaxed">
-                Sesuaikan ukuran teks dasar di seluruh aplikasi web Aksesibel demi kenyamanan membaca Anda.
-              </p>
-              
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-row md:flex-col gap-1 md:gap-1.5 w-full">
+                <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider hidden md:block mb-2 select-none">
+                  Konfigurasi Akun
+                </span>
                 <button
-                  onClick={() => setTextSize("normal")}
-                  className={`px-4 py-2 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
-                    textSize === "normal"
-                      ? "bg-accent text-white border-accent"
-                      : "bg-surface border-line text-ink hover:bg-bg/40"
+                  onClick={() => setActiveTab("profile")}
+                  className={`text-left px-3.5 py-2 text-xs md:text-sm font-sans rounded transition-all cursor-pointer w-full focus:outline-none ${
+                    activeTab === "profile"
+                      ? "bg-accent text-white font-semibold shadow-xs"
+                      : "text-ink hover:bg-bg/40 font-medium"
                   }`}
                 >
-                  AA (Normal / 16px)
+                  Profil Pengguna
                 </button>
+                
                 <button
-                  onClick={() => setTextSize("besar")}
-                  className={`px-4 py-2 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
-                    textSize === "besar"
-                      ? "bg-accent text-white border-accent"
-                      : "bg-surface border-line text-ink hover:bg-bg/40"
+                  onClick={() => setActiveTab("appearance")}
+                  className={`text-left px-3.5 py-2 text-xs md:text-sm font-sans rounded transition-all cursor-pointer w-full focus:outline-none ${
+                    activeTab === "appearance"
+                      ? "bg-accent text-white font-semibold shadow-xs"
+                      : "text-ink hover:bg-bg/40 font-medium"
                   }`}
                 >
-                  AA+ (Besar / 18px)
-                </button>
-                <button
-                  onClick={() => setTextSize("sangat-besar")}
-                  className={`px-4 py-2 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
-                    textSize === "sangat-besar"
-                      ? "bg-accent text-white border-accent"
-                      : "bg-surface border-line text-ink hover:bg-bg/40"
-                  }`}
-                >
-                  AA++ (Sangat Besar / 20px)
+                  Preferensi Teks
                 </button>
               </div>
-            </div>
 
-            {/* 3. Developer API Card */}
-            <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-4 flex flex-col items-start">
-              <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2 w-full">
-                API Pengembang
-              </h2>
-              <p className="font-sans text-sm text-ink-muted leading-relaxed">
-                Platform Aksesibel menawarkan data publik terverifikasi yang dapat Anda integrasikan ke sistem pemetaan, 
-                penelitian, maupun aplikasi penunjang disabilitas eksternal.
-              </p>
-              <div className="w-full border border-line/55 rounded p-4 bg-bg/25 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h3 className="font-sans text-sm font-semibold text-accent">API untuk Developer</h3>
-                  <p className="font-sans text-xs text-ink-muted leading-relaxed">
-                    Dapatkan kunci API publik Anda, cek batas limit pemanggilan (rate limit), lihat contoh kode integrasi curl, dan baca dokumentasi teknis lengkap.
-                  </p>
-                </div>
+              <div className="flex flex-row md:flex-col gap-1 md:gap-1.5 w-full md:pt-4 md:border-t md:border-line/45">
+                <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider hidden md:block mb-2 select-none">
+                  Integrasi
+                </span>
                 <Link
                   href="/developers"
-                  className="inline-flex items-center justify-center bg-accent text-white hover:bg-accent/90 font-sans text-xs font-semibold px-4 py-2.5 rounded transition-all cursor-pointer whitespace-nowrap"
+                  className="text-left px-3.5 py-2 text-xs md:text-sm font-sans rounded transition-all flex items-center justify-between text-ink hover:bg-bg/40 font-medium cursor-pointer w-full group"
                 >
-                  Kelola API Key
+                  <span>Public API (Kunci)</span>
+                  <svg className="w-3.5 h-3.5 text-ink-muted group-hover:translate-x-0.5 transition-transform hidden md:block" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
                 </Link>
               </div>
-            </div>
+            </aside>
 
+            {/* Main Content Area on the Right */}
+            <div className="space-y-8 min-w-0">
+              
+              {activeTab === "profile" && (
+                <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-5 animate-in fade-in duration-200">
+                  <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
+                    Profil Pengguna
+                  </h2>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                      <span className="font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase block">
+                        Nama Akun
+                      </span>
+                      <p className="font-sans text-sm font-semibold text-ink mt-1">
+                        {user.display_name}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase block">
+                        Alamat Email
+                      </span>
+                      <p className="font-sans text-sm text-ink-muted mt-1">
+                        {user.email}
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase block">
+                        User ID (Database ID)
+                      </span>
+                      <p className="font-mono text-xs text-ink-muted bg-bg/30 border border-line/45 rounded px-3 py-2 mt-1.5 overflow-x-auto select-all">
+                        {user.id}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <p className="font-sans text-[11px] text-ink-muted italic pt-4 border-t border-line/45">
+                    * Data profil di atas disinkronkan secara otomatis melalui akun Google Anda saat pendaftaran.
+                  </p>
+                </div>
+              )}
+
+              {activeTab === "appearance" && (
+                <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-5 animate-in fade-in duration-200">
+                  <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
+                    Aksesibilitas Teks
+                  </h2>
+                  <p className="font-sans text-sm text-ink-muted leading-relaxed">
+                    Sesuaikan ukuran teks dasar di seluruh aplikasi web Aksesibel demi kenyamanan membaca Anda.
+                  </p>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <button
+                      onClick={() => setTextSize("normal")}
+                      className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
+                        textSize === "normal"
+                          ? "bg-accent text-white border-accent"
+                          : "bg-surface border-line text-ink hover:bg-bg/40"
+                      }`}
+                    >
+                      AA (Normal / 16px)
+                    </button>
+                    <button
+                      onClick={() => setTextSize("besar")}
+                      className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
+                        textSize === "besar"
+                          ? "bg-accent text-white border-accent"
+                          : "bg-surface border-line text-ink hover:bg-bg/40"
+                      }`}
+                    >
+                      AA+ (Besar / 18px)
+                    </button>
+                    <button
+                      onClick={() => setTextSize("sangat-besar")}
+                      className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
+                        textSize === "sangat-besar"
+                          ? "bg-accent text-white border-accent"
+                          : "bg-surface border-line text-ink hover:bg-bg/40"
+                      }`}
+                    >
+                      AA++ (Sangat Besar / 20px)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
           </div>
         )}
       </main>
