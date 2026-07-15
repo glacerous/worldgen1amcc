@@ -163,13 +163,8 @@ export default function DevelopersPage() {
           </div>
         )}
 
-        {/* LOADING STATE */}
-        {loading ? (
-          <div className="w-full bg-surface border border-line rounded-md p-8 flex flex-col items-center justify-center min-h-[300px]">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mb-4"></div>
-            <span className="font-sans text-sm text-ink-muted">Memuat data akses...</span>
-          </div>
-        ) : !user ? (
+        {/* GUEST OR LOGGED IN VIEW */}
+        {!user && !loading ? (
           /* STATE 1: NOT LOGGED IN */
           <div className="w-full space-y-8 max-w-3xl mx-auto">
             <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs">
@@ -215,7 +210,7 @@ export default function DevelopersPage() {
             </div>
           </div>
         ) : (
-          /* LOGGED IN WORKSPACE (WITH SIDEBAR) */
+          /* LOGGED IN WORKSPACE (WITH SIDEBAR) OR LOADING WORKSPACE */
           <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-10 items-start">
             
             {/* Sidebar on the Left */}

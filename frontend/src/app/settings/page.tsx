@@ -48,13 +48,8 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        {/* LOADING STATE */}
-        {loading ? (
-          <div className="w-full bg-surface border border-line rounded-md p-8 flex flex-col items-center justify-center min-h-[250px]">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mb-4"></div>
-            <span className="font-sans text-sm text-ink-muted">Memuat preferensi Anda...</span>
-          </div>
-        ) : !user ? (
+        {/* GUEST OR LOGGED IN VIEW */}
+        {!user && !loading ? (
           /* NOT LOGGED IN STATE */
           <div className="max-w-3xl w-full mx-auto bg-surface border-l-4 border-status-not-met p-6 md:p-8 rounded-r-md border border-line shadow-xs">
             <h2 className="font-display text-2xl font-normal text-ink mb-3">
@@ -74,7 +69,7 @@ export default function SettingsPage() {
             </button>
           </div>
         ) : (
-          /* LOGGED IN SETTINGS WORKSPACE (WITH SIDEBAR) */
+          /* LOGGED IN SETTINGS WORKSPACE (WITH SIDEBAR) OR LOADING WORKSPACE */
           <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-10 items-start">
             
             {/* Sidebar on the Left */}
@@ -125,8 +120,13 @@ export default function SettingsPage() {
 
             {/* Main Content Area on the Right */}
             <div className="space-y-8 min-w-0">
-              
-              {activeTab === "profile" && (
+              {loading ? (
+                /* LOADING CARD */
+                <div className="w-full bg-surface border border-line rounded-md p-8 flex flex-col items-center justify-center min-h-[250px]">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mb-4"></div>
+                  <span className="font-sans text-sm text-ink-muted">Memuat preferensi Anda...</span>
+                </div>
+              ) : activeTab === "profile" && user ? (
                 <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-5 animate-in fade-in duration-200">
                   <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
                     Profil Pengguna
