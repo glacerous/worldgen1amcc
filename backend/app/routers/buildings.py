@@ -255,7 +255,7 @@ async def submit_building_audit(
                                     matched_result = r
                                     break
                             
-                            if matched_result and matched_result.get("status") == "unknown":
+                            if matched_result and (matched_result.get("status") == "unknown" or matched_result.get("source_agent") not in ["visual_agent", "panorama_agent"]):
                                 supabase.table("audit_results").update({
                                     "status": new_status,
                                     "source_agent": "panorama_agent",
@@ -531,7 +531,7 @@ async def submit_building(
                                     matched_result = r
                                     break
                             
-                            if matched_result and matched_result.get("status") == "unknown":
+                            if matched_result and (matched_result.get("status") == "unknown" or matched_result.get("source_agent") not in ["visual_agent", "panorama_agent"]):
                                 # Perform database update
                                 supabase.table("audit_results").update({
                                     "status": new_status,

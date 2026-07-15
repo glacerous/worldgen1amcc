@@ -36,9 +36,23 @@ def get_status_priority(status: str) -> int:
     }
     return priority_map.get(status.lower(), 0)
 
+def get_agent_tier(agent: str) -> int:
+    """
+    Returns the evidence tier of the agent:
+    - Direct Evidence (2): visual_agent, panorama_agent
+    - Inference/Speculation (1): resolver_agent, text_agent
+    - System/Fallback (0): system, etc.
+    """
+    agent_lower = agent.lower()
+    if agent_lower in ["visual_agent", "panorama_agent"]:
+        return 2
+    elif agent_lower in ["resolver_agent", "text_agent"]:
+        return 1
+    return 0
+
 def get_agent_priority(agent: str) -> int:
     """
-    Returns priority order of source agents for info richness:
+    Returns priority order of source agents within the same tier for info richness:
     resolver_agent (3) > visual_agent (2) > text_agent (1) > system/other (0).
     """
     priority_map = {
@@ -49,11 +63,42 @@ def get_agent_priority(agent: str) -> int:
     }
     return priority_map.get(agent.lower(), 0)
 
+def is_better_evaluation(new_eval: CriteriaResult, current_eval: CriteriaResult) -> bool:
+    """
+    Returns True if new_eval is preferred over current_eval based on evidence level and correctness.
+    """
+    new_is_def = new_eval.status.lower() in ["met", "not_met"]
+    current_is_def = current_eval.status.lower() in ["met", "not_met"]
+    
+    # Rule 1: Definitive status (met/not_met) beats non-definitive status (unknown/na)
+    if new_is_def and not current_is_def:
+        return True
+    if current_is_def and not new_is_def:
+        return False
+        
+    # Rule 2: Compare evidence tiers
+    new_tier = get_agent_tier(new_eval.source_agent)
+    current_tier = get_agent_tier(current_eval.source_agent)
+    if new_tier > current_tier:
+        return True
+    elif new_tier < current_tier:
+        return False
+        
+    # Rule 3: Within same tier, compare status priority
+    new_status_p = get_status_priority(new_eval.status)
+    current_status_p = get_status_priority(current_eval.status)
+    if new_status_p > current_status_p:
+        return True
+    elif new_status_p < current_status_p:
+        return False
+        
+    # Rule 4: Within same tier and status priority, compare agent priority
+    return get_agent_priority(new_eval.source_agent) > get_agent_priority(current_eval.source_agent)
+
 def merge_evaluations(results: List[CriteriaResult]) -> List[CriteriaResult]:
     """
-    Consolidates multiple evaluations for each criteria based on priority:
-    met > not_met > unknown > na
-    If status is identical, prefers the agent with higher informational richness.
+    Consolidates multiple evaluations for each criteria based on evidence tier
+    and status priority.
     """
     merged: Dict[str, CriteriaResult] = {}
     for r in results:
@@ -61,13 +106,8 @@ def merge_evaluations(results: List[CriteriaResult]) -> List[CriteriaResult]:
         if code not in merged:
             merged[code] = r
         else:
-            current_p = get_status_priority(merged[code].status)
-            new_p = get_status_priority(r.status)
-            if new_p > current_p:
+            if is_better_evaluation(r, merged[code]):
                 merged[code] = r
-            elif new_p == current_p:
-                if get_agent_priority(r.source_agent) > get_agent_priority(merged[code].source_agent):
-                    merged[code] = r
     
     # Ensure all seed criteria are represented
     final_list = []
