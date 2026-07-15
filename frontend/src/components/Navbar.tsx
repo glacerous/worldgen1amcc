@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Navbar() {
-  const { user, login, logout, loading } = useAuth();
-  const [textSize, setTextSize] = useState<"normal" | "besar" | "sangat-besar">("normal");
+  const { user, login, logout, loading, textSize, setTextSize } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -35,24 +34,6 @@ export default function Navbar() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("aksesibel-text-size");
-    if (saved === "normal" || saved === "besar" || saved === "sangat-besar") {
-      setTextSize(saved);
-    }
-  }, []);
-
-  const handleTextSizeChange = (size: "normal" | "besar" | "sangat-besar") => {
-    setTextSize(size);
-    const sizeMap = {
-      normal: "16px",
-      besar: "18px",
-      "sangat-besar": "20px",
-    };
-    document.documentElement.style.setProperty("--base-font-size", sizeMap[size]);
-    localStorage.setItem("aksesibel-text-size", size);
-  };
 
   return (
     <nav className="sticky top-2 sm:top-4 z-50 mx-2 sm:mx-4 md:mx-12 my-2 bg-surface border border-line rounded-full py-2.5 sm:py-3.5 px-4 sm:px-6 md:px-8 flex items-center justify-between shadow-sm transition-all">
@@ -149,7 +130,7 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={() => {
-                  handleTextSizeChange("normal");
+                  setTextSize("normal");
                   setIsOpen(false);
                 }}
                 className={`w-full text-left px-3 py-2 text-xs font-sans hover:bg-bg/40 transition-colors flex items-center justify-between cursor-pointer focus:outline-none ${
@@ -163,7 +144,7 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={() => {
-                  handleTextSizeChange("besar");
+                  setTextSize("besar");
                   setIsOpen(false);
                 }}
                 className={`w-full text-left px-3 py-2 text-xs font-sans hover:bg-bg/40 transition-colors flex items-center justify-between cursor-pointer focus:outline-none ${
@@ -177,7 +158,7 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={() => {
-                  handleTextSizeChange("sangat-besar");
+                  setTextSize("sangat-besar");
                   setIsOpen(false);
                 }}
                 className={`w-full text-left px-3 py-2 text-xs font-sans hover:bg-bg/40 transition-colors flex items-center justify-between cursor-pointer focus:outline-none ${

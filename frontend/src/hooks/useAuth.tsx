@@ -16,6 +16,8 @@ interface AuthContextType {
   loading: boolean;
   login: (redirectPath?: string) => void;
   logout: () => void;
+  textSize: "normal" | "besar" | "sangat-besar";
+  setTextSize: (size: "normal" | "besar" | "sangat-besar") => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [textSize, setTextSizeState] = useState<"normal" | "besar" | "sangat-besar">("normal");
 
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
@@ -32,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") {
       const storedToken = localStorage.getItem("aksesibel_token");
       const storedUser = localStorage.getItem("aksesibel_user");
+      const savedTextSize = localStorage.getItem("aksesibel-text-size");
 
       if (storedToken) {
         setToken(storedToken);
@@ -42,6 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (e) {
           console.error("Gagal mengurai data user dari localStorage", e);
         }
+      }
+      if (savedTextSize === "normal" || savedTextSize === "besar" || savedTextSize === "sangat-besar") {
+        setTextSizeState(savedTextSize);
       }
       setLoading(false);
     }
@@ -65,8 +72,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = "/";
   };
 
+  const setTextSize = (size: "normal" | "besar" | "sangat-besar") => {
+    setTextSizeState(size);
+    const sizeMap = {
+      normal: "16px",
+      besar: "18px",
+      "sangat-besar": "20px",
+    };
+    if (typeof window !== "undefined") {
+      document.documentElement.style.setProperty("--base-font-size", sizeMap[size]);
+      localStorage.setItem("aksesibel-text-size", size);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, textSize, setTextSize }}>
       {children}
     </AuthContext.Provider>
   );
