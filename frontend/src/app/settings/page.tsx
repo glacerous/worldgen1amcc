@@ -126,7 +126,7 @@ export default function SettingsPage() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mb-4"></div>
                   <span className="font-sans text-sm text-ink-muted">Memuat preferensi Anda...</span>
                 </div>
-              ) : activeTab === "profile" && user ? (
+              ) : activeTab === "profile" && user && (
                 <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-5 animate-in fade-in duration-200">
                   <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
                     Profil Pengguna
