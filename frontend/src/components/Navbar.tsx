@@ -111,7 +111,9 @@ export default function Navbar() {
             </Link>
           )
         ) : (
-          <div className="w-9 h-5"></div>
+          <span className="font-sans text-sm font-medium text-transparent select-none pointer-events-none">
+            Login
+          </span>
         )}
 
         {/* Text Size (Custom Dropdown) */}

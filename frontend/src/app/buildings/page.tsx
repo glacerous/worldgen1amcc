@@ -74,6 +74,7 @@ function getComplianceColorClass(score: number | "N/A" | null | undefined): stri
 export default function BuildingsPage() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLocationLoading, setIsLocationLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"terbaru" | "skor_tertinggi" | "nama_az">("terbaru");
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -81,17 +82,28 @@ export default function BuildingsPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined" && navigator.geolocation) {
+      const timer = setTimeout(() => {
+        setIsLocationLoading(false);
+      }, 1000); // 1s timeout to check location before fallback
+
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          clearTimeout(timer);
           setUserLocation({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           });
+          setIsLocationLoading(false);
         },
         (error) => {
+          clearTimeout(timer);
           console.log("Geolocation error or denied:", error);
-        }
+          setIsLocationLoading(false);
+        },
+        { timeout: 4000 }
       );
+    } else {
+      setIsLocationLoading(false);
     }
   }, []);
 
@@ -184,6 +196,7 @@ export default function BuildingsPage() {
     ? sortedBuildings.filter((b) => b.id !== featuredBuilding!.id)
     : sortedBuildings;
 
+  const isPageLoading = isLoading || isLocationLoading;
   const showMainCatalog = searchQuery.length > 0 || !userLocation || topNearbyBuildings.length === 0;
 
   return (
@@ -310,7 +323,7 @@ export default function BuildingsPage() {
           </div>
 
         {/* Buildings Content */}
-        {isLoading ? (
+        {isPageLoading ? (
           /* Loading Skeleton */
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[1, 2, 3, 4].map((n) => (
