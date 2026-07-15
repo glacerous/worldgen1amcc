@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import CardMarquee from "@/components/CardMarquee";
+import Footer from "@/components/Footer";
 
 const categories = [
   {
@@ -127,6 +128,8 @@ export default function Home() {
         </section>
 
       </main>
+      
+      <Footer />
     </div>
   );
 }

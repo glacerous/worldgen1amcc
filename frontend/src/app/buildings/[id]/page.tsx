@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import dynamic from "next/dynamic";
 import CountUpNumber from "@/components/CountUpNumber";
 import { motion, AnimatePresence } from "framer-motion";
+import Footer from "@/components/Footer";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
@@ -698,6 +699,7 @@ export default function BuildingDetailPage({
           </motion.div>
         )}
       </AnimatePresence>
+      <Footer />
     </div>
   );
 }

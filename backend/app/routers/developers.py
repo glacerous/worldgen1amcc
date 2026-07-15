@@ -18,6 +18,8 @@ class APIKeyResponse(BaseModel):
     tier: str
     rate_limit_per_day: int
     is_active: bool
+    pro_requested_at: Optional[datetime] = None
+    pro_approved_at: Optional[datetime] = None
 
 class MessageResponse(BaseModel):
     message: str
@@ -36,6 +38,34 @@ class PendingRequestResponse(BaseModel):
     users: Optional[UserDetail] = None
 
 # Endpoints
+@router.get(
+    "/developers/key",
+    response_model=Optional[APIKeyResponse],
+    summary="Get Current User's API Key",
+    description="Returns the developer API key data for the logged-in OAuth user, or null if they don't have one."
+)
+def get_user_api_key(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["user_id"]
+    try:
+        res = supabase.table("api_keys").select("*").eq("user_id", user_id).execute()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal memeriksa data API key: {str(e)}"
+        )
+    if res.data:
+        key_data = res.data[0]
+        return {
+            "api_key": key_data["api_key"],
+            "tier": key_data["tier"],
+            "rate_limit_per_day": key_data["rate_limit_per_day"],
+            "is_active": key_data["is_active"],
+            "pro_requested_at": key_data.get("pro_requested_at"),
+            "pro_approved_at": key_data.get("pro_approved_at")
+        }
+    return None
+
+
 @router.post(
     "/developers/register",
     response_model=APIKeyResponse,
@@ -60,7 +90,9 @@ def register_developer_key(current_user: dict = Depends(get_current_user)):
             "api_key": key_data["api_key"],
             "tier": key_data["tier"],
             "rate_limit_per_day": key_data["rate_limit_per_day"],
-            "is_active": key_data["is_active"]
+            "is_active": key_data["is_active"],
+            "pro_requested_at": key_data.get("pro_requested_at"),
+            "pro_approved_at": key_data.get("pro_approved_at")
         }
         
     # 2. Generate new key
@@ -90,7 +122,9 @@ def register_developer_key(current_user: dict = Depends(get_current_user)):
         "api_key": key_data["api_key"],
         "tier": key_data["tier"],
         "rate_limit_per_day": key_data["rate_limit_per_day"],
-        "is_active": key_data["is_active"]
+        "is_active": key_data["is_active"],
+        "pro_requested_at": key_data.get("pro_requested_at"),
+        "pro_approved_at": key_data.get("pro_approved_at")
     }
 
 

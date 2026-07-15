@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import TrustBadge from "@/components/TrustBadge";
 import { motion, AnimatePresence } from "framer-motion";
+import Footer from "@/components/Footer";
 
 interface AuditCriteria {
   category: string;
@@ -619,6 +620,8 @@ export default function BuildingsPage() {
           </div>
         )}
       </main>
+      
+      <Footer />
     </div>
   );
 }
