@@ -113,14 +113,9 @@ export default function BuildingTourPage() {
 
   // Calculate if user owns any audit run for this building
   useEffect(() => {
-    if (user) {
-      if (auditRuns.length === 0) {
-        setIsAuditOwner(true);
-      } else {
-        const ownsAudit = auditRuns.some((run: any) => run.user_id === user.id);
-        const isAzzaky = user.display_name?.toLowerCase() === "azzaky" || user.email === "azzakyraihan@gmail.com" || user.id === "42ced58b-46bb-4d06-9cc7-971508e7ca58";
-        setIsAuditOwner(ownsAudit || isAzzaky);
-      }
+    if (user && auditRuns.length > 0) {
+      const ownsAudit = auditRuns.some((run: any) => run.user_id === user.id);
+      setIsAuditOwner(ownsAudit);
     } else {
       setIsAuditOwner(false);
     }
@@ -335,6 +330,7 @@ export default function BuildingTourPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           target_scene_id: targetSceneId,
@@ -373,6 +369,9 @@ export default function BuildingTourPage() {
     try {
       const res = await fetch(`${BACKEND_URL}/scenes/scene-links/${hotspotId}`, {
         method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
 
       if (!res.ok) {
@@ -418,6 +417,7 @@ export default function BuildingTourPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           audit_result_id: selectedAuditResultId,
@@ -454,6 +454,9 @@ export default function BuildingTourPage() {
     try {
       const res = await fetch(`${BACKEND_URL}/scenes/annotations/${annotationId}`, {
         method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
 
       if (!res.ok) {

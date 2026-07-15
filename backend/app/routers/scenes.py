@@ -160,12 +160,69 @@ def get_scene_annotations(scene_id: UUID):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil data anotasi scene dari database: {str(e)}")
 
+def check_audit_ownership(building_id: str, user_id: str):
+    run_check = supabase.table("audit_runs") \
+        .select("id") \
+        .eq("building_id", building_id) \
+        .eq("user_id", user_id) \
+        .execute()
+    if not run_check.data:
+        raise HTTPException(
+            status_code=403,
+            detail="Akses ditolak. Hanya pemilik audit yang dapat mengubah data tur 360°."
+        )
+
+def get_building_id_from_scene(scene_id: str) -> str:
+    scene_res = supabase.table("scenes").select("building_id").eq("id", scene_id).execute()
+    if not scene_res.data:
+        raise HTTPException(status_code=404, detail="Scene tidak ditemukan.")
+    return scene_res.data[0]["building_id"]
+
+def get_building_id_from_annotation(annotation_id: str) -> str:
+    res = supabase.table("annotations") \
+        .select("scene_id, scenes(building_id)") \
+        .eq("id", annotation_id) \
+        .execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Anotasi tidak ditemukan.")
+    scene = res.data[0].get("scenes")
+    if not scene:
+        raise HTTPException(status_code=404, detail="Scene terkait tidak ditemukan.")
+    return scene["building_id"]
+
+def get_building_id_from_scene_link(link_id: str) -> str:
+    res = supabase.table("scene_links").select("source_scene_id").eq("id", link_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Scene link tidak ditemukan.")
+    return get_building_id_from_scene(res.data[0]["source_scene_id"])
+
+
+# ── Annotations (Penanda Info) ──────────────────────────────────────────────
+
+@router.get("/{scene_id}/annotations", response_model=List[dict])
+def get_scene_annotations(scene_id: UUID):
+    """
+    Get all annotations (Penanda Info) for a scene — accessibility feature markers
+    joined with audit results and criteria descriptions.
+    """
+    try:
+        response = supabase.table("annotations") \
+            .select("*, audit_results(*, audit_criteria(*))") \
+            .eq("scene_id", str(scene_id)) \
+            .execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil data anotasi scene dari database: {str(e)}")
+
 @router.post("/{scene_id}/annotations", response_model=dict)
-def create_annotation(scene_id: UUID, payload: AnnotationCreate):
+def create_annotation(scene_id: UUID, payload: AnnotationCreate, current_user: dict = Depends(get_current_user)):
     """
     Create a new annotation (Penanda Info) in a scene.
     """
     try:
+        building_id = get_building_id_from_scene(str(scene_id))
+        check_audit_ownership(building_id, str(current_user["user_id"]))
+
         # Determine the label if not provided
         label = payload.label
         if not label:
@@ -194,15 +251,20 @@ def create_annotation(scene_id: UUID, payload: AnnotationCreate):
             raise HTTPException(status_code=500, detail="Gagal menyimpan anotasi ke database.")
 
         return response.data[0]
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal membuat anotasi: {str(e)}")
 
 @router.delete("/annotations/{annotation_id}", response_model=dict)
-def delete_annotation(annotation_id: UUID):
+def delete_annotation(annotation_id: UUID, current_user: dict = Depends(get_current_user)):
     """
     Delete a specific annotation (Penanda Info) by its ID.
     """
     try:
+        building_id = get_building_id_from_annotation(str(annotation_id))
+        check_audit_ownership(building_id, str(current_user["user_id"]))
+
         response = supabase.table("annotations") \
             .delete() \
             .eq("id", str(annotation_id)) \
@@ -237,12 +299,15 @@ def get_scene_links(scene_id: UUID):
         raise HTTPException(status_code=500, detail=f"Gagal mengambil data scene links dari database: {str(e)}")
 
 @router.post("/{scene_id}/scene-links", response_model=dict)
-def create_scene_link(scene_id: UUID, payload: SceneLinkCreate):
+def create_scene_link(scene_id: UUID, payload: SceneLinkCreate, current_user: dict = Depends(get_current_user)):
     """
     Create a new scene_link (Penanda Navigasi) from source scene to target scene.
     Used to build multi-room virtual tour navigation (like Matterport).
     """
     try:
+        building_id = get_building_id_from_scene(str(scene_id))
+        check_audit_ownership(building_id, str(current_user["user_id"]))
+
         new_link = {
             "source_scene_id": str(scene_id),
             "target_scene_id": str(payload.target_scene_id),
@@ -256,15 +321,20 @@ def create_scene_link(scene_id: UUID, payload: SceneLinkCreate):
             raise HTTPException(status_code=500, detail="Gagal menyimpan scene link ke database.")
 
         return response.data[0]
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal membuat scene link: {str(e)}")
 
 @router.delete("/scene-links/{link_id}")
-def delete_scene_link(link_id: str):
+def delete_scene_link(link_id: str, current_user: dict = Depends(get_current_user)):
     """
     Delete a specific scene_link (Penanda Navigasi) from Supabase by its ID.
     """
     try:
+        building_id = get_building_id_from_scene_link(link_id)
+        check_audit_ownership(building_id, str(current_user["user_id"]))
+
         response = supabase.table("scene_links") \
             .delete() \
             .eq("id", link_id) \
