@@ -1,39 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Navbar() {
-  const { user, login, logout, loading, textSize, setTextSize } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      window.addEventListener("keydown", handleKeyDown);
-    }
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
+  const { user, login, logout, loading } = useAuth();
 
   return (
     <nav className="sticky top-2 sm:top-4 z-50 mx-2 sm:mx-4 md:mx-12 my-2 bg-surface border border-line rounded-full py-2.5 sm:py-3.5 px-4 sm:px-6 md:px-8 flex items-center justify-between shadow-sm transition-all">
@@ -108,88 +79,6 @@ export default function Navbar() {
             Login
           </span>
         )}
-
-        {/* Text Size (Custom Dropdown) */}
-        <div ref={dropdownRef} className="relative">
-          <button
-            type="button"
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center gap-1.5 border border-line rounded-full px-3 py-1.5 bg-bg/20 hover:bg-bg/40 text-ink hover:text-accent hover:border-accent/40 transition-all font-sans text-xs font-semibold cursor-pointer focus:outline-none"
-            aria-haspopup="listbox"
-            aria-expanded={isOpen}
-            aria-label="Ubah ukuran teks"
-          >
-            <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider hidden sm:inline">Axs:</span>
-            <span className="font-sans font-semibold">
-              {textSize === "normal" && "AA"}
-              {textSize === "besar" && "AA+"}
-              {textSize === "sangat-besar" && "AA++"}
-            </span>
-            <svg className={`w-3.5 h-3.5 text-ink-muted transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-            </svg>
-          </button>
-
-          {/* Premium Dropdown Menu Card */}
-          {isOpen && (
-            <div className="absolute right-0 top-full mt-2.5 w-48 bg-surface border border-line rounded-md shadow-md py-1.5 z-[999] animate-in fade-in slide-in-from-top-1 duration-200">
-              <div className="px-3 py-1.5 border-b border-line/45 mb-1.5">
-                <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider block">
-                  Ukuran Teks
-                </span>
-              </div>
-              
-              <button
-                type="button"
-                onClick={() => {
-                  setTextSize("normal");
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2 text-xs font-sans hover:bg-bg/40 transition-colors flex items-center justify-between cursor-pointer focus:outline-none ${
-                  textSize === "normal" ? "font-bold text-accent bg-accent/5" : "text-ink"
-                }`}
-              >
-                <span>AA (Normal)</span>
-                <span className="text-[10px] text-ink-muted font-normal">16px</span>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => {
-                  setTextSize("besar");
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2 text-xs font-sans hover:bg-bg/40 transition-colors flex items-center justify-between cursor-pointer focus:outline-none ${
-                  textSize === "besar" ? "font-bold text-accent bg-accent/5" : "text-ink"
-                }`}
-              >
-                <span>AA+ (Besar)</span>
-                <span className="text-[10px] text-ink-muted font-normal">18px</span>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => {
-                  setTextSize("sangat-besar");
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2 text-xs font-sans hover:bg-bg/40 transition-colors flex items-center justify-between cursor-pointer focus:outline-none ${
-                  textSize === "sangat-besar" ? "font-bold text-accent bg-accent/5" : "text-ink"
-                }`}
-              >
-                <span>AA++ (Sangat Besar)</span>
-                <span className="text-[10px] text-ink-muted font-normal">20px</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        <Link 
-          href="/buildings/submit"
-          className="hidden sm:inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs sm:text-sm font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-full transition-all whitespace-nowrap"
-        >
-          Mulai Audit
-        </Link>
       </div>
     </nav>
   );

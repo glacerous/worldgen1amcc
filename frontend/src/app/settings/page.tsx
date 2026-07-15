@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Link from "next/link";
@@ -9,6 +9,18 @@ import { useAuth } from "@/hooks/useAuth";
 export default function SettingsPage() {
   const { user, login, loading, textSize, setTextSize } = useAuth();
   const [activeTab, setActiveTab] = useState<"profile" | "appearance">("profile");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      if (tab === "appearance") {
+        setActiveTab("appearance");
+      } else if (tab === "profile") {
+        setActiveTab("profile");
+      }
+    }
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-bg relative overflow-x-hidden">
