@@ -159,11 +159,12 @@ def run_visual_agent(photos: List[str]) -> List[Dict[str, Any]]:
                 
                 # Determine evidence_url dynamically based on index provided by AI
                 evidence_url = None
-                if eval_item.evidence_photo_index and 1 <= eval_item.evidence_photo_index <= len(photos):
-                    evidence_url = photos[eval_item.evidence_photo_index - 1]
-                elif photos:
-                    # Fallback to the first photo if AI didn't specify an index
-                    evidence_url = photos[0]
+                if status not in ["unknown", "na"]:
+                    if eval_item.evidence_photo_index and 1 <= eval_item.evidence_photo_index <= len(photos):
+                        evidence_url = photos[eval_item.evidence_photo_index - 1]
+                    elif photos:
+                        # Fallback to the first photo if AI didn't specify an index
+                        evidence_url = photos[0]
             else:
                 status = "unknown"
                 reasoning = "Kriteria tidak dievaluasi oleh model visual."
@@ -186,7 +187,8 @@ def run_visual_agent(photos: List[str]) -> List[Dict[str, Any]]:
                 "criteria_code": c["code"],
                 "status": "unknown",
                 "reasoning": f"Gagal menjalankan visual_agent karena error: {str(e)}",
-                "source_agent": "visual_agent"
+                "source_agent": "visual_agent",
+                "evidence_url": None
             }
             for c in CRITERIA_SEED
         ]

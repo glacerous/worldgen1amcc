@@ -305,7 +305,7 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
                             </div>
 
                             {/* Visual Evidence */}
-                            {result.evidence_url && (
+                            {result.evidence_url && result.status !== "unknown" && result.status !== "na" && (
                               <div className="space-y-1.5">
                                 <span className="text-[10px] font-sans font-bold text-ink-muted tracking-wider uppercase">
                                   Bukti Foto (Visual)
