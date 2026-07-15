@@ -28,7 +28,7 @@ export default function SubmitBuildingPage() {
   const [address, setAddress] = useState("");
   const [mapCenter, setMapCenter] = useState<[number, number]>([-6.2088, 106.8456]); // Default: Jakarta center
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [panoramaFile, setPanoramaFile] = useState<File | null>(null);
+  const [panoramaFiles, setPanoramaFiles] = useState<File[]>([]);
   
   const [isLoading, setIsLoading] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -189,9 +189,9 @@ export default function SubmitBuildingPage() {
       formData.append("photos", file);
     });
 
-    if (panoramaFile) {
-      formData.append("panorama", panoramaFile);
-    }
+    panoramaFiles.forEach((file) => {
+      formData.append("panoramas", file);
+    });
 
     const submitUrl = isExisting
       ? `${BACKEND_URL}/buildings/${selectedNearbyBuildingId}/audit-submit`
@@ -518,7 +518,7 @@ export default function SubmitBuildingPage() {
                   </span>
                 </div>
                 <p className="font-sans text-[11px] text-ink-muted">
-                  {panoramaFile ? `Terpilih: ${panoramaFile.name}` : "Tambahkan foto 360° untuk tur virtual dengan penanda otomatis oleh AI"}
+                  {panoramaFiles.length > 0 ? `Terpilih: ${panoramaFiles.length} foto 360°` : "Tambahkan foto 360° untuk tur virtual dengan penanda otomatis oleh AI"}
                 </p>
               </div>
 
@@ -526,33 +526,39 @@ export default function SubmitBuildingPage() {
                 type="file"
                 id="panorama-picker"
                 accept="image/*"
+                multiple
                 onChange={(e) => {
                   if (e.target.files && e.target.files.length > 0) {
-                    const file = e.target.files[0];
-                    if (!file.type.startsWith("image/")) {
-                      setError("Berkas panorama harus berupa file gambar.");
+                    const files = Array.from(e.target.files);
+                    const invalidFiles = files.filter(f => !f.type.startsWith("image/"));
+                    if (invalidFiles.length > 0) {
+                      setError("Semua berkas panorama harus berupa file gambar.");
                       return;
                     }
-                    setPanoramaFile(file);
+                    setPanoramaFiles((prev) => [...prev, ...files]);
                     setError(null);
                   }
                 }}
                 className="hidden"
               />
 
-              {panoramaFile && (
-                <div className="flex items-center justify-between text-[10px] font-sans text-ink-muted bg-surface border border-line rounded-md px-3 py-1.5">
-                  <span className="truncate max-w-[80%]">{panoramaFile.name}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPanoramaFile(null);
-                    }}
-                    className="text-status-not-met font-semibold hover:underline cursor-pointer"
-                  >
-                    Hapus
-                  </button>
+              {panoramaFiles.length > 0 && (
+                <div className="space-y-1.5 mt-2">
+                  {panoramaFiles.map((file, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-[10px] font-sans text-ink-muted bg-surface border border-line rounded-md px-3 py-1.5">
+                      <span className="truncate max-w-[80%]">{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPanoramaFiles((prev) => prev.filter((_, i) => i !== idx));
+                        }}
+                        className="text-status-not-met font-semibold hover:underline cursor-pointer"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

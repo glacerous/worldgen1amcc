@@ -116,7 +116,7 @@ def create_building(building: BuildingCreate):
 async def submit_building_audit(
     building_id: UUID,
     photos: List[UploadFile] = File(...),
-    panorama: Optional[UploadFile] = File(None),
+    panoramas: List[UploadFile] = File([]),
     contributor_name: Optional[str] = Form(None),
     current_user = Depends(get_optional_user)
 ):
@@ -138,9 +138,10 @@ async def submit_building_audit(
         if not photo.content_type or not photo.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="Semua berkas yang diunggah harus berupa file gambar.")
 
-    if panorama:
-        if not panorama.content_type or not panorama.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Berkas panorama yang diunggah harus berupa file gambar.")
+    if panoramas:
+        for p in panoramas:
+            if not p.content_type or not p.content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="Semua berkas panorama yang diunggah harus berupa file gambar.")
 
     # 3. Upload photo files to Supabase Storage bucket "photos"
     photo_urls = []
@@ -185,137 +186,136 @@ async def submit_building_audit(
         except Exception as e:
             print(f"[warn] Gagal mengaitkan user_id ke audit_run: {e}")
 
-    # 6. Process optional panorama
-    scene_id = None
-    if panorama:
-        try:
-            # Ensure bucket exists
+    # 6. Process optional panoramas
+    last_scene_id = None
+    if panoramas:
+        for p in panoramas:
             try:
-                supabase.storage.create_bucket("panoramas", {"public": True})
-            except Exception:
-                pass
+                # Ensure bucket exists
+                try:
+                    supabase.storage.create_bucket("panoramas", {"public": True})
+                except Exception:
+                    pass
 
-            file_extension = panorama.filename.split(".")[-1] if "." in panorama.filename else "jpg"
-            unique_filename = f"{uuid.uuid4()}.{file_extension}"
-            file_content = await panorama.read()
-            
-            supabase.storage.from_("panoramas").upload(
-                path=unique_filename,
-                file=file_content,
-                file_options={"content-type": panorama.content_type}
-            )
-            
-            panorama_url = supabase.storage.from_("panoramas").get_public_url(unique_filename)
-            
-            scene_response = supabase.table("scenes").insert({
-                "building_id": building_id_str,
-                "type": "panorama_360",
-                "file_url": panorama_url,
-                "label": panorama.filename
-            }).execute()
-            
-            if scene_response.data:
-                scene_id = scene_response.data[0]["id"]
-                features = run_panorama_agent(panorama_url)
-                if features:
-                    audit_run_id = audit_summary.get("audit_run_id")
-                    audit_results_response = supabase.table("audit_results") \
-                        .select("*, audit_criteria(*)") \
-                        .eq("building_id", building_id_str) \
-                        .eq("audit_run_id", audit_run_id) \
-                        .execute()
-                    results = audit_results_response.data or []
-                    
-                    # 1. Update audit results if their status is 'unknown'
-                    for item in features:
-                        new_status = item.get("status")
-                        if not new_status or new_status not in ["met", "not_met"]:
-                            continue
+                file_extension = p.filename.split(".")[-1] if "." in p.filename else "jpg"
+                unique_filename = f"{uuid.uuid4()}.{file_extension}"
+                file_content = await p.read()
+                
+                supabase.storage.from_("panoramas").upload(
+                    path=unique_filename,
+                    file=file_content,
+                    file_options={"content-type": p.content_type}
+                )
+                
+                panorama_url = supabase.storage.from_("panoramas").get_public_url(unique_filename)
+                
+                scene_response = supabase.table("scenes").insert({
+                    "building_id": building_id_str,
+                    "type": "panorama_360",
+                    "file_url": panorama_url,
+                    "label": p.filename
+                }).execute()
+                
+                if scene_response.data:
+                    scene_id = scene_response.data[0]["id"]
+                    last_scene_id = scene_id
+                    features = run_panorama_agent(panorama_url)
+                    if features:
+                        audit_run_id = audit_summary.get("audit_run_id")
+                        audit_results_response = supabase.table("audit_results") \
+                            .select("*, audit_criteria(*)") \
+                            .eq("building_id", building_id_str) \
+                            .eq("audit_run_id", audit_run_id) \
+                            .execute()
+                        results = audit_results_response.data or []
                         
-                        # Find matching audit result object
-                        matched_result = None
-                        lbl_lower = item["label"].lower()
-                        for r in results:
-                            criteria = r.get("audit_criteria")
-                            if not criteria:
+                        # 1. Update audit results if their status is 'unknown'
+                        for item in features:
+                            new_status = item.get("status")
+                            if not new_status or new_status not in ["met", "not_met"]:
                                 continue
-                            desc = criteria.get("description", "").lower()
-                            code = criteria.get("code", "").lower()
-                            if (
-                                ("toilet" in lbl_lower and "toilet" in desc) or
-                                ("ramp" in lbl_lower and "ramp" in desc) or
-                                ("tangga" in lbl_lower and "tangga" in desc) or
-                                (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
-                                ("pintu" in lbl_lower and "pintu" in desc) or
-                                (lbl_lower in desc or lbl_lower in code)
-                            ):
-                                matched_result = r
-                                break
-                        
-                        if matched_result and matched_result.get("status") == "unknown":
-                            # Perform database update
-                            supabase.table("audit_results").update({
-                                "status": new_status,
-                                "source_agent": "panorama_agent",
-                                "reasoning": "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung.",
-                                "evidence_url": None
-                            }).eq("id", matched_result["id"]).execute()
                             
-                            # Update local results and audit_summary
-                            matched_result["status"] = new_status
-                            matched_result["source_agent"] = "panorama_agent"
-                            matched_result["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
-                            matched_result["evidence_url"] = None
+                            # Find matching audit result object
+                            matched_result = None
+                            lbl_lower = item["label"].lower()
+                            for r in results:
+                                criteria = r.get("audit_criteria")
+                                if not criteria:
+                                    continue
+                                desc = criteria.get("description", "").lower()
+                                code = criteria.get("code", "").lower()
+                                if (
+                                    ("toilet" in lbl_lower and "toilet" in desc) or
+                                    ("ramp" in lbl_lower and "ramp" in desc) or
+                                    ("tangga" in lbl_lower and "tangga" in desc) or
+                                    (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
+                                    ("pintu" in lbl_lower and "pintu" in desc) or
+                                    (lbl_lower in desc or lbl_lower in code)
+                                ):
+                                    matched_result = r
+                                    break
                             
-                            for r_summary in audit_summary.get("results", []):
-                                if r_summary.get("criteria_code") == matched_result["audit_criteria"]["code"]:
-                                    r_summary["status"] = new_status
-                                    r_summary["source_agent"] = "panorama_agent"
-                                    r_summary["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
+                            if matched_result and matched_result.get("status") == "unknown":
+                                supabase.table("audit_results").update({
+                                    "status": new_status,
+                                    "source_agent": "panorama_agent",
+                                    "reasoning": "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung.",
+                                    "evidence_url": None
+                                }).eq("id", matched_result["id"]).execute()
+                                
+                                matched_result["status"] = new_status
+                                matched_result["source_agent"] = "panorama_agent"
+                                matched_result["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
+                                matched_result["evidence_url"] = None
+                                
+                                for r_summary in audit_summary.get("results", []):
+                                    if r_summary.get("criteria_code") == matched_result["audit_criteria"]["code"]:
+                                        r_summary["status"] = new_status
+                                        r_summary["source_agent"] = "panorama_agent"
+                                        r_summary["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
 
-                    # 2. Build annotations mapping
-                    annotations_to_insert = []
-                    for item in features:
-                        yaw = (item["x_percent"] / 100) * 360 - 180
-                        pitch = 90 - (item["y_percent"] / 100) * 180
+                        # 2. Build annotations mapping
+                        annotations_to_insert = []
+                        for item in features:
+                            yaw = (item["x_percent"] / 100) * 360 - 180
+                            pitch = 90 - (item["y_percent"] / 100) * 180
+                            
+                            match_id = None
+                            lbl_lower = item["label"].lower()
+                            for r in results:
+                                criteria = r.get("audit_criteria")
+                                if not criteria:
+                                    continue
+                                desc = criteria.get("description", "").lower()
+                                code = criteria.get("code", "").lower()
+                                if (
+                                    ("toilet" in lbl_lower and "toilet" in desc) or
+                                    ("ramp" in lbl_lower and "ramp" in desc) or
+                                    ("tangga" in lbl_lower and "tangga" in desc) or
+                                    (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
+                                    ("pintu" in lbl_lower and "pintu" in desc) or
+                                    (lbl_lower in desc or lbl_lower in code)
+                                ):
+                                    match_id = r["id"]
+                                    break
+                            
+                            annotations_to_insert.append({
+                                "scene_id": scene_id,
+                                "label": item["label"],
+                                "pitch": pitch,
+                                "yaw": yaw,
+                                "audit_result_id": match_id
+                            })
                         
-                        # Match label to find audit_result_id
-                        match_id = None
-                        lbl_lower = item["label"].lower()
-                        for r in results:
-                            criteria = r.get("audit_criteria")
-                            if not criteria:
-                                continue
-                            desc = criteria.get("description", "").lower()
-                            code = criteria.get("code", "").lower()
-                            if (
-                                ("toilet" in lbl_lower and "toilet" in desc) or
-                                ("ramp" in lbl_lower and "ramp" in desc) or
-                                ("tangga" in lbl_lower and "tangga" in desc) or
-                                (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
-                                ("pintu" in lbl_lower and "pintu" in desc) or
-                                (lbl_lower in desc or lbl_lower in code)
-                            ):
-                                match_id = r["id"]
-                                break
-                        
-                        annotations_to_insert.append({
-                            "scene_id": scene_id,
-                            "label": item["label"],
-                            "pitch": pitch,
-                            "yaw": yaw,
-                            "audit_result_id": match_id
-                        })
-                    
-                    if annotations_to_insert:
-                        supabase.table("annotations").insert(annotations_to_insert).execute()
-        except Exception as panorama_err:
-            print(f"Gagal memproses panorama: {str(panorama_err)}")
+                        if annotations_to_insert:
+                            supabase.table("annotations").insert(annotations_to_insert).execute()
+            except Exception as p_err:
+                print(f"Gagal memproses panorama {p.filename}: {str(p_err)}")
 
     return {
         "building": existing_building,
         "audit_summary": audit_summary,
-        "scene_id": scene_id
+        "scene_id": last_scene_id
     }
 
 
@@ -326,7 +326,7 @@ async def submit_building(
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
     photos: List[UploadFile] = File(...),
-    panorama: Optional[UploadFile] = File(None),
+    panoramas: List[UploadFile] = File([]),
     contributor_name: Optional[str] = Form(None),
     confirm_location: bool = Form(False),
     current_user = Depends(get_optional_user)
@@ -344,9 +344,10 @@ async def submit_building(
         if not photo.content_type or not photo.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="Semua berkas yang diunggah harus berupa file gambar.")
 
-    if panorama:
-        if not panorama.content_type or not panorama.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Berkas panorama yang diunggah harus berupa file gambar.")
+    if panoramas:
+        for p in panoramas:
+            if not p.content_type or not p.content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="Semua berkas panorama yang diunggah harus berupa file gambar.")
 
     # 3. GPS EXIF check from the first photo (AWAL)
     gps_mismatch = False
@@ -454,146 +455,147 @@ async def submit_building(
             # Non-fatal: log but don't fail the request
             print(f"[warn] Gagal mengaitkan user_id ke audit_run: {e}")
 
-    # 6. Process optional 360 panorama upload and run panorama agent detection
-    scene_id = None
-    if panorama:
-        try:
-            # Ensure bucket exists
+    # 6. Process optional 360 panoramas upload and run panorama agent detection
+    last_scene_id = None
+    if panoramas:
+        for p in panoramas:
             try:
-                supabase.storage.create_bucket("panoramas", {"public": True})
-            except Exception:
-                pass
+                # Ensure bucket exists
+                try:
+                    supabase.storage.create_bucket("panoramas", {"public": True})
+                except Exception:
+                    pass
 
-            # Upload panorama file to Supabase storage
-            file_extension = panorama.filename.split(".")[-1] if "." in panorama.filename else "jpg"
-            unique_filename = f"{uuid.uuid4()}.{file_extension}"
-            file_content = await panorama.read()
-            
-            supabase.storage.from_("panoramas").upload(
-                path=unique_filename,
-                file=file_content,
-                file_options={"content-type": panorama.content_type}
-            )
-            
-            # Get public url of panorama
-            panorama_url = supabase.storage.from_("panoramas").get_public_url(unique_filename)
-            
-            # Insert into scenes
-            scene_response = supabase.table("scenes").insert({
-                "building_id": building_id,
-                "type": "panorama_360",
-                "file_url": panorama_url,
-                "label": panorama.filename
-            }).execute()
-            
-            if scene_response.data:
-                scene_id = scene_response.data[0]["id"]
+                # Upload panorama file to Supabase storage
+                file_extension = p.filename.split(".")[-1] if "." in p.filename else "jpg"
+                unique_filename = f"{uuid.uuid4()}.{file_extension}"
+                file_content = await p.read()
                 
-                # Run panorama detection agent
-                features = run_panorama_agent(panorama_url)
+                supabase.storage.from_("panoramas").upload(
+                    path=unique_filename,
+                    file=file_content,
+                    file_options={"content-type": p.content_type}
+                )
                 
-                if features:
-                    audit_run_id = audit_summary.get("audit_run_id")
-                    # Query newly created audit results for keyword mapping
-                    audit_results_response = supabase.table("audit_results") \
-                        .select("*, audit_criteria(*)") \
-                        .eq("building_id", building_id) \
-                        .eq("audit_run_id", audit_run_id) \
-                        .execute()
-                    results = audit_results_response.data or []
+                # Get public url of panorama
+                panorama_url = supabase.storage.from_("panoramas").get_public_url(unique_filename)
+                
+                # Insert into scenes
+                scene_response = supabase.table("scenes").insert({
+                    "building_id": building_id,
+                    "type": "panorama_360",
+                    "file_url": panorama_url,
+                    "label": p.filename
+                }).execute()
+                
+                if scene_response.data:
+                    scene_id = scene_response.data[0]["id"]
+                    last_scene_id = scene_id
                     
-                    # 1. Update audit results if their status is 'unknown'
-                    for item in features:
-                        new_status = item.get("status")
-                        if not new_status or new_status not in ["met", "not_met"]:
-                            continue
+                    # Run panorama detection agent
+                    features = run_panorama_agent(panorama_url)
+                    
+                    if features:
+                        audit_run_id = audit_summary.get("audit_run_id")
+                        # Query newly created audit results for keyword mapping
+                        audit_results_response = supabase.table("audit_results") \
+                            .select("*, audit_criteria(*)") \
+                            .eq("building_id", building_id) \
+                            .eq("audit_run_id", audit_run_id) \
+                            .execute()
+                        results = audit_results_response.data or []
                         
-                        # Find matching audit result object
-                        matched_result = None
-                        lbl_lower = item["label"].lower()
-                        for r in results:
-                            criteria = r.get("audit_criteria")
-                            if not criteria:
+                        # 1. Update audit results if their status is 'unknown'
+                        for item in features:
+                            new_status = item.get("status")
+                            if not new_status or new_status not in ["met", "not_met"]:
                                 continue
-                            desc = criteria.get("description", "").lower()
-                            code = criteria.get("code", "").lower()
-                            if (
-                                ("toilet" in lbl_lower and "toilet" in desc) or
-                                ("ramp" in lbl_lower and "ramp" in desc) or
-                                ("tangga" in lbl_lower and "tangga" in desc) or
-                                (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
-                                ("pintu" in lbl_lower and "pintu" in desc) or
-                                (lbl_lower in desc or lbl_lower in code)
-                            ):
-                                matched_result = r
-                                break
-                        
-                        if matched_result and matched_result.get("status") == "unknown":
-                            # Perform database update
-                            supabase.table("audit_results").update({
-                                "status": new_status,
-                                "source_agent": "panorama_agent",
-                                "reasoning": "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung.",
-                                "evidence_url": None
-                            }).eq("id", matched_result["id"]).execute()
                             
-                            # Update local results and audit_summary
-                            matched_result["status"] = new_status
-                            matched_result["source_agent"] = "panorama_agent"
-                            matched_result["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
-                            matched_result["evidence_url"] = None
+                            # Find matching audit result object
+                            matched_result = None
+                            lbl_lower = item["label"].lower()
+                            for r in results:
+                                criteria = r.get("audit_criteria")
+                                if not criteria:
+                                    continue
+                                desc = criteria.get("description", "").lower()
+                                code = criteria.get("code", "").lower()
+                                if (
+                                    ("toilet" in lbl_lower and "toilet" in desc) or
+                                    ("ramp" in lbl_lower and "ramp" in desc) or
+                                    ("tangga" in lbl_lower and "tangga" in desc) or
+                                    (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
+                                    ("pintu" in lbl_lower and "pintu" in desc) or
+                                    (lbl_lower in desc or lbl_lower in code)
+                                ):
+                                    matched_result = r
+                                    break
                             
-                            for r_summary in audit_summary.get("results", []):
-                                if r_summary.get("criteria_code") == matched_result["audit_criteria"]["code"]:
-                                    r_summary["status"] = new_status
-                                    r_summary["source_agent"] = "panorama_agent"
-                                    r_summary["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
+                            if matched_result and matched_result.get("status") == "unknown":
+                                # Perform database update
+                                supabase.table("audit_results").update({
+                                    "status": new_status,
+                                    "source_agent": "panorama_agent",
+                                    "reasoning": "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung.",
+                                    "evidence_url": None
+                                }).eq("id", matched_result["id"]).execute()
+                                
+                                # Update local results and audit_summary
+                                matched_result["status"] = new_status
+                                matched_result["source_agent"] = "panorama_agent"
+                                matched_result["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
+                                matched_result["evidence_url"] = None
+                                
+                                for r_summary in audit_summary.get("results", []):
+                                    if r_summary.get("criteria_code") == matched_result["audit_criteria"]["code"]:
+                                        r_summary["status"] = new_status
+                                        r_summary["source_agent"] = "panorama_agent"
+                                        r_summary["reasoning"] = "Terdeteksi dari analisis foto 360°, belum ada foto close-up sebagai bukti langsung."
 
-                    # 2. Build annotations mapping
-                    annotations_to_insert = []
-                    for item in features:
-                        yaw = (item["x_percent"] / 100) * 360 - 180
-                        pitch = 90 - (item["y_percent"] / 100) * 180
+                        # 2. Build annotations mapping
+                        annotations_to_insert = []
+                        for item in features:
+                            yaw = (item["x_percent"] / 100) * 360 - 180
+                            pitch = 90 - (item["y_percent"] / 100) * 180
+                            
+                            # Match label to find audit_result_id
+                            match_id = None
+                            lbl_lower = item["label"].lower()
+                            for r in results:
+                                criteria = r.get("audit_criteria")
+                                if not criteria:
+                                    continue
+                                desc = criteria.get("description", "").lower()
+                                code = criteria.get("code", "").lower()
+                                if (
+                                    ("toilet" in lbl_lower and "toilet" in desc) or
+                                    ("ramp" in lbl_lower and "ramp" in desc) or
+                                    ("tangga" in lbl_lower and "tangga" in desc) or
+                                    (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
+                                    ("pintu" in lbl_lower and "pintu" in desc) or
+                                    (lbl_lower in desc or lbl_lower in code)
+                                ):
+                                    match_id = r["id"]
+                                    break
+                            
+                            annotations_to_insert.append({
+                                "scene_id": scene_id,
+                                "label": item["label"],
+                                "pitch": pitch,
+                                "yaw": yaw,
+                                "audit_result_id": match_id
+                            })
                         
-                        # Match label to find audit_result_id
-                        match_id = None
-                        lbl_lower = item["label"].lower()
-                        for r in results:
-                            criteria = r.get("audit_criteria")
-                            if not criteria:
-                                continue
-                            desc = criteria.get("description", "").lower()
-                            code = criteria.get("code", "").lower()
-                            if (
-                                ("toilet" in lbl_lower and "toilet" in desc) or
-                                ("ramp" in lbl_lower and "ramp" in desc) or
-                                ("tangga" in lbl_lower and "tangga" in desc) or
-                                (("ubin" in lbl_lower or "tactile" in lbl_lower) and "ubin" in desc) or
-                                ("pintu" in lbl_lower and "pintu" in desc) or
-                                (lbl_lower in desc or lbl_lower in code)
-                            ):
-                                match_id = r["id"]
-                                break
-                        
-                        annotations_to_insert.append({
-                            "scene_id": scene_id,
-                            "label": item["label"],
-                            "pitch": pitch,
-                            "yaw": yaw,
-                            "audit_result_id": match_id
-                        })
-                    
-                    if annotations_to_insert:
-                        supabase.table("annotations").insert(annotations_to_insert).execute()
-                        
-        except Exception as panorama_err:
-            # We don't fail the entire building creation if only panorama fails, but we print/raise
-            print(f"Gagal memproses panorama: {str(panorama_err)}")
+                        if annotations_to_insert:
+                            supabase.table("annotations").insert(annotations_to_insert).execute()
+                            
+            except Exception as panorama_err:
+                print(f"Gagal memproses panorama {p.filename}: {str(panorama_err)}")
 
     return {
         "building": new_building,
         "audit_summary": audit_summary,
-        "scene_id": scene_id
+        "scene_id": last_scene_id
     }
 
 def compute_building_compliance(results: List[Dict[str, Any]], criteria_list: List[Dict[str, Any]]):

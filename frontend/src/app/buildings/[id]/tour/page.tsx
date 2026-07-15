@@ -51,6 +51,7 @@ interface Annotation {
       code: string;
       description: string;
       category: string;
+      short_label?: string | null;
     } | null;
   } | null;
 }
