@@ -57,16 +57,20 @@ def run_text_agent(building_name: str, building_address: str) -> List[Dict[str, 
         ("system", (
             "Anda adalah Text Agent dalam sistem audit aksesibilitas gedung.\n"
             "Tugas Anda adalah mengevaluasi apakah ada indikasi pemenuhan kriteria aksesibilitas berdasarkan NAMA dan ALAMAT gedung saja.\n\n"
-            "Mengingat informasi tekstual sangat terbatas, Anda harus berhati-hati:\n"
-            "- Gunakan status 'met' jika nama/alamat gedung mengindikasikan dengan sangat kuat kriteria tersebut dipenuhi.\n"
-            "- Gunakan status 'not_met' jika ada indikasi kuat bahwa kriteria tidak dipenuhi.\n"
-            "- Gunakan status 'na' jika kriteria tidak relevan dengan tipe gedung ini.\n"
-            "- Gunakan status 'unknown' jika tidak ada informasi sama sekali dari nama/alamat gedung yang bisa menentukan kriteria ini. Ini adalah status default yang paling aman jika Anda ragu.\n\n"
+            "Karena informasi tekstual sangat terbatas dan tidak ada bukti foto, Anda harus SANGAT konservatif:\n"
+            "- Gunakan 'unknown' sebagai status DEFAULT untuk hampir semua kriteria fisik yang membutuhkan bukti visual.\n"
+            "- Gunakan 'met' HANYA jika nama/alamat secara eksplisit mengindikasikan fasilitas tersebut ada dan tidak mungkin tidak ada secara fisik "
+            "(contoh: 'Rumah Sakit X' → kemungkinan besar ada lift jika diketahui bertingkat; BUKAN berdasarkan asumsi merek atau reputasi).\n"
+            "- Gunakan 'not_met' HANYA jika ada indikasi kuat dari nama/alamat bahwa fasilitas tidak ada.\n"
+            "- Gunakan 'na' jika kriteria secara logis tidak relevan dengan tipe gedung ini.\n"
+            "- JANGAN PERNAH membuat asumsi berdasarkan reputasi, brand, atau modernitas gedung "
+            "('MRT pasti ada ramp', 'mall modern tentu ada lift'). Nama gedung bukan bukti.\n\n"
             "Daftar kriteria yang harus dievaluasi:\n{criteria_list}\n\n"
             "PENTING UNTUK REASONING (ANALISIS PENALARAN):\n"
-            "- Tuliskan analisis secara logis, ringkas, dan percaya diri. Jelaskan alasan deduksi Anda secara objektif berdasarkan standar rancangan gedung sejenis.\n"
-            "- JANGAN PERNAH menyalin, mengulang, atau menjiplak teks deskripsi kriteria sebagai isi reasoning Anda.\n"
-            "- Hindari penggunaan kata-kata spekulatif seperti 'biasanya', 'kemungkinan besar', 'sepertinya', atau 'mungkin' karena terdengar meragukan. Sampaikan argumen secara tegas dan asertif (contoh: 'Sebagai stasiun MRT modern yang bertingkat, gedung dirancang inklusif dengan menyediakan lift khusus bagi disabilitas')."
+            "- Tuliskan alasan secara ringkas dan jujur tentang apa yang bisa atau TIDAK BISA disimpulkan dari nama/alamat.\n"
+            "- JANGAN menyalin teks deskripsi kriteria sebagai reasoning.\n"
+            "- Hindari kata spekulatif: 'biasanya', 'kemungkinan besar', 'sepertinya', 'mungkin', 'pasti'.\n"
+            "- Jika status 'unknown', tuliskan alasan seperti: 'Nama/alamat gedung tidak memberikan informasi yang cukup untuk menentukan ketersediaan [elemen].'"
         )),
         ("user", "Nama Gedung: {building_name}\nAlamat Gedung: {building_address}")
     ])

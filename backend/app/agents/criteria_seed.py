@@ -4,7 +4,14 @@ CRITERIA_SEED = [
         "code": "SNI-8201-M1",
         "category": "mobilitas",
         "short_label": "Ramp & Handrail",
-        "description": "Ramp dengan kemiringan wajar (maksimal 8 derajat) dan dilengkapi dengan handrail."
+        "description": (
+            "Ramp dengan kemiringan wajar (maksimal 8 derajat) DAN dilengkapi handrail di sisi ramp. "
+            "Aturan evaluasi visual: "
+            "(1) Jika ramp DAN handrail keduanya terlihat jelas di foto → 'met'. "
+            "(2) Jika handrail terlihat tetapi ramp TIDAK terlihat, atau hanya ada tangga tanpa ramp → 'not_met', karena ramp adalah komponen wajib. "
+            "(3) Jika ramp terlihat tetapi tanpa handrail → 'not_met'. "
+            "(4) Hanya gunakan 'unknown' jika area akses masuk gedung sama sekali tidak terlihat di foto dan tidak bisa ditentukan."
+        )
     },
     {
         "code": "SNI-8201-M2",

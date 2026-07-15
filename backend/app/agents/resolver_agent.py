@@ -71,23 +71,36 @@ def run_resolver_agent(
     prompt = ChatPromptTemplate.from_messages([
         ("system", (
             "Anda adalah Resolver Agent dalam sistem audit aksesibilitas gedung.\n"
-            "Tugas Anda adalah meninjau kriteria aksesibilitas yang masih berstatus 'unknown' setelah dievaluasi oleh Text Agent dan Visual Agent.\n\n"
+            "Tugas Anda adalah meninjau kriteria yang masih berstatus 'unknown' setelah dievaluasi oleh Text Agent dan Visual Agent.\n\n"
             "Informasi Gedung:\n"
             "Nama Gedung: {building_name}\n"
             "Alamat Gedung: {building_address}\n\n"
             "Evaluasi Sebelumnya (dari Text & Visual Agent):\n{existing_evaluations}\n\n"
-            "Kriteria 'unknown' yang Harus Anda Selesaikan:\n{unknown_criteria}\n\n"
-            "Panduan Penyelesaian:\n"
-            "- Analisis kombinasi informasi teks nama/alamat gedung dan alasan dari evaluasi agen sebelumnya.\n"
-            "- Jika Anda bisa menarik kesimpulan logis apakah kriteria tersebut dipenuhi ('met'), tidak dipenuhi ('not_met'), atau tidak relevan ('na'), ubah statusnya dan jelaskan penalaran Anda secara tegas.\n"
-            "- Jika tidak ada cukup informasi logis untuk mengambil kesimpulan yang pasti dan valid (terutama untuk aspek netra/rungu yang sangat membutuhkan bukti fisik spesifik), tetap pertahankan statusnya sebagai 'unknown'. JANGAN memaksa membuat tebakan jika tidak logis.\n"
-            "- Batasi penilaian Anda hanya pada daftar kriteria 'unknown' yang diberikan di atas.\n\n"
-            "PENTING UNTUK REASONING (ANALISIS PENALARAN):\n"
-            "- Tuliskan alasan analisis secara tegas, logis, dan percaya diri berdasarkan jenis fasilitas dan standar kegunaannya.\n"
-            "- JANGAN PERNAH menyalin, mengulang, atau menjiplak teks deskripsi kriteria sebagai isi reasoning Anda.\n"
-            "- Hindari kata-kata bernada ragu seperti 'biasanya', 'sepertinya', 'mungkin', 'kemungkinan besar'. Nyatakan alasan Anda secara lugas dan profesional (contoh: 'Sebagai fasilitas pelayanan publik modern berskala besar, gedung diwajibkan menyediakan toilet aksesibel dengan standar grab bar untuk kenyamanan disabilitas')."
+            "Kriteria 'unknown' yang Harus Anda Tinjau:\n{unknown_criteria}\n\n"
+            "ATURAN KETAT YANG WAJIB DIIKUTI:\n\n"
+            "1. LARANGAN MUTLAK — Jangan pernah membuat kesimpulan berdasarkan:\n"
+            "   - Reputasi atau nama brand gedung ('MRT pasti...', 'mall modern tentu...', 'rumah sakit sudah pasti...')\n"
+            "   - Asumsi umum tipe bangunan tanpa bukti konkret dari foto atau teks evaluasi sebelumnya\n"
+            "   - Perkiraan atau tebakan apapun yang tidak berdasar pada bukti yang sudah dievaluasi agen lain\n\n"
+            "2. ATURAN FOTO (visual_agent) — Jika visual_agent mengembalikan 'unknown' untuk suatu kriteria:\n"
+            "   - Artinya FOTO SUDAH DIPERIKSA tetapi buktinya tidak cukup jelas atau elemen tidak terlihat\n"
+            "   - JANGAN mengubah 'unknown' menjadi 'met' hanya karena gedungnya terkenal atau besar\n"
+            "   - Jika visual_agent menyebutkan elemen TIDAK TERLIHAT di foto → ubah ke 'not_met'\n"
+            "   - Jika visual_agent tidak menemukan bukti → pertahankan 'unknown'\n\n"
+            "3. KAPAN BOLEH MEMBUAT KESIMPULAN:\n"
+            "   - 'not_met': jika ada bukti eksplisit dari visual_agent atau text_agent bahwa elemen tidak ada\n"
+            "     (contoh: visual_agent menyebut 'hanya ada tangga' → M1 = not_met)\n"
+            "   - 'na': jika kriteria secara logis tidak mungkin berlaku pada gedung ini\n"
+            "     (contoh: gedung berlantai 1 → M4 elevator = na)\n"
+            "   - 'met': HANYA jika ada konfirmasi eksplisit dari evaluasi agen sebelumnya, BUKAN asumsi\n\n"
+            "4. JIKA RAGU → pertahankan 'unknown'. Lebih baik jujur tidak tahu daripada memberi nilai palsu.\n\n"
+            "PENTING UNTUK REASONING:\n"
+            "- Tulis reasoning yang mengacu spesifik pada hasil visual_agent atau text_agent di atas\n"
+            "- Jelaskan MENGAPA Anda mengambil kesimpulan tersebut berdasarkan bukti yang ada\n"
+            "- Jangan salin deskripsi kriteria sebagai reasoning\n"
+            "- Jangan gunakan kata spekulatif: 'biasanya', 'mungkin', 'sepertinya', 'kemungkinan besar', 'pasti'"
         )),
-        ("user", "Harap selesaikan kriteria 'unknown' di atas.")
+        ("user", "Harap tinjau kriteria 'unknown' di atas sesuai aturan ketat yang diberikan.")
     ])
     
     # Initialize Groq model

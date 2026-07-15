@@ -65,34 +65,43 @@ def get_agent_priority(agent: str) -> int:
 
 def is_better_evaluation(new_eval: CriteriaResult, current_eval: CriteriaResult) -> bool:
     """
-    Returns True if new_eval is preferred over current_eval based on evidence level and correctness.
+    Returns True if new_eval is preferred over current_eval.
+
+    Priority order (highest to lowest):
+      1. Evidence tier — visual/panorama (tier 2) always beats text/resolver (tier 1),
+         regardless of status. A photo-based 'unknown' is more trustworthy than a
+         text-based 'met' because it reflects actual observed (or unobserved) evidence.
+      2. Within the same tier, definitive status (met/not_met) beats non-definitive (unknown/na).
+      3. Within same tier + same definitiveness, higher status priority wins
+         (met > not_met > unknown > na).
+      4. Within all of the above equal, higher agent priority wins
+         (resolver_agent > visual_agent > text_agent).
     """
-    new_is_def = new_eval.status.lower() in ["met", "not_met"]
-    current_is_def = current_eval.status.lower() in ["met", "not_met"]
-    
-    # Rule 1: Definitive status (met/not_met) beats non-definitive status (unknown/na)
-    if new_is_def and not current_is_def:
-        return True
-    if current_is_def and not new_is_def:
-        return False
-        
-    # Rule 2: Compare evidence tiers
+    # Rule 1: Evidence tier — higher tier ALWAYS wins first
     new_tier = get_agent_tier(new_eval.source_agent)
     current_tier = get_agent_tier(current_eval.source_agent)
     if new_tier > current_tier:
         return True
     elif new_tier < current_tier:
         return False
-        
-    # Rule 3: Within same tier, compare status priority
+
+    # Rule 2: Within same tier — definitive (met/not_met) beats non-definitive (unknown/na)
+    new_is_def = new_eval.status.lower() in ["met", "not_met"]
+    current_is_def = current_eval.status.lower() in ["met", "not_met"]
+    if new_is_def and not current_is_def:
+        return True
+    if current_is_def and not new_is_def:
+        return False
+
+    # Rule 3: Within same tier and definitiveness — compare status priority
     new_status_p = get_status_priority(new_eval.status)
     current_status_p = get_status_priority(current_eval.status)
     if new_status_p > current_status_p:
         return True
     elif new_status_p < current_status_p:
         return False
-        
-    # Rule 4: Within same tier and status priority, compare agent priority
+
+    # Rule 4: All equal — compare agent priority for info richness
     return get_agent_priority(new_eval.source_agent) > get_agent_priority(current_eval.source_agent)
 
 def merge_evaluations(results: List[CriteriaResult]) -> List[CriteriaResult]:
