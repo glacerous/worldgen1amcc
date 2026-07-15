@@ -1,6 +1,8 @@
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, status, Request
 from app.config import settings
+from app.db import supabase
+from datetime import datetime, timedelta, timezone
 
 def get_current_user(authorization: str = Header(None)):
     """
@@ -68,3 +70,59 @@ def get_optional_user(authorization: str = Header(None)):
         }
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
+
+
+async def check_api_key(request: Request, x_api_key: str = Header(..., alias="X-API-Key")):
+    """
+    Dependency to validate API Key and enforce daily rate limits.
+    """
+    # 1. Lookup active key
+    try:
+        res = supabase.table("api_keys").select("*").eq("api_key", x_api_key).eq("is_active", True).execute()
+    except Exception as db_err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal mengambil data API key dari database: {str(db_err)}"
+        )
+
+    if not res.data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API Key tidak valid atau tidak aktif."
+        )
+    key_data = res.data[0]
+
+    # 2. Count usage log in last 24 hours
+    one_day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    try:
+        usage_res = supabase.table("api_key_usage_log") \
+            .select("id", count="exact") \
+            .eq("api_key_id", key_data["id"]) \
+            .gte("called_at", one_day_ago) \
+            .execute()
+    except Exception as db_err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal memverifikasi limit penggunaan API: {str(db_err)}"
+        )
+
+    call_count = usage_res.count or 0
+    if call_count >= key_data["rate_limit_per_day"]:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Batas pemanggilan API harian (rate limit) terlampaui."
+        )
+
+    # 3. Insert usage log
+    try:
+        supabase.table("api_key_usage_log").insert({
+            "api_key_id": key_data["id"],
+            "endpoint": request.url.path
+        }).execute()
+    except Exception as db_err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal mencatat log penggunaan API: {str(db_err)}"
+        )
+
+    return key_data
