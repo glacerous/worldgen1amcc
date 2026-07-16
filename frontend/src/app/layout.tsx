@@ -39,6 +39,7 @@ export default function RootLayout({
       lang="id"
       className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} h-full antialiased`}
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
     >
       <head>
         <script
