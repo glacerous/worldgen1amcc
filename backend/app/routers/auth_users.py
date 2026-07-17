@@ -7,8 +7,14 @@ from fastapi.responses import RedirectResponse
 from app.db import supabase
 from app.config import settings
 from app.auth_utils import get_current_user
+from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["auth"])
+
+
+class UpdateProfileRequest(BaseModel):
+    display_name: str = Field(..., min_length=1, max_length=100)
+
 
 @router.get("/google")
 def google_auth(redirect: str = None):
@@ -175,3 +181,56 @@ def get_me(current_user = Depends(get_current_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal mengambil informasi profil: {str(e)}"
         )
+
+
+@router.put("/me")
+def update_profile(
+    request_data: UpdateProfileRequest,
+    current_user = Depends(get_current_user)
+):
+    """
+    Updates the profile information (display name) of the authenticated user.
+    """
+    try:
+        # Update user in DB
+        update_response = supabase.table("users").update({
+            "display_name": request_data.display_name
+        }).eq("id", current_user["user_id"]).execute()
+        
+        if not update_response.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User tidak ditemukan."
+            )
+            
+        user = update_response.data[0]
+        
+        # Generate new JWT token with updated display name
+        now = datetime.now(timezone.utc)
+        expire = now + timedelta(days=7)
+        payload = {
+            "user_id": str(user["id"]),
+            "email": user["email"],
+            "display_name": user["display_name"],
+            "exp": int(expire.timestamp())
+        }
+        
+        jwt_token = jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
+        
+        return {
+            "token": jwt_token,
+            "user": {
+                "id": user["id"],
+                "email": user["email"],
+                "display_name": user["display_name"],
+                "avatar_url": user.get("avatar_url")
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal memperbarui profil: {str(e)}"
+        )
+
