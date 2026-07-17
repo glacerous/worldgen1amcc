@@ -442,15 +442,35 @@ function DevelopersPageContent() {
                             {apiKeyData.tier}
                           </span>
                           {apiKeyData.tier === "pro" && apiKeyData.pro_expires_at && (
-                            <span className="text-[10px] font-sans text-ink-muted block mt-1">
-                              Berlaku sampai: {new Date(apiKeyData.pro_expires_at).toLocaleDateString("id-ID", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit"
-                              })}
-                            </span>
+                            <>
+                              <span className="text-[10px] font-sans text-ink-muted block mt-1 font-semibold">
+                                Berlaku hingga {new Date(apiKeyData.pro_expires_at).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric"
+                                })}
+                              </span>
+                              <span className="text-[10px] font-sans text-ink-muted italic block mt-1 max-w-xs md:max-w-md leading-relaxed">
+                                Ini bukan langganan otomatis — akses Pro akan berakhir pada tanggal di atas dan otomatis kembali ke Free. Anda bisa membayar ulang kapan saja untuk memperpanjang 30 hari lagi.
+                              </span>
+                              {(() => {
+                                const expiresTime = new Date(apiKeyData.pro_expires_at).getTime();
+                                const nowTime = new Date().getTime();
+                                const isNearOrExpired = expiresTime - nowTime <= 3 * 24 * 60 * 60 * 1000;
+                                if (isNearOrExpired) {
+                                  return (
+                                    <button
+                                      onClick={handleUpgradePro}
+                                      disabled={isActionLoading}
+                                      className="mt-3 inline-flex items-center justify-center bg-accent text-white font-sans text-xs font-semibold px-4 py-2 rounded transition-all cursor-pointer hover:opacity-90 disabled:opacity-50 shadow-xs"
+                                    >
+                                      {isActionLoading ? "Memproses..." : "Perpanjang Sekarang"}
+                                    </button>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </>
                           )}
                         </div>
                       </div>
@@ -481,6 +501,30 @@ function DevelopersPageContent() {
                           className="inline-flex items-center justify-center bg-accent text-white font-sans text-xs font-semibold px-5 py-3 rounded transition-all cursor-pointer hover:opacity-90 disabled:opacity-50 shadow-sm"
                         >
                           {isActionLoading ? "Memproses..." : "Upgrade ke PRO (Rp 49.000)"}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Pro Renewal Action */}
+                    {apiKeyData.tier === "pro" && apiKeyData.pro_expires_at && (() => {
+                      const expiresTime = new Date(apiKeyData.pro_expires_at).getTime();
+                      const nowTime = new Date().getTime();
+                      const isNearOrExpired = expiresTime - nowTime <= 3 * 24 * 60 * 60 * 1000;
+                      return isNearOrExpired;
+                    })() && (
+                      <div className="pt-6 border-t border-line/45 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="max-w-md">
+                          <h3 className="font-sans text-sm font-semibold text-ink">Masa Berlaku Pro Hampir Berakhir / Sudah Berakhir</h3>
+                          <p className="font-sans text-xs text-ink-muted leading-relaxed mt-0.5">
+                            Perpanjang akses Pro Anda selama 30 hari lagi untuk terus menikmati rate limit tinggi dan akses Virtual Tour 360°.
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleUpgradePro}
+                          disabled={isActionLoading}
+                          className="inline-flex items-center justify-center bg-accent text-white font-sans text-xs font-semibold px-5 py-3 rounded transition-all cursor-pointer hover:opacity-90 disabled:opacity-50 shadow-sm"
+                        >
+                          {isActionLoading ? "Memproses..." : "Perpanjang Sekarang"}
                         </button>
                       </div>
                     )}
@@ -677,6 +721,21 @@ function DevelopersPageContent() {
                         </div>
                       </div>
                     )}
+
+                    {/* FAQ Singkat Section */}
+                    <div className="pt-6 border-t border-line/45 space-y-4">
+                      <h4 className="font-sans text-sm font-bold text-ink uppercase tracking-wider">
+                        FAQ Singkat
+                      </h4>
+                      <div className="space-y-3 font-sans text-xs">
+                        <div>
+                          <p className="font-semibold text-ink">Q: Apakah ini langganan bulanan otomatis?</p>
+                          <p className="text-ink-muted mt-0.5">
+                            A: Tidak. Setiap pembayaran memberikan akses Pro selama 30 hari. Setelah itu, Anda perlu membayar ulang untuk memperpanjang.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

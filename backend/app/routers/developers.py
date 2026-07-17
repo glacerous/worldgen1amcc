@@ -52,6 +52,10 @@ class APIKeyResponse(BaseModel):
         default=None,
         description="Timestamp when the PRO upgrade was approved by an admin. Null if not yet approved."
     )
+    pro_expires_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp when the PRO access expires. Null for free tier or if never upgraded."
+    )
 
 class MessageResponse(BaseModel):
     message: str = Field(description="Human-readable status message describing the result of the operation.")
@@ -108,7 +112,8 @@ def get_user_api_key(current_user: dict = Depends(get_current_user)):
             "rate_limit_per_day": key_data["rate_limit_per_day"],
             "is_active": key_data["is_active"],
             "pro_requested_at": key_data.get("pro_requested_at"),
-            "pro_approved_at": key_data.get("pro_approved_at")
+            "pro_approved_at": key_data.get("pro_approved_at"),
+            "pro_expires_at": key_data.get("pro_expires_at")
         }
     return None
 
@@ -145,7 +150,8 @@ def register_developer_key(current_user: dict = Depends(get_current_user)):
             "rate_limit_per_day": key_data["rate_limit_per_day"],
             "is_active": key_data["is_active"],
             "pro_requested_at": key_data.get("pro_requested_at"),
-            "pro_approved_at": key_data.get("pro_approved_at")
+            "pro_approved_at": key_data.get("pro_approved_at"),
+            "pro_expires_at": key_data.get("pro_expires_at")
         }
 
     # 2. Generate new key
@@ -177,7 +183,8 @@ def register_developer_key(current_user: dict = Depends(get_current_user)):
         "rate_limit_per_day": key_data["rate_limit_per_day"],
         "is_active": key_data["is_active"],
         "pro_requested_at": key_data.get("pro_requested_at"),
-        "pro_approved_at": key_data.get("pro_approved_at")
+        "pro_approved_at": key_data.get("pro_approved_at"),
+        "pro_expires_at": key_data.get("pro_expires_at")
     }
 
 
