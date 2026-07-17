@@ -6,9 +6,73 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 
+interface ToggleRowProps {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (val: boolean) => void;
+  id: string;
+}
+
+function ToggleRow({ label, description, checked, onChange, id }: ToggleRowProps) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 border-b border-line/30 last:border-b-0">
+      <div className="flex flex-col">
+        <span className="font-sans text-sm font-semibold text-ink">{label}</span>
+        <span className="font-sans text-xs text-ink-muted leading-relaxed mt-0.5">{description}</span>
+      </div>
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+          checked ? "bg-accent" : "bg-line/80"
+        }`}
+      >
+        <span
+          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-surface shadow-xs transition duration-200 ease-in-out ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
-  const { user, login, loading, textSize, setTextSize } = useAuth();
+  const { 
+    user, 
+    login, 
+    loading, 
+    textSize, 
+    setTextSize, 
+    updateUser, 
+    token,
+    highContrast,
+    setHighContrast,
+    reduceMotion,
+    setReduceMotion,
+    lineSpacing,
+    setLineSpacing,
+    dyslexiaFont,
+    setDyslexiaFont,
+    largeTargets,
+    setLargeTargets,
+    underlineLinks,
+    setUnderlineLinks
+  } = useAuth();
   const [activeTab, setActiveTab] = useState<"profile" | "appearance">("profile");
+  const [displayName, setDisplayName] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.display_name);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -21,6 +85,40 @@ export default function SettingsPage() {
       }
     }
   }, []);
+
+  const handleUpdateName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!displayName.trim()) {
+      setUpdateMessage({ type: "error", text: "Nama tidak boleh kosong." });
+      return;
+    }
+    setIsUpdating(true);
+    setUpdateMessage(null);
+    try {
+      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+      const response = await fetch(`${BACKEND_URL}/auth/me`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ display_name: displayName.trim() }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Gagal memperbarui nama.");
+      }
+
+      const data = await response.json();
+      updateUser(data.user, data.token);
+      setUpdateMessage({ type: "success", text: "Nama akun berhasil diperbarui." });
+    } catch (err: any) {
+      setUpdateMessage({ type: "error", text: err.message || "Terjadi kesalahan." });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-bg relative overflow-x-hidden">
@@ -133,15 +231,44 @@ export default function SettingsPage() {
                   </h2>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <span className="font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase block">
-                        Nama Akun
-                      </span>
-                      <p className="font-sans text-sm font-semibold text-ink mt-1">
-                        {user.display_name}
-                      </p>
+                    <div className="sm:col-span-2">
+                      <form onSubmit={handleUpdateName} className="space-y-3 max-w-md">
+                        <div>
+                          <label htmlFor="displayName" className="block font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase mb-1.5">
+                            Nama Akun
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              id="displayName"
+                              value={displayName}
+                              onChange={(e) => setDisplayName(e.target.value)}
+                              placeholder="Masukkan nama akun baru"
+                              className="flex-1 bg-transparent border border-line rounded-md px-3 py-2 text-sm font-sans text-ink placeholder-ink-muted/50 focus:outline-none focus:border-accent/40"
+                              disabled={isUpdating}
+                              required
+                            />
+                            <button
+                              type="submit"
+                              disabled={isUpdating || displayName.trim() === user.display_name || !displayName.trim()}
+                              className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-5 py-2.5 rounded-md transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                            >
+                              {isUpdating ? "Memperbarui..." : "Ubah Nama"}
+                            </button>
+                          </div>
+                        </div>
+                        {updateMessage && (
+                          <div className={`p-3 border rounded-md text-xs font-sans font-medium ${
+                            updateMessage.type === "success" 
+                              ? "bg-status-met/10 border-status-met/20 text-status-met" 
+                              : "bg-status-not-met/10 border-status-not-met/20 text-status-not-met"
+                          }`}>
+                            {updateMessage.text}
+                          </div>
+                        )}
+                      </form>
                     </div>
-                    <div>
+                    <div className="sm:col-span-2">
                       <span className="font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase block">
                         Alamat Email
                       </span>
@@ -166,45 +293,171 @@ export default function SettingsPage() {
               )}
 
               {activeTab === "appearance" && (
-                <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-5 animate-in fade-in duration-200">
-                  <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
-                    Aksesibilitas Teks
-                  </h2>
-                  <p className="font-sans text-sm text-ink-muted leading-relaxed">
-                    Sesuaikan ukuran teks dasar di seluruh aplikasi web Aksesibel demi kenyamanan membaca Anda.
-                  </p>
-                  
-                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                    <button
-                      onClick={() => setTextSize("normal")}
-                      className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
-                        textSize === "normal"
-                          ? "bg-accent text-white border-accent"
-                          : "bg-surface border-line text-ink hover:bg-bg/40"
-                      }`}
-                    >
-                      AA (Normal / 16px)
-                    </button>
-                    <button
-                      onClick={() => setTextSize("besar")}
-                      className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
-                        textSize === "besar"
-                          ? "bg-accent text-white border-accent"
-                          : "bg-surface border-line text-ink hover:bg-bg/40"
-                      }`}
-                    >
-                      AA+ (Besar / 18px)
-                    </button>
-                    <button
-                      onClick={() => setTextSize("sangat-besar")}
-                      className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
-                        textSize === "sangat-besar"
-                          ? "bg-accent text-white border-accent"
-                          : "bg-surface border-line text-ink hover:bg-bg/40"
-                      }`}
-                    >
-                      AA++ (Sangat Besar / 20px)
-                    </button>
+                <div className="space-y-6">
+                  {/* Card 1: Kontras & Tampilan */}
+                  <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-5 animate-in fade-in duration-200">
+                    <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
+                      Kontras & Tampilan
+                    </h2>
+                    <p className="font-sans text-sm text-ink-muted leading-relaxed">
+                      Sesuaikan visibilitas dan tampilan antarmuka aplikasi.
+                    </p>
+                    
+                    <div className="space-y-1 pt-2">
+                      <ToggleRow
+                        id="high-contrast-toggle"
+                        label="Mode Kontras Tinggi"
+                        description="Gunakan warna latar belakang hitam pekat dan teks putih terang untuk keterbacaan optimal."
+                        checked={highContrast}
+                        onChange={setHighContrast}
+                      />
+                      <ToggleRow
+                        id="reduce-motion-toggle"
+                        label="Kurangi Animasi/Gerakan"
+                        description="Menonaktifkan semua transisi dan animasi gerakan di seluruh sistem."
+                        checked={reduceMotion}
+                        onChange={setReduceMotion}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Card 2: Preferensi Teks */}
+                  <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-6 animate-in fade-in duration-200">
+                    <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
+                      Preferensi Teks
+                    </h2>
+                    
+                    {/* Ukuran Teks (existing) */}
+                    <div className="space-y-2">
+                      <span className="block font-sans text-sm font-semibold text-ink">
+                        Ukuran Teks
+                      </span>
+                      <span className="block font-sans text-xs text-ink-muted leading-relaxed mt-0.5 mb-3">
+                        Sesuaikan ukuran teks dasar di seluruh aplikasi web Aksesibel demi kenyamanan membaca Anda.
+                      </span>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setTextSize("normal")}
+                          className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
+                            textSize === "normal"
+                              ? "bg-accent text-white border-accent font-semibold shadow-xs"
+                              : "bg-surface border-line text-ink hover:bg-bg/40 font-medium"
+                          }`}
+                        >
+                          AA (Normal / 16px)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTextSize("besar")}
+                          className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
+                            textSize === "besar"
+                              ? "bg-accent text-white border-accent font-semibold shadow-xs"
+                              : "bg-surface border-line text-ink hover:bg-bg/40 font-medium"
+                          }`}
+                        >
+                          AA+ (Besar / 18px)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTextSize("sangat-besar")}
+                          className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
+                            textSize === "sangat-besar"
+                              ? "bg-accent text-white border-accent font-semibold shadow-xs"
+                              : "bg-surface border-line text-ink hover:bg-bg/40 font-medium"
+                          }`}
+                        >
+                          AA++ (Sangat Besar / 20px)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-line/45 my-4" />
+
+                    {/* Jarak Antar Baris (new) */}
+                    <div className="space-y-2">
+                      <span className="block font-sans text-sm font-semibold text-ink">
+                        Jarak Antar Baris
+                      </span>
+                      <span className="block font-sans text-xs text-ink-muted leading-relaxed mt-0.5 mb-3">
+                        Sesuaikan kerenggangan paragraf teks demi kenyamanan membaca Anda.
+                      </span>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setLineSpacing("normal")}
+                          className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
+                            lineSpacing === "normal"
+                              ? "bg-accent text-white border-accent font-semibold shadow-xs"
+                              : "bg-surface border-line text-ink hover:bg-bg/40 font-medium"
+                          }`}
+                        >
+                          Normal (1.5)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLineSpacing("lega")}
+                          className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
+                            lineSpacing === "lega"
+                              ? "bg-accent text-white border-accent font-semibold shadow-xs"
+                              : "bg-surface border-line text-ink hover:bg-bg/40 font-medium"
+                          }`}
+                        >
+                          Lega (1.8)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLineSpacing("sangat-lega")}
+                          className={`px-4.5 py-2.5 border rounded font-sans text-sm font-semibold transition-all cursor-pointer ${
+                            lineSpacing === "sangat-lega"
+                              ? "bg-accent text-white border-accent font-semibold shadow-xs"
+                              : "bg-surface border-line text-ink hover:bg-bg/40 font-medium"
+                          }`}
+                        >
+                          Sangat Lega (2.2)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-line/45 my-4" />
+
+                    {/* Font Ramah Disleksia (new) */}
+                    <div className="space-y-1">
+                      <ToggleRow
+                        id="dyslexia-font-toggle"
+                        label="Font Ramah Disleksia"
+                        description="Gunakan font khusus 'Lexend' yang dirancang untuk membantu penderita disleksia membaca dengan lebih mudah."
+                        checked={dyslexiaFont}
+                        onChange={setDyslexiaFont}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Card 3: Navigasi & Interaksi */}
+                  <div className="bg-surface border-l-4 border-accent p-6 md:p-8 rounded-r-md border border-line shadow-xs space-y-5 animate-in fade-in duration-200">
+                    <h2 className="font-display text-2xl font-normal text-ink border-b border-line/45 pb-2">
+                      Navigasi & Interaksi
+                    </h2>
+                    <p className="font-sans text-sm text-ink-muted leading-relaxed">
+                      Sesuaikan tombol dan tautan untuk navigasi yang lebih mudah dan ramah motorik.
+                    </p>
+                    
+                    <div className="space-y-1 pt-2">
+                      <ToggleRow
+                        id="large-targets-toggle"
+                        label="Perbesar Area Klik"
+                        description="Memperbesar ukuran minimum tombol dan tautan interaktif menjadi minimal 44x44px untuk kemudahan menekan."
+                        checked={largeTargets}
+                        onChange={setLargeTargets}
+                      />
+                      <ToggleRow
+                        id="underline-links-toggle"
+                        label="Selalu Garis Bawahi Tautan"
+                        description="Memaksa semua tautan/link teks memiliki garis bawah agar lebih mudah dibedakan tanpa bergantung pada warna."
+                        checked={underlineLinks}
+                        onChange={setUnderlineLinks}
+                      />
+                    </div>
                   </div>
                 </div>
               )}

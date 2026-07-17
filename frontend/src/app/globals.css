@@ -237,4 +237,106 @@ body {
   border-top-color: var(--color-line) !important;
 }
 
+/* ==========================================
+   Aksesibilitas / Accessibility Global Rules
+   ========================================== */
+
+/* 1. Mode Kontras Tinggi */
+.high-contrast {
+  --color-bg: #000000 !important;
+  --color-surface: #000000 !important;
+  --color-ink: #FFFFFF !important;
+  --color-ink-muted: #EAEAEA !important;
+  --color-accent: #FFFFFF !important;
+  --color-line: #FFFFFF !important;
+  
+  --color-status-met: #00FF00 !important;
+  --color-status-not-met: #FF3333 !important;
+  --color-status-unknown: #CCCCCC !important;
+  --color-status-na: #33CCFF !important;
+}
+
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea,
+.high-contrast button {
+  border-color: #FFFFFF !important;
+  color: #FFFFFF !important;
+  background-color: #000000 !important;
+}
+
+.high-contrast a,
+.high-contrast button {
+  text-decoration-color: #FFFFFF !important;
+}
+
+/* Fix text visibility on primary filled buttons and links in High Contrast mode */
+.high-contrast a.bg-accent,
+.high-contrast a[class*="bg-accent"],
+.high-contrast button.bg-accent,
+.high-contrast button[class*="bg-accent"],
+.high-contrast .bg-accent,
+.high-contrast [class*="bg-accent"] {
+  background-color: #FFFFFF !important;
+  color: #000000 !important;
+  border: 1.5px solid #FFFFFF !important;
+}
+
+.high-contrast a.bg-accent *,
+.high-contrast a[class*="bg-accent"] *,
+.high-contrast button.bg-accent *,
+.high-contrast button[class*="bg-accent"] *,
+.high-contrast .bg-accent *,
+.high-contrast [class*="bg-accent"] * {
+  color: #000000 !important;
+  fill: #000000 !important;
+}
+
+/* 2. Kurangi Animasi/Gerakan */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-delay: -1ms !important;
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+
+/* 3. Jarak Antar Baris */
+:root {
+  --base-line-height: 1.5;
+}
+body {
+  line-height: var(--base-line-height) !important;
+}
+
+/* 4. Font Ramah Disleksia */
+.dyslexia-font {
+  --font-display: var(--font-lexend), sans-serif !important;
+  --font-sans: var(--font-lexend), sans-serif !important;
+}
+
+/* 5. Perbesar Area Klik */
+.large-targets button,
+.large-targets select,
+.large-targets input[type="button"],
+.large-targets input[type="submit"],
+.large-targets [role="button"] {
+  min-width: 44px !important;
+  min-height: 44px !important;
+}
+
+.large-targets a {
+  min-height: 44px;
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+
+/* 6. Selalu Garis Bawahi Tautan */
+.underline-links a {
+  text-decoration: underline !important;
+}
+
 
