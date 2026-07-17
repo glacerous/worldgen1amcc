@@ -92,7 +92,7 @@ function DevelopersPageContent() {
           if (data.status === "paid") {
             setPaymentSuccessMessage("Pembayaran berhasil diverifikasi! API Key Anda telah diupgrade ke PRO.");
             localStorage.removeItem("aksesibel_pending_payment_external_id");
-            
+
             // Re-fetch API key info to refresh page tier display
             fetch(`${BACKEND_URL}/developers/key`, {
               headers: {
@@ -224,7 +224,7 @@ function DevelopersPageContent() {
   return (
     <div className="min-h-screen flex flex-col bg-bg relative overflow-x-hidden">
       {/* Background Noise Texture */}
-      <div 
+      <div
         className="fixed inset-0 pointer-events-none z-50 opacity-[0.025]"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
@@ -234,7 +234,7 @@ function DevelopersPageContent() {
       <Navbar />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-12 flex flex-col justify-start">
-        
+
         {/* Title Section */}
         <div className="mb-8 text-left border-b border-line pb-6">
           <span className="font-sans text-xs tracking-widest text-accent uppercase font-semibold">
@@ -276,11 +276,11 @@ function DevelopersPageContent() {
                 Ketentuan Layanan API Publik
               </h2>
               <p className="font-sans text-sm text-ink-muted leading-relaxed mb-6">
-                Kami menyediakan data audit bangunan publik secara gratis untuk mendukung pembuatan aplikasi 
-                sosial, riset, maupun integrasi sistem pemetaan. Anda dapat mengakses daftar gedung terverifikasi, 
+                Kami menyediakan data audit bangunan publik secara gratis untuk mendukung pembuatan aplikasi
+                sosial, riset, maupun integrasi sistem pemetaan. Anda dapat mengakses daftar gedung terverifikasi,
                 nilai kepatuhan aksesibilitas, serta detail kriteria audit secara real-time.
               </p>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div className="border border-line/65 p-4 rounded bg-bg/20">
                   <h3 className="font-sans text-sm font-semibold text-accent mb-1">Tier Free</h3>
@@ -306,7 +306,7 @@ function DevelopersPageContent() {
                 >
                   {/* Google Icon SVG */}
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.113-5.136 4.113-3.41 0-6.19-2.779-6.19-6.19 0-3.41 2.78-6.19 6.19-6.19 1.542 0 2.94.577 4.01 1.524l3.19-3.19C19.14 2.544 15.93 1.135 12.24 1.135 6.185 1.135 1.25 6.07 1.25 12.125s4.935 10.99 10.99 10.99c6.326 0 10.495-4.416 10.495-10.678 0-.698-.073-1.365-.189-2.152H12.24z"/>
+                    <path d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.113-5.136 4.113-3.41 0-6.19-2.779-6.19-6.19 0-3.41 2.78-6.19 6.19-6.19 1.542 0 2.94.577 4.01 1.524l3.19-3.19C19.14 2.544 15.93 1.135 12.24 1.135 6.185 1.135 1.25 6.07 1.25 12.125s4.935 10.99 10.99 10.99c6.326 0 10.495-4.416 10.495-10.678 0-.698-.073-1.365-.189-2.152H12.24z" />
                   </svg>
                   <span>Login dengan Google</span>
                 </button>
@@ -316,10 +316,10 @@ function DevelopersPageContent() {
         ) : (
           /* LOGGED IN WORKSPACE (WITH SIDEBAR) OR LOADING WORKSPACE */
           <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-10 items-start">
-            
+
             {/* Sidebar on the Left */}
             <aside className="flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible pb-4 md:pb-0 border-b md:border-b-0 md:border-r border-line/65 gap-1 md:gap-6 pr-0 md:pr-6 whitespace-nowrap">
-              
+
               <div className="flex flex-row md:flex-col gap-1 md:gap-1.5 w-full">
                 <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider hidden md:block mb-2 select-none">
                   Konfigurasi Akun
@@ -330,7 +330,7 @@ function DevelopersPageContent() {
                 >
                   Profil Pengguna
                 </Link>
-                
+
                 <Link
                   href="/settings?tab=appearance"
                   className="text-left px-3.5 py-2 text-xs md:text-sm font-sans rounded transition-all cursor-pointer w-full text-ink hover:bg-bg/40 font-medium focus:outline-none"
@@ -367,7 +367,7 @@ function DevelopersPageContent() {
                     Halo, {user?.display_name}
                   </h2>
                   <p className="font-sans text-sm text-ink-muted leading-relaxed mb-6">
-                    Anda belum memiliki Developer API Key. Silakan daftarkan kunci API Anda di bawah ini untuk 
+                    Anda belum memiliki Developer API Key. Silakan daftarkan kunci API Anda di bawah ini untuk
                     memulai pemanggilan data publik dari platform Aksesibel.
                   </p>
                   <button
@@ -384,7 +384,7 @@ function DevelopersPageContent() {
                   {/* Warning if just generated */}
                   {justGenerated && (
                     <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-700 text-sm rounded font-sans leading-relaxed">
-                      <strong>PENTING:</strong> API Key Anda berhasil di-generate. Simpan baik-baik, key ini akan selalu 
+                      <strong>PENTING:</strong> API Key Anda berhasil di-generate. Simpan baik-baik, key ini akan selalu
                       bisa Anda lihat kembali di halaman ini kapan saja selama Anda login dengan akun Google Anda.
                     </div>
                   )}
@@ -434,11 +434,10 @@ function DevelopersPageContent() {
                           Tier Pengembang
                         </span>
                         <div className="flex flex-col items-start gap-1 mt-1.5">
-                          <span className={`px-2.5 py-0.5 rounded text-xs font-sans font-bold uppercase tracking-wider ${
-                            apiKeyData.tier === "pro" 
-                              ? "bg-accent/15 text-accent border border-accent/25" 
+                          <span className={`px-2.5 py-0.5 rounded text-xs font-sans font-bold uppercase tracking-wider ${apiKeyData.tier === "pro"
+                              ? "bg-accent/15 text-accent border border-accent/25"
                               : "bg-status-unknown/15 text-status-unknown border border-status-unknown/25"
-                          }`}>
+                            }`}>
                             {apiKeyData.tier}
                           </span>
                           {apiKeyData.tier === "pro" && apiKeyData.pro_expires_at && (
@@ -451,7 +450,7 @@ function DevelopersPageContent() {
                                 })}
                               </span>
                               <span className="text-[10px] font-sans text-ink-muted italic block mt-1 max-w-xs md:max-w-md leading-relaxed">
-                                Ini bukan langganan otomatis — akses Pro akan berakhir pada tanggal di atas dan otomatis kembali ke Free. Anda bisa membayar ulang kapan saja untuk memperpanjang 30 hari lagi.
+                                Ini bukan langganan otomatis. akses Pro akan berakhir pada tanggal di atas dan otomatis kembali ke Free. Anda bisa membayar ulang kapan saja untuk memperpanjang 30 hari lagi.
                               </span>
                               {(() => {
                                 const expiresTime = new Date(apiKeyData.pro_expires_at).getTime();
@@ -491,7 +490,7 @@ function DevelopersPageContent() {
                         <div className="max-w-md">
                           <h3 className="font-sans text-sm font-semibold text-ink">Butuh batas limit lebih besar?</h3>
                           <p className="font-sans text-xs text-ink-muted leading-relaxed mt-0.5">
-                            Upgrade ke Pro Tier untuk meningkatkan limit harian menjadi 2,000 requests 
+                            Upgrade ke Pro Tier untuk meningkatkan limit harian menjadi 2,000 requests
                             dan membuka akses ke Virtual Tour 360° seharga Rp 49.000 / bulan.
                           </p>
                         </div>
@@ -512,22 +511,22 @@ function DevelopersPageContent() {
                       const isNearOrExpired = expiresTime - nowTime <= 3 * 24 * 60 * 60 * 1000;
                       return isNearOrExpired;
                     })() && (
-                      <div className="pt-6 border-t border-line/45 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="max-w-md">
-                          <h3 className="font-sans text-sm font-semibold text-ink">Masa Berlaku Pro Hampir Berakhir / Sudah Berakhir</h3>
-                          <p className="font-sans text-xs text-ink-muted leading-relaxed mt-0.5">
-                            Perpanjang akses Pro Anda selama 30 hari lagi untuk terus menikmati rate limit tinggi dan akses Virtual Tour 360°.
-                          </p>
+                        <div className="pt-6 border-t border-line/45 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                          <div className="max-w-md">
+                            <h3 className="font-sans text-sm font-semibold text-ink">Masa Berlaku Pro Hampir Berakhir / Sudah Berakhir</h3>
+                            <p className="font-sans text-xs text-ink-muted leading-relaxed mt-0.5">
+                              Perpanjang akses Pro Anda selama 30 hari lagi untuk terus menikmati rate limit tinggi dan akses Virtual Tour 360°.
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleUpgradePro}
+                            disabled={isActionLoading}
+                            className="inline-flex items-center justify-center bg-accent text-white font-sans text-xs font-semibold px-5 py-3 rounded transition-all cursor-pointer hover:opacity-90 disabled:opacity-50 shadow-sm"
+                          >
+                            {isActionLoading ? "Memproses..." : "Perpanjang Sekarang"}
+                          </button>
                         </div>
-                        <button
-                          onClick={handleUpgradePro}
-                          disabled={isActionLoading}
-                          className="inline-flex items-center justify-center bg-accent text-white font-sans text-xs font-semibold px-5 py-3 rounded transition-all cursor-pointer hover:opacity-90 disabled:opacity-50 shadow-sm"
-                        >
-                          {isActionLoading ? "Memproses..." : "Perpanjang Sekarang"}
-                        </button>
-                      </div>
-                    )}
+                      )}
                   </div>
 
                   {/* CUSTOM DEVELOPER API DOCUMENTATION & EXAMPLES */}
@@ -543,31 +542,28 @@ function DevelopersPageContent() {
                     <div className="flex border-b border-line/65 overflow-x-auto whitespace-nowrap">
                       <button
                         onClick={() => setActiveDocTab("buildings")}
-                        className={`px-4 py-2.5 text-xs font-sans font-semibold border-b-2 cursor-pointer transition-all ${
-                          activeDocTab === "buildings"
+                        className={`px-4 py-2.5 text-xs font-sans font-semibold border-b-2 cursor-pointer transition-all ${activeDocTab === "buildings"
                             ? "border-accent text-accent"
                             : "border-transparent text-ink-muted hover:text-ink"
-                        }`}
+                          }`}
                       >
                         1. List Buildings
                       </button>
                       <button
                         onClick={() => setActiveDocTab("audit")}
-                        className={`px-4 py-2.5 text-xs font-sans font-semibold border-b-2 cursor-pointer transition-all ${
-                          activeDocTab === "audit"
+                        className={`px-4 py-2.5 text-xs font-sans font-semibold border-b-2 cursor-pointer transition-all ${activeDocTab === "audit"
                             ? "border-accent text-accent"
                             : "border-transparent text-ink-muted hover:text-ink"
-                        }`}
+                          }`}
                       >
                         2. Building Audit
                       </button>
                       <button
                         onClick={() => setActiveDocTab("tour")}
-                        className={`px-4 py-2.5 text-xs font-sans font-semibold border-b-2 cursor-pointer transition-all ${
-                          activeDocTab === "tour"
+                        className={`px-4 py-2.5 text-xs font-sans font-semibold border-b-2 cursor-pointer transition-all ${activeDocTab === "tour"
                             ? "border-accent text-accent"
                             : "border-transparent text-ink-muted hover:text-ink"
-                        }`}
+                          }`}
                       >
                         3. 360° Tour (Pro)
                       </button>
@@ -638,7 +634,7 @@ function DevelopersPageContent() {
                         </div>
 
                         <p className="font-sans text-xs text-ink-muted leading-relaxed">
-                          Mengambil hasil evaluasi konsensus kriteria audit utama (`primary` / run tertua) untuk gedung tertentu. 
+                          Mengambil hasil evaluasi konsensus kriteria audit utama (`primary` / run tertua) untuk gedung tertentu.
                           Mencakup kode kriteria, deskripsi, kategori, status evaluasi (`met`/`not_met`/`unknown`), dan status sengketa (`is_disputed`).
                         </p>
 
@@ -688,7 +684,7 @@ function DevelopersPageContent() {
                         </div>
 
                         <p className="font-sans text-xs text-ink-muted leading-relaxed">
-                          Mengambil seluruh data panorama 360° virtual tour (`scenes`) dan hotspot aksen aksesibilitas (`annotations`) 
+                          Mengambil seluruh data panorama 360° virtual tour (`scenes`) dan hotspot aksen aksesibilitas (`annotations`)
                           terkait audit gedung utama. Akses dibatasi khusus untuk developer Tier Pro.
                         </p>
 
