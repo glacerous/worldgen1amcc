@@ -468,9 +468,12 @@ export default function BuildingDetailPage({
                 {user?.id && selectedRun.user_id === user.id && (
                   <Link
                     href={`/buildings/${id}/edit-audit/${selectedRunId}`}
-                    className="ml-2 inline-flex items-center px-2 py-0.5 text-[10px] font-sans font-semibold rounded border border-line text-ink-muted hover:border-accent hover:text-accent transition-all bg-surface"
+                    className="ml-2 inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-sans font-semibold rounded-md border border-accent text-accent hover:bg-accent hover:text-white transition-all bg-surface"
                     title="Edit audit run milik Anda"
                   >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+                    </svg>
                     Edit Audit
                   </Link>
                 )}

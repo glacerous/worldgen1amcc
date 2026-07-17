@@ -168,10 +168,10 @@ export default function SettingsPage() {
           </div>
         ) : (
           /* LOGGED IN SETTINGS WORKSPACE (WITH SIDEBAR) OR LOADING WORKSPACE */
-          <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-10 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-10 items-start align-start">
             
             {/* Sidebar on the Left */}
-            <aside className="flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible pb-4 md:pb-0 border-b md:border-b-0 md:border-r border-line/65 gap-1 md:gap-6 pr-0 md:pr-6 whitespace-nowrap">
+            <aside className="flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible pb-4 md:pb-0 border-b md:border-b-0 md:border-r border-line/65 gap-1 md:gap-6 pr-0 md:pr-6 whitespace-nowrap md:sticky md:top-24 md:self-start">
               
               <div className="flex flex-row md:flex-col gap-1 md:gap-1.5 w-full">
                 <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider hidden md:block mb-2 select-none">
@@ -196,7 +196,7 @@ export default function SettingsPage() {
                       : "text-ink hover:bg-bg/40 font-medium"
                   }`}
                 >
-                  Preferensi Teks
+                  Tampilan & Aksesibilitas
                 </button>
               </div>
 
