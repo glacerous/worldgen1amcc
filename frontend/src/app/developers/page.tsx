@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -14,10 +14,15 @@ interface APIKeyData {
   is_active: boolean;
   pro_requested_at: string | null;
   pro_approved_at: string | null;
+  pro_expires_at: string | null;
 }
 
-export default function DevelopersPage() {
+function DevelopersPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paymentParam = searchParams?.get("payment");
+  const extIdParam = searchParams?.get("external_id");
+
   const { user, token, login, loading } = useAuth();
   const [apiKeyData, setApiKeyData] = useState<APIKeyData | null>(null);
   const [isFetching, setIsFetching] = useState(false);
@@ -27,6 +32,8 @@ export default function DevelopersPage() {
   const [justGenerated, setJustGenerated] = useState(false);
   const [isKeyVisible, setIsKeyVisible] = useState(false);
   const [activeDocTab, setActiveDocTab] = useState<"buildings" | "audit" | "tour">("buildings");
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
+  const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string | null>(null);
 
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
@@ -59,6 +66,90 @@ export default function DevelopersPage() {
       setApiKeyData(null);
     }
   }, [token, BACKEND_URL]);
+
+  // Automatically check payment status if redirected back with success/failed
+  useEffect(() => {
+    if (paymentParam === "success" && token) {
+      const extId = extIdParam || localStorage.getItem("aksesibel_pending_payment_external_id");
+      if (!extId) return;
+
+      setIsVerifyingPayment(true);
+      setError(null);
+      setPaymentSuccessMessage(null);
+
+      fetch(`${BACKEND_URL}/developers/payment-status/${extId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error("Gagal memverifikasi status pembayaran.");
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (data.status === "paid") {
+            setPaymentSuccessMessage("Pembayaran berhasil diverifikasi! API Key Anda telah diupgrade ke PRO.");
+            localStorage.removeItem("aksesibel_pending_payment_external_id");
+            
+            // Re-fetch API key info to refresh page tier display
+            fetch(`${BACKEND_URL}/developers/key`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((updatedData) => {
+                if (updatedData) setApiKeyData(updatedData);
+              });
+          } else {
+            setError(`Status pembayaran saat ini: ${data.status.toUpperCase()}. Jika baru melakukan pembayaran, tunggu beberapa saat.`);
+          }
+        })
+        .catch((err) => {
+          setError(err.message || "Terjadi kesalahan saat memverifikasi pembayaran.");
+        })
+        .finally(() => {
+          setIsVerifyingPayment(false);
+          router.replace("/developers");
+        });
+    } else if (paymentParam === "failed") {
+      setError("Pembayaran dibatalkan atau gagal diproses.");
+      router.replace("/developers");
+    }
+  }, [paymentParam, extIdParam, token, BACKEND_URL, router]);
+
+  // Handle Upgrade to PRO via Xendit
+  const handleUpgradePro = async () => {
+    if (!token) return;
+    setIsActionLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/developers/create-payment`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Gagal memproses pembayaran upgrade.");
+      }
+      if (data.external_id) {
+        localStorage.setItem("aksesibel_pending_payment_external_id", data.external_id);
+      }
+      if (data.invoice_url) {
+        window.location.href = data.invoice_url;
+      } else {
+        throw new Error("URL invoice tidak ditemukan.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Gagal memproses upgrade PRO.");
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
 
   // Generate a new API Key
   const handleGenerateKey = async () => {
@@ -160,6 +251,19 @@ export default function DevelopersPage() {
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 text-status-not-met text-sm rounded font-sans">
             {error}
+          </div>
+        )}
+
+        {isVerifyingPayment && (
+          <div className="mb-6 p-4 bg-accent/10 border border-accent/20 text-accent text-sm rounded font-sans flex items-center gap-3">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-accent"></div>
+            <span>Sedang memverifikasi status pembayaran Anda...</span>
+          </div>
+        )}
+
+        {paymentSuccessMessage && (
+          <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-sm rounded font-sans">
+            {paymentSuccessMessage}
           </div>
         )}
 
@@ -329,7 +433,7 @@ export default function DevelopersPage() {
                         <span className="font-sans text-[10px] font-bold text-ink-muted tracking-wider uppercase">
                           Tier Pengembang
                         </span>
-                        <div className="flex items-center gap-2 mt-1.5">
+                        <div className="flex flex-col items-start gap-1 mt-1.5">
                           <span className={`px-2.5 py-0.5 rounded text-xs font-sans font-bold uppercase tracking-wider ${
                             apiKeyData.tier === "pro" 
                               ? "bg-accent/15 text-accent border border-accent/25" 
@@ -337,6 +441,17 @@ export default function DevelopersPage() {
                           }`}>
                             {apiKeyData.tier}
                           </span>
+                          {apiKeyData.tier === "pro" && apiKeyData.pro_expires_at && (
+                            <span className="text-[10px] font-sans text-ink-muted block mt-1">
+                              Berlaku sampai: {new Date(apiKeyData.pro_expires_at).toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -356,23 +471,17 @@ export default function DevelopersPage() {
                         <div className="max-w-md">
                           <h3 className="font-sans text-sm font-semibold text-ink">Butuh batas limit lebih besar?</h3>
                           <p className="font-sans text-xs text-ink-muted leading-relaxed mt-0.5">
-                            Ajukan permohonan upgrade ke Pro Tier untuk menaikkan limit harian menjadi 2,000 requests 
-                            serta membuka akses API Virtual Tour 360°.
+                            Upgrade ke Pro Tier untuk meningkatkan limit harian menjadi 2,000 requests 
+                            dan membuka akses ke Virtual Tour 360° seharga Rp 49.000 / bulan.
                           </p>
                         </div>
-                        {apiKeyData.pro_requested_at ? (
-                          <span className="inline-flex items-center px-4 py-2 rounded bg-amber-500/10 border border-amber-500/20 text-xs font-sans font-bold text-amber-700 uppercase tracking-wider select-none">
-                            Menunggu Approval
-                          </span>
-                        ) : (
-                          <button
-                            onClick={handleRequestPro}
-                            disabled={isActionLoading}
-                            className="inline-flex items-center justify-center bg-accent text-white font-sans text-xs font-semibold px-4 py-2.5 rounded transition-all cursor-pointer hover:opacity-90 disabled:opacity-50"
-                          >
-                            {isActionLoading ? "Mengajukan..." : "Request Upgrade ke Pro"}
-                          </button>
-                        )}
+                        <button
+                          onClick={handleUpgradePro}
+                          disabled={isActionLoading}
+                          className="inline-flex items-center justify-center bg-accent text-white font-sans text-xs font-semibold px-5 py-3 rounded transition-all cursor-pointer hover:opacity-90 disabled:opacity-50 shadow-sm"
+                        >
+                          {isActionLoading ? "Memproses..." : "Upgrade ke PRO (Rp 49.000)"}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -578,5 +687,17 @@ export default function DevelopersPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function DevelopersPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex flex-col bg-bg justify-center items-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+      </div>
+    }>
+      <DevelopersPageContent />
+    </Suspense>
   );
 }

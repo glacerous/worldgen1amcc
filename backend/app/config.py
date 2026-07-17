@@ -20,6 +20,8 @@ class Settings:
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")
+    XENDIT_SECRET_KEY: str = os.getenv("XENDIT_SECRET_KEY", "")
+    XENDIT_WEBHOOK_TOKEN: str = os.getenv("XENDIT_WEBHOOK_TOKEN", "")
 
 settings = Settings()
 

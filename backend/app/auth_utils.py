@@ -92,6 +92,21 @@ async def check_api_key(request: Request, x_api_key: str = Header(..., alias="X-
         )
     key_data = res.data[0]
 
+    # Check if PRO tier has expired
+    if key_data.get("tier") == "pro":
+        pro_expires_at_str = key_data.get("pro_expires_at")
+        if pro_expires_at_str:
+            try:
+                parsed_expires_str = pro_expires_at_str.replace("Z", "+00:00")
+                expires_at = datetime.fromisoformat(parsed_expires_str)
+                if expires_at < datetime.now(timezone.utc):
+                    key_data["tier"] = "free"
+                    key_data["rate_limit_per_day"] = 100
+            except Exception:
+                # If parsing fails, fall back to free to be safe
+                key_data["tier"] = "free"
+                key_data["rate_limit_per_day"] = 100
+
     # 2. Count usage log in last 24 hours
     one_day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
     try:

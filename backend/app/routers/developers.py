@@ -1,11 +1,14 @@
 import secrets
-from datetime import datetime, timezone
-from uuid import UUID
+from datetime import datetime, timezone, timedelta
+from uuid import UUID, uuid4
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Security, status, Header
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
+import httpx
+import base64
 
+from app.config import settings
 from app.db import supabase
 from app.auth_utils import get_current_user, check_api_key
 from app.routers.admin import require_admin
@@ -793,3 +796,331 @@ def get_public_building_tour(
         "audit_run_id": primary_run["id"],
         "scenes": output_scenes
     }
+
+
+# ---------------------------------------------------------------------------
+# Xendit Invoice Payment / Pro Upgrade Endpoints
+# ---------------------------------------------------------------------------
+
+class CreatePaymentResponse(BaseModel):
+    invoice_url: str = Field(description="URL to redirect user for Xendit invoice payment.")
+    external_id: str = Field(description="The unique external ID for this transaction.")
+
+class XenditWebhookPayload(BaseModel):
+    external_id: str
+    status: str
+
+
+@dev_reg_router.post(
+    "/developers/create-payment",
+    response_model=CreatePaymentResponse,
+    summary="Create Xendit Invoice for Pro Tier Upgrade",
+    description=(
+        "Generates a unique payment transaction and creates a Xendit Invoice for Pro Tier upgrade.\n\n"
+        "**Authentication:** Requires a valid Google OAuth session (Bearer token in `Authorization` header)."
+    )
+)
+def create_payment(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["user_id"]
+
+    # 1. Verify that user has an API Key
+    try:
+        res = supabase.table("api_keys").select("*").eq("user_id", user_id).execute()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal memeriksa data API key: {str(e)}"
+        )
+
+    if not res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API Key tidak ditemukan. Silakan register terlebih dahulu."
+        )
+
+    key_data = res.data[0]
+
+    # 2. Generate a unique external_id
+    external_id = f"aksesibel-{uuid4()}"
+
+    # 3. Create a pending payment transaction record in the database
+    try:
+        insert_res = supabase.table("payment_transactions").insert({
+            "api_key_id": key_data["id"],
+            "external_id": external_id,
+            "amount": 49000,
+            "status": "pending"
+        }).execute()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal membuat transaksi pembayaran: {str(e)}"
+        )
+
+    if not insert_res.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Gagal menyimpan transaksi pembayaran."
+        )
+
+    # 4. Call Xendit Invoice API
+    xendit_url = "https://api.xendit.co/v2/invoices"
+    body = {
+        "external_id": external_id,
+        "amount": 49000,
+        "description": "Aksesibel Pro Tier - 30 hari",
+        "invoice_duration": 86400,
+        "currency": "IDR",
+        "success_redirect_url": f"{settings.FRONTEND_URL}/developers?payment=success&external_id={external_id}",
+        "failure_redirect_url": f"{settings.FRONTEND_URL}/developers?payment=failed&external_id={external_id}"
+    }
+
+    # Encode credentials for Basic Auth
+    encoded_auth = base64.b64encode(f"{settings.XENDIT_SECRET_KEY}:".encode("utf-8")).decode("utf-8")
+    headers = {
+        "Authorization": f"Basic {encoded_auth}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = httpx.post(xendit_url, json=body, headers=headers, timeout=10.0)
+        response.raise_for_status()
+        xendit_data = response.json()
+    except Exception as http_err:
+        # Update transaction status to failed on failure
+        try:
+            supabase.table("payment_transactions").update({
+                "status": "failed"
+            }).eq("external_id", external_id).execute()
+        except Exception:
+            pass
+        
+        detail_msg = "Gagal memproses transaksi dengan penyedia pembayaran."
+        if isinstance(http_err, httpx.HTTPStatusError):
+            try:
+                err_detail = http_err.response.json()
+                detail_msg += f" Detail: {err_detail.get('message', '')}"
+            except Exception:
+                detail_msg += f" (HTTP {http_err.response.status_code})"
+        else:
+            detail_msg += f" ({str(http_err)})"
+
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=detail_msg
+        )
+
+    xendit_invoice_id = xendit_data.get("id")
+    invoice_url = xendit_data.get("invoice_url")
+
+    # 5. Update transaction with xendit_invoice_id
+    try:
+        supabase.table("payment_transactions").update({
+            "xendit_invoice_id": xendit_invoice_id
+        }).eq("external_id", external_id).execute()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal memperbarui data transaksi dengan invoice ID: {str(e)}"
+        )
+
+    return CreatePaymentResponse(invoice_url=invoice_url, external_id=external_id)
+
+
+@dev_reg_router.post(
+    "/webhooks/xendit/callback",
+    summary="Xendit Invoice Webhook Callback",
+    description="Handles invoice status updates from Xendit webhook callback."
+)
+def xendit_webhook_callback(
+    payload: XenditWebhookPayload,
+    x_callback_token: Optional[str] = Header(None, alias="x-callback-token")
+):
+    # 1. Verify callback token
+    if not x_callback_token or x_callback_token != settings.XENDIT_WEBHOOK_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token callback tidak valid atau tidak cocok."
+        )
+
+    external_id = payload.external_id
+    status_lower = payload.status.lower()
+
+    # 2. Find payment transaction in DB
+    try:
+        tx_res = supabase.table("payment_transactions").select("*").eq("external_id", external_id).execute()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal mengambil data transaksi: {str(e)}"
+        )
+
+    if not tx_res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transaksi pembayaran tidak ditemukan."
+        )
+
+    tx_data = tx_res.data[0]
+    api_key_id = tx_data["api_key_id"]
+
+    # 3. Update payment transaction status
+    now_str = datetime.now(timezone.utc).isoformat()
+    valid_db_statuses = {"pending", "paid", "expired", "failed"}
+    db_status = status_lower
+    
+    if status_lower == "settled":
+        db_status = "paid"
+    
+    if db_status in valid_db_statuses:
+        update_tx_payload = {"status": db_status}
+        if db_status == "paid":
+            update_tx_payload["paid_at"] = now_str
+        
+        try:
+            supabase.table("payment_transactions").update(update_tx_payload).eq("external_id", external_id).execute()
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Gagal memperbarui status transaksi: {str(e)}"
+            )
+
+    # 4. If status is paid/settled, upgrade the user's API key
+    if status_lower in ("paid", "settled"):
+        pro_expires_at = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+        try:
+            supabase.table("api_keys").update({
+                "tier": "pro",
+                "rate_limit_per_day": 2000,
+                "pro_expires_at": pro_expires_at
+            }).eq("id", api_key_id).execute()
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Gagal mengupgrade API key: {str(e)}"
+            )
+
+    return {"status": "success"}
+
+
+class PaymentStatusResponse(BaseModel):
+    external_id: str = Field(description="Unique order ID generated by the backend.")
+    status: str = Field(description="Payment status: pending, paid, expired, failed.")
+    xendit_status: Optional[str] = Field(default=None, description="Raw payment status from Xendit.")
+
+
+@dev_reg_router.get(
+    "/developers/payment-status/{external_id}",
+    response_model=PaymentStatusResponse,
+    summary="Check and sync status of a payment transaction",
+    description=(
+        "Retrieves the status of a payment transaction from database and queries Xendit Invoice API to verify/sync.\n\n"
+        "**Authentication:** Requires a valid Google OAuth session (Bearer token in `Authorization` header)."
+    )
+)
+def get_payment_status(external_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["user_id"]
+
+    # 1. Verify that user has an API Key
+    try:
+        api_res = supabase.table("api_keys").select("*").eq("user_id", user_id).execute()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal memeriksa data API key: {str(e)}"
+        )
+
+    if not api_res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API Key tidak ditemukan."
+        )
+
+    key_data = api_res.data[0]
+
+    # 2. Get payment transaction from database
+    try:
+        tx_res = supabase.table("payment_transactions").select("*").eq("external_id", external_id).execute()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal mengambil data transaksi: {str(e)}"
+        )
+
+    if not tx_res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transaksi tidak ditemukan."
+        )
+
+    tx = tx_res.data[0]
+
+    # 3. Security check: verify this transaction belongs to the logged-in user
+    if tx["api_key_id"] != key_data["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Anda tidak memiliki akses ke transaksi ini."
+        )
+
+    xendit_status = None
+
+    # 4. Call Xendit API to check status
+    if tx["xendit_invoice_id"]:
+        xendit_url = f"https://api.xendit.co/v2/invoices/{tx['xendit_invoice_id']}"
+        encoded_auth = base64.b64encode(f"{settings.XENDIT_SECRET_KEY}:".encode("utf-8")).decode("utf-8")
+        headers = {
+            "Authorization": f"Basic {encoded_auth}"
+        }
+
+        try:
+            response = httpx.get(xendit_url, headers=headers, timeout=10.0)
+            response.raise_for_status()
+            xendit_data = response.json()
+            xendit_status = xendit_data.get("status")
+        except Exception as http_err:
+            # Log error or keep going with DB status
+            xendit_status = None
+
+        if xendit_status:
+            status_lower = xendit_status.lower()
+            
+            # If status matches PAID / SETTLED in Xendit, and our DB is still pending, upgrade
+            if status_lower in ("paid", "settled") and tx["status"] == "pending":
+                now_str = datetime.now(timezone.utc).isoformat()
+                pro_expires_at = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                
+                # Update payment_transactions
+                try:
+                    supabase.table("payment_transactions").update({
+                        "status": "paid",
+                        "paid_at": now_str
+                    }).eq("external_id", external_id).execute()
+                    tx["status"] = "paid"
+                except Exception:
+                    pass
+
+                # Update api_keys
+                try:
+                    supabase.table("api_keys").update({
+                        "tier": "pro",
+                        "rate_limit_per_day": 2000,
+                        "pro_expires_at": pro_expires_at
+                    }).eq("id", key_data["id"]).execute()
+                except Exception:
+                    pass
+            
+            # Else check if Xendit is expired/failed and sync it
+            elif status_lower in ("expired", "failed") and tx["status"] == "pending":
+                try:
+                    supabase.table("payment_transactions").update({
+                        "status": status_lower
+                    }).eq("external_id", external_id).execute()
+                    tx["status"] = status_lower
+                except Exception:
+                    pass
+
+    return PaymentStatusResponse(
+        external_id=external_id,
+        status=tx["status"],
+        xendit_status=xendit_status
+    )
