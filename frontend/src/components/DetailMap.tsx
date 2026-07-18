@@ -9,7 +9,13 @@ import "leaflet/dist/leaflet.css";
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 19);
+    if (map && center) {
+      try {
+        map.setView(center, 19);
+      } catch (err) {
+        console.warn("Leaflet setView warning:", err);
+      }
+    }
   }, [center, map]);
   return null;
 }

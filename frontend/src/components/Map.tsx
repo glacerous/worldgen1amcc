@@ -17,7 +17,13 @@ L.Icon.Default.mergeOptions({
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 15);
+    if (map && center) {
+      try {
+        map.setView(center, 15);
+      } catch (err) {
+        console.warn("Leaflet setView warning:", err);
+      }
+    }
   }, [center, map]);
   return null;
 }
@@ -49,7 +55,7 @@ export default function Map({ center, onChange }: MapProps) {
       center={center}
       zoom={13}
       scrollWheelZoom={false}
-      className="h-64 w-full rounded-md border border-line z-0"
+      className="h-[380px] w-full rounded-md border border-line z-0"
     >
       <ChangeView center={center} />
       <TileLayer
