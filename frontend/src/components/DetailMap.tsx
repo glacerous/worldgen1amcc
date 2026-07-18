@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Tooltip, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -42,10 +42,10 @@ interface DetailMapProps {
 }
 
 export default function DetailMap({ center, buildingName }: DetailMapProps) {
-  const mapKeyRef = useRef(Math.random().toString());
+  const [mapKey] = useState(() => `detail-map-${center[0]}-${center[1]}`);
   return (
     <MapContainer
-      key={mapKeyRef.current}
+      key={mapKey}
       center={center}
       zoom={19}
       maxZoom={20}
