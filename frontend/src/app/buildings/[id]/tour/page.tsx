@@ -75,6 +75,16 @@ function getErrorMessage(err: unknown): string {
 interface PannellumViewer {
   getPitch: () => number;
   getYaw: () => number;
+  addScene: (sceneId: string, config: Record<string, unknown>) => void;
+  addHotSpot: (config: Record<string, unknown>) => void;
+  removeHotSpot: (hotSpotId: string) => void;
+  destroy: () => void;
+  getScene: () => string;
+  getConfig: () => { hotSpots?: { id?: string; div?: HTMLElement }[] };
+  loadScene: (sceneId: string) => void;
+  lookAt: (pitch: number, yaw: number, hfov: number, duration: number, callback?: () => void) => void;
+  on: (event: string, callback: () => void) => void;
+  setHfov: (hfov: number) => void;
 }
 
 export default function BuildingTourPage() {
