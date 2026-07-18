@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Tooltip, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,7 +9,7 @@ import "leaflet/dist/leaflet.css";
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    if (map && center) {
+    if (map && typeof map.setView === "function" && map.getContainer()) {
       try {
         map.setView(center, 19);
       } catch (err) {
@@ -42,8 +42,10 @@ interface DetailMapProps {
 }
 
 export default function DetailMap({ center, buildingName }: DetailMapProps) {
+  const mapKeyRef = useRef(Math.random().toString());
   return (
     <MapContainer
+      key={mapKeyRef.current}
       center={center}
       zoom={19}
       maxZoom={20}

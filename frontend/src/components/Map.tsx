@@ -17,7 +17,7 @@ L.Icon.Default.mergeOptions({
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    if (map && center) {
+    if (map && typeof map.setView === "function" && map.getContainer()) {
       try {
         map.setView(center, 15);
       } catch (err) {
@@ -35,6 +35,7 @@ interface MapProps {
 
 export default function Map({ center, onChange }: MapProps) {
   const markerRef = useRef<any>(null);
+  const mapKeyRef = useRef(Math.random().toString());
 
   // Drag handlers for updating coordinates when pin is moved
   const eventHandlers = useMemo(
@@ -52,6 +53,7 @@ export default function Map({ center, onChange }: MapProps) {
 
   return (
     <MapContainer
+      key={mapKeyRef.current}
       center={center}
       zoom={13}
       scrollWheelZoom={false}
