@@ -35,13 +35,26 @@ interface Hotspot {
   label: string | null;
 }
 
+interface PannellumViewerInstance {
+  addScene: (sceneId: string, config: Record<string, unknown>) => void;
+  addHotSpot: (config: Record<string, unknown>) => void;
+  removeHotSpot: (hotSpotId: string) => void;
+  destroy: () => void;
+  getScene: () => string;
+  getConfig: () => { hotSpots?: { id?: string; div?: HTMLElement }[] };
+  loadScene: (sceneId: string) => void;
+  lookAt: (pitch: number, yaw: number, hfov: number, duration: number, callback?: () => void) => void;
+  on: (event: string, callback: () => void) => void;
+  setHfov: (hfov: number) => void;
+}
+
 interface TourViewerProps {
   fallbackImageUrl: string;
   annotations: Annotation[];
   hotspots: Hotspot[];
   onNavigateToScene?: (targetSceneId: string) => void;
   editMode?: boolean;
-  pannellumRef?: React.RefObject<any>;
+  pannellumRef?: React.RefObject<{ getViewer: () => PannellumViewerInstance | null } | null>;
 }
 
 export default function TourViewer({
@@ -53,6 +66,7 @@ export default function TourViewer({
   pannellumRef,
 }: TourViewerProps) {
   const [selectedHotspot, setSelectedHotspot] = useState<Annotation | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -69,13 +83,35 @@ export default function TourViewer({
   }, [selectedHotspot]);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<any>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<PannellumViewerInstance | null>(null);
   const isNavigatingRef = useRef(false);
+
+  // Sync fullscreen state
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement && document.fullscreenElement === wrapperRef.current);
+    };
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!wrapperRef.current) return;
+    if (!document.fullscreenElement) {
+      wrapperRef.current.requestFullscreen().catch((err) => {
+        console.error("Error entering fullscreen:", err);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   // Expose the viewer instance to the parent component safely
   useEffect(() => {
     if (pannellumRef) {
-      (pannellumRef as any).current = {
+      const ref = pannellumRef as unknown as { current: { getViewer: () => PannellumViewerInstance | null } | null };
+      ref.current = {
         getViewer: () => viewerRef.current,
       };
     }
@@ -111,32 +147,33 @@ export default function TourViewer({
         transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
       }
 
+      /* Navigation Hotspot Pulse - BLUE COLOR */
       .custom-hotspot-pulse {
         position: absolute !important;
         inset: 4px !important;
         border-radius: 50% !important;
-        border: 2px solid #14B8A6 !important;
-        background: rgba(20, 184, 166, 0.2) !important;
-        box-shadow: 0 0 12px #14B8A6, inset 0 0 8px #14B8A6 !important;
+        border: 2.5px solid #2563EB !important;
+        background: rgba(37, 99, 235, 0.2) !important;
+        box-shadow: 0 0 12px #2563EB, inset 0 0 8px #2563EB !important;
         pointer-events: none !important;
-        animation: hotspot-pulse-wave 2s infinite ease-out !important;
+        animation: hotspot-pulse-wave-blue 2s infinite ease-out !important;
       }
 
-      @keyframes hotspot-pulse-wave {
+      @keyframes hotspot-pulse-wave-blue {
         0% {
           transform: scale(0.92);
           opacity: 0.85;
-          box-shadow: 0 0 8px #14B8A6, inset 0 0 4px #14B8A6;
+          box-shadow: 0 0 8px #2563EB, inset 0 0 4px #2563EB;
         }
         50% {
           transform: scale(1.03);
           opacity: 1;
-          box-shadow: 0 0 16px #14B8A6, inset 0 0 10px #14B8A6;
+          box-shadow: 0 0 16px #2563EB, inset 0 0 10px #2563EB;
         }
         100% {
           transform: scale(0.92);
           opacity: 0.85;
-          box-shadow: 0 0 8px #14B8A6, inset 0 0 4px #14B8A6;
+          box-shadow: 0 0 8px #2563EB, inset 0 0 4px #2563EB;
         }
       }
 
@@ -167,7 +204,7 @@ export default function TourViewer({
       }
 
       .custom-hotspot-nav:hover .custom-hotspot-arrow-wrapper {
-        color: #E2FFF8 !important;
+        color: #DBEAFE !important;
       }
 
       .custom-hotspot-label-upgraded {
@@ -195,9 +232,55 @@ export default function TourViewer({
         z-index: 9999 !important;
       }
 
-      .custom-hotspot-nav:hover .custom-hotspot-label-upgraded {
+      .custom-hotspot-nav:hover .custom-hotspot-label-upgraded,
+      .custom-hotspot-ann:hover .custom-hotspot-label-upgraded {
         opacity: 1 !important;
         transform: translate3d(-50%, 0, 0) scale(1) !important;
+      }
+
+      /* Audit Annotation Pin Styles */
+      .custom-hotspot-ann {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+
+      .custom-ann-pin {
+        width: 32px !important;
+        height: 32px !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border: 2.5px solid #FFFFFF !important;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.35) !important;
+        color: #FFFFFF !important;
+        transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+        cursor: pointer !important;
+      }
+
+      .custom-ann-pin:hover {
+        transform: scale(1.18) !important;
+      }
+
+      .custom-ann-pin-met {
+        background-color: #0F5C5C !important; /* Teal Solid */
+        box-shadow: 0 0 12px rgba(15, 92, 92, 0.6) !important;
+      }
+
+      .custom-ann-pin-not_met {
+        background-color: #EF4444 !important; /* Red Solid */
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.6) !important;
+      }
+
+      .custom-ann-pin-unknown {
+        background-color: #9CA3AF !important; /* Grey Solid */
+        box-shadow: 0 0 12px rgba(156, 163, 175, 0.6) !important;
+      }
+
+      .custom-ann-svg {
+        width: 16px !important;
+        height: 16px !important;
       }
     `;
     document.head.appendChild(style);
@@ -226,9 +309,12 @@ export default function TourViewer({
   // Sync Pannellum configuration dynamically
   useEffect(() => {
     try {
-      if (typeof window === "undefined" || !(window as any).pannellum || !containerRef.current) return;
+      if (typeof window === "undefined" || !containerRef.current) return;
 
-      const pnlm = (window as any).pannellum;
+      const win = window as unknown as { pannellum?: { viewer: (container: HTMLElement, config: Record<string, unknown>) => PannellumViewerInstance } };
+      if (!win.pannellum) return;
+
+      const pnlm = win.pannellum;
 
       // 1. Initialize viewer once as a tour configuration to support multi-scene transitions and dynamic configs
       if (!viewerRef.current) {
@@ -251,11 +337,12 @@ export default function TourViewer({
 
         // Handle the Street View zoom-out effect when loading finishes
         viewerRef.current.on("load", () => {
-          if (isNavigatingRef.current) {
+          if (isNavigatingRef.current && viewerRef.current) {
             isNavigatingRef.current = false;
             viewerRef.current.setHfov(35);
+            const v = viewerRef.current;
             setTimeout(() => {
-              viewerRef.current.lookAt(0, 0, 100, 500);
+              v.lookAt(0, 0, 100, 500);
             }, 50);
           }
         });
@@ -264,9 +351,9 @@ export default function TourViewer({
       const viewer = viewerRef.current;
 
       // 2. Prepare the list of hotspots for the active scene
-      const pnlmHotspots: any[] = [];
+      const pnlmHotspots: Record<string, unknown>[] = [];
 
-      // Annotations (info spots)
+      // Annotations (info spots as custom checkmark/warning/grey circles)
       (annotations || [])
         .filter((ann) => ann.audit_results?.audit_criteria)
         .forEach((ann) => {
@@ -274,15 +361,56 @@ export default function TourViewer({
             id: `ann-${ann.id}`,
             pitch: ann.pitch,
             yaw: ann.yaw,
-            type: "info",
-            text: ann.audit_results?.audit_criteria?.short_label || ann.audit_results?.audit_criteria?.code || "Kriteria",
-            clickHandlerFunc: () => {
-              setSelectedHotspot(ann);
+            type: "custom",
+            cssClass: "custom-hotspot-ann",
+            createTooltipFunc: (hotSpotDiv: HTMLElement) => {
+              if (hotSpotDiv.querySelector(".custom-ann-pin")) return;
+
+              hotSpotDiv.style.setProperty("width", "36px", "important");
+              hotSpotDiv.style.setProperty("height", "36px", "important");
+              hotSpotDiv.style.setProperty("margin-left", "-18px", "important");
+              hotSpotDiv.style.setProperty("margin-top", "-18px", "important");
+              hotSpotDiv.style.setProperty("background", "transparent", "important");
+              hotSpotDiv.style.setProperty("border", "none", "important");
+              hotSpotDiv.style.setProperty("display", "flex", "important");
+              hotSpotDiv.style.setProperty("align-items", "center", "important");
+              hotSpotDiv.style.setProperty("justify-content", "center", "important");
+
+              const inner = document.createElement("div");
+              const status = ann.audit_results?.status || "unknown";
+              inner.className = `custom-ann-pin custom-ann-pin-${status}`;
+
+              const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+              svg.setAttribute("viewBox", "0 0 24 24");
+              svg.setAttribute("class", "custom-ann-svg");
+
+              const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+              if (status === "met") {
+                path.setAttribute("d", "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z");
+              } else if (status === "not_met") {
+                path.setAttribute("d", "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z");
+              } else {
+                path.setAttribute("d", "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H6c0-3.31 2.69-6 6-6s6 2.69 6 6c0 1.04-.42 1.99-1.07 2.75z");
+              }
+              path.setAttribute("fill", "currentColor");
+              svg.appendChild(path);
+              inner.appendChild(svg);
+              hotSpotDiv.appendChild(inner);
+
+              hotSpotDiv.addEventListener("click", (e) => {
+                e.stopPropagation();
+                setSelectedHotspot(ann);
+              });
+
+              const label = document.createElement("span");
+              label.className = "custom-hotspot-label-upgraded";
+              label.innerText = ann.audit_results?.audit_criteria?.short_label || ann.audit_results?.audit_criteria?.code || ann.label;
+              hotSpotDiv.appendChild(label);
             },
           });
         });
 
-      // Navigation hotspots (custom 3D flat layout)
+      // Navigation hotspots (custom 3D flat layout - BLUE ARROW)
       (hotspots || []).forEach((hotspot) => {
         pnlmHotspots.push({
           id: `nav-${hotspot.id}`,
@@ -293,7 +421,6 @@ export default function TourViewer({
           createTooltipFunc: (hotSpotDiv: HTMLElement) => {
             if (hotSpotDiv.querySelector(".custom-hotspot-inner-upgraded")) return;
 
-            // Force precise dimensions, offsets, and centering inline to prevent top-left shifting
             hotSpotDiv.style.setProperty("width", "48px", "important");
             hotSpotDiv.style.setProperty("height", "48px", "important");
             hotSpotDiv.style.setProperty("margin-left", "-24px", "important");
@@ -308,7 +435,6 @@ export default function TourViewer({
             const inner = document.createElement("div");
             inner.className = "custom-hotspot-inner-upgraded";
             
-            // JavaScript-driven hover effect to ensure perfect responsive transition even if style injection has slight delay
             hotSpotDiv.addEventListener("mouseenter", () => {
               inner.style.setProperty("transform", "perspective(200px) rotateX(48deg) scale(1.15)", "important");
             });
@@ -316,16 +442,13 @@ export default function TourViewer({
               inner.style.setProperty("transform", "perspective(200px) rotateX(60deg)", "important");
             });
             
-            // Pulse circle (bottom ring)
             const pulse = document.createElement("div");
             pulse.className = "custom-hotspot-pulse";
             inner.appendChild(pulse);
             
-            // SVG Arrow wrapper
             const arrowWrapper = document.createElement("div");
             arrowWrapper.className = "custom-hotspot-arrow-wrapper";
             
-            // Create SVG Arrow pointing forward
             const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
             svg.setAttribute("viewBox", "0 0 24 24");
             svg.setAttribute("class", "custom-hotspot-arrow-svg");
@@ -346,7 +469,6 @@ export default function TourViewer({
           },
           clickHandlerFunc: () => {
             isNavigatingRef.current = true;
-            // Smoothly zoom in towards target and load scene on complete
             viewer.lookAt(hotspot.pitch, hotspot.yaw, 35, 400, () => {
               onNavigateToScene?.(hotspot.target_scene_id);
             });
@@ -359,7 +481,6 @@ export default function TourViewer({
       if (currentScene !== fallbackImageUrl) {
         const sceneId = fallbackImageUrl; // Unique ID based on the URL
         
-        // Register the scene configuration dynamically
         viewer.addScene(sceneId, {
           type: "equirectangular",
           panorama: fallbackImageUrl,
@@ -367,20 +488,16 @@ export default function TourViewer({
           autoLoad: true,
         });
 
-        // Navigate to the scene smoothly
         viewer.loadScene(sceneId);
       } else {
-        // Dynamic Hotspot list sync for active scene (avoids reloading WebGL image)
         const currentConfig = viewer.getConfig();
         const currentHotspots = [...(currentConfig.hotSpots || [])];
         
-        // Remove all old hotspots safely
-        currentHotspots.forEach((h: any) => {
+        currentHotspots.forEach((h: { id?: string; div?: HTMLElement }) => {
           if (h.id) {
             if (h.div) {
               viewer.removeHotSpot(h.id);
             } else {
-              // Splicing manually if DOM element is not rendered yet to prevent parentNode TypeErrors
               if (currentConfig.hotSpots) {
                 const idx = currentConfig.hotSpots.indexOf(h);
                 if (idx > -1) {
@@ -391,15 +508,14 @@ export default function TourViewer({
           }
         });
 
-        // Add all new hotspots
-        pnlmHotspots.forEach((h: any) => {
+        pnlmHotspots.forEach((h) => {
           viewer.addHotSpot(h);
         });
       }
     } catch (err) {
       console.error("CRITICAL ERROR IN TOURVIEWER EFFECT:", err);
     }
-  }, [fallbackImageUrl, annotations, hotspots, editMode]);
+  }, [fallbackImageUrl, annotations, hotspots, editMode, onNavigateToScene]);
 
   // Clean up viewer on component unmount
   useEffect(() => {
@@ -412,19 +528,39 @@ export default function TourViewer({
   }, []);
 
   return (
-    <div className="relative w-full h-[65vh] border border-line rounded-md overflow-hidden bg-bg/20">
+    <div 
+      ref={wrapperRef}
+      className={`relative w-full border border-line rounded-md overflow-hidden bg-bg/20 transition-all ${
+        isFullscreen ? "h-screen w-screen z-50 bg-bg" : "h-[65vh] z-0"
+      }`}
+    >
       {/* Container where native Pannellum renders */}
       <div ref={containerRef} className="w-full h-full" />
+
+      {/* Fullscreen Toggle Button */}
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        className="absolute top-4 right-4 z-20 p-2 bg-surface/90 border border-line rounded-md shadow-md text-ink hover:text-accent transition-colors cursor-pointer flex items-center justify-center focus:outline-none"
+        title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
+      >
+        {isFullscreen ? (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9L4 4m0 0l5 0M4 4v5m11-5l5 5m0-5h-5m5 0v5m-5 11l5 5m0 0h-5m5 0v-5m-11 5l-5-5m0 5h5m-5 0v-5" />
+          </svg>
+        ) : (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+          </svg>
+        )}
+      </button>
 
       {/* Target/Crosshair Center Overlay in Edit Mode */}
       {editMode && (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
           <div className="relative w-8 h-8 flex items-center justify-center">
-            {/* Horizontal Line */}
             <div className="absolute w-full h-[2px] bg-accent/70"></div>
-            {/* Vertical Line */}
             <div className="absolute h-full w-[2px] bg-accent/70"></div>
-            {/* Inner Dot */}
             <div className="w-2.5 h-2.5 rounded-full bg-accent border border-white"></div>
           </div>
           <span className="absolute mt-14 bg-surface border border-line px-2 py-0.5 rounded text-[10px] text-ink font-semibold shadow-md whitespace-nowrap">
@@ -439,8 +575,8 @@ export default function TourViewer({
         const statusConfig = statusMap[selectedHotspot.audit_results.status] || statusMap.unknown;
 
         return (
-          <div className="absolute top-4 right-4 left-4 sm:left-auto z-10 max-w-sm sm:w-80 bg-surface/95 backdrop-blur-md border border-line rounded-md p-4 shadow-md font-sans text-xs max-h-[70vh] overflow-y-auto">
-            {/* Header: criteria short label & badge */}
+          <div className="absolute top-16 right-4 left-4 sm:left-auto z-20 max-w-sm sm:w-80 bg-surface/95 backdrop-blur-md border border-line rounded-md p-4 shadow-md font-sans text-xs max-h-[70vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex flex-col gap-1.5 pb-2 border-b border-line mb-3">
               <div className="flex items-start justify-between gap-2">
                 <span className="font-sans font-semibold text-[13px] text-ink leading-tight">
@@ -457,18 +593,18 @@ export default function TourViewer({
               )}
             </div>
 
-            {/* Body Description */}
+            {/* Description */}
             <p className="font-sans font-medium text-ink leading-relaxed mb-3 text-[12px]">
               {criteria.description}
             </p>
 
-            {/* Agent reasoning block */}
+            {/* Reasoning */}
             <div className="bg-bg/40 border border-line/50 p-2.5 rounded-md text-[11px] text-ink-muted mb-4 max-h-36 overflow-y-auto">
               <span className="block font-semibold mb-0.5 text-ink/75">Analisis AI:</span>
               {selectedHotspot.audit_results.reasoning || "Tidak ada rincian penalaran."}
             </div>
 
-            {/* Action buttons */}
+            {/* Actions */}
             <div className="flex justify-between items-center pt-1">
               <span className="text-[10px] font-sans text-ink-muted capitalize">
                 Kategori: {criteria.category}

@@ -65,10 +65,22 @@ interface Hotspot {
   label: string | null;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+interface PannellumViewer {
+  getPitch: () => number;
+  getYaw: () => number;
+}
+
 export default function BuildingTourPage() {
   const params = useParams();
   const id = params.id as string;
-  const pannellumRef = useRef<any>(null);
+  const pannellumRef = useRef<{ getViewer: () => PannellumViewer | null } | null>(null);
   const { user, token } = useAuth();
 
   const [building, setBuilding] = useState<Building | null>(null);
@@ -79,8 +91,13 @@ export default function BuildingTourPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Building-wide analytics & visual filters
+  const [allAnnotations, setAllAnnotations] = useState<Annotation[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("Semua");
+  const [activeTab, setActiveTab] = useState<"navigasi" | "audit" | "kelola">("navigasi");
+
   // Edit Mode states
-  const [editMode, setEditMode] = useState(false);
+  const [editModeState, setEditModeState] = useState(false);
   const [uploadLabel, setUploadLabel] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploadingScene, setIsUploadingScene] = useState(false);
@@ -90,20 +107,53 @@ export default function BuildingTourPage() {
   const [hotspotLabel, setHotspotLabel] = useState("");
   const [isAddingHotspot, setIsAddingHotspot] = useState(false);
 
-  const [auditRuns, setAuditRuns] = useState<any[]>([]);
-  const [isAuditOwner, setIsAuditOwner] = useState(false);
+  interface AuditRun {
+    id: string;
+    building_id: string;
+    user_id: string;
+    created_at: string;
+  }
+
+  interface AuditResult {
+    id: string;
+    audit_run_id: string;
+    status: "met" | "not_met" | "unknown" | "na";
+    reasoning: string | null;
+    audit_criteria: {
+      code: string;
+      description: string;
+      category: string;
+      short_label?: string | null;
+    } | null;
+  }
+
+  const [auditRuns, setAuditRuns] = useState<AuditRun[]>([]);
 
   // New Annotation states
-  const [auditResults, setAuditResults] = useState<any[]>([]);
+  const [auditResults, setAuditResults] = useState<AuditResult[]>([]);
   const [selectedAuditResultId, setSelectedAuditResultId] = useState("");
   const [isAddingAnnotation, setIsAddingAnnotation] = useState(false);
 
-  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const getSceneLabel = (scene?: Scene | null) => {
+    if (!scene) return "Area Tanpa Nama";
+    if (!scene.label || scene.label.trim() === "" || UUID_REGEX.test(scene.label) || scene.label.includes(".")) {
+      return "Area Tanpa Nama";
+    }
+    return scene.label;
+  };
+
+  // Calculate if user owns any audit run for this building dynamically in render to avoid cascading useEffect calls
+  const isAuditOwner = user && auditRuns.length > 0
+    ? auditRuns.some((run: AuditRun) => run.user_id === user.id)
+    : false;
+
+  const editMode = isAuditOwner && editModeState;
 
   // Load building and list of scenes
   useEffect(() => {
     if (!id || !UUID_REGEX.test(id)) return;
     loadBuildingAndScenes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Load annotations & hotspots for active scene
@@ -112,30 +162,14 @@ export default function BuildingTourPage() {
     loadActiveSceneData(activeScene.id);
   }, [activeScene]);
 
-  // Calculate if user owns any audit run for this building
-  useEffect(() => {
-    if (user && auditRuns.length > 0) {
-      const ownsAudit = auditRuns.some((run: any) => run.user_id === user.id);
-      setIsAuditOwner(ownsAudit);
-    } else {
-      setIsAuditOwner(false);
-    }
-  }, [user, auditRuns]);
-
-  // Disable editMode if user is not the audit owner
-  useEffect(() => {
-    if (!isAuditOwner) {
-      setEditMode(false);
-    }
-  }, [isAuditOwner]);
-
   async function loadBuildingAndScenes() {
     try {
-      const [buildingRes, scenesRes, runsRes, resultsRes] = await Promise.all([
+      const [buildingRes, scenesRes, runsRes, resultsRes, annotationsRes] = await Promise.all([
         fetch(`${BACKEND_URL}/buildings/${id}`),
         fetch(`${BACKEND_URL}/scenes?building_id=${id}`),
         fetch(`${BACKEND_URL}/audit/runs/${id}`),
         fetch(`${BACKEND_URL}/audit/results/${id}`),
+        fetch(`${BACKEND_URL}/annotations/${id}`),
       ]);
 
       if (!buildingRes.ok) {
@@ -157,10 +191,12 @@ export default function BuildingTourPage() {
       const scenesData: Scene[] = await scenesRes.json();
       const runsData = runsRes.ok ? await runsRes.json() : [];
       const auditResultsData = resultsRes.ok ? await resultsRes.json() : [];
+      const allAnnotationsData = annotationsRes.ok ? await annotationsRes.json() : [];
 
       setBuilding(buildingData);
       setAuditRuns(runsData);
       setAuditResults(auditResultsData);
+      setAllAnnotations(allAnnotationsData);
       
       const panoramaScenes = scenesData.filter((s) => s.type === "panorama_360");
       setScenes(panoramaScenes);
@@ -178,8 +214,8 @@ export default function BuildingTourPage() {
       } else {
         setActiveScene(null);
       }
-    } catch (err: any) {
-      setError(err.message || "Terjadi kesalahan koneksi.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Terjadi kesalahan koneksi.");
     } finally {
       setIsLoading(false);
     }
@@ -260,8 +296,8 @@ export default function BuildingTourPage() {
       setActiveScene(newScene);
       
       alert("Foto 360° baru berhasil diunggah.");
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
+    } catch (err) {
+      alert(`Error: ${getErrorMessage(err)}`);
     } finally {
       setIsUploadingScene(false);
     }
@@ -295,8 +331,8 @@ export default function BuildingTourPage() {
       alert("Scene berhasil dihapus.");
       setActiveScene(null);
       await loadBuildingAndScenes();
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
+    } catch (err) {
+      alert(`Error: ${getErrorMessage(err)}`);
     }
   };
 
@@ -353,8 +389,8 @@ export default function BuildingTourPage() {
       // Reload scene links for active scene
       await loadActiveSceneData(activeScene.id);
       alert("Penanda navigasi berhasil ditambahkan ke arah bidikan kamera!");
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
+    } catch (err) {
+      alert(`Error: ${getErrorMessage(err)}`);
     } finally {
       setIsAddingHotspot(false);
     }
@@ -383,8 +419,8 @@ export default function BuildingTourPage() {
       // Reload scene links for active scene
       await loadActiveSceneData(activeScene.id);
       alert("Penanda navigasi berhasil dihapus.");
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
+    } catch (err) {
+      alert(`Error: ${getErrorMessage(err)}`);
     }
   };
 
@@ -436,10 +472,13 @@ export default function BuildingTourPage() {
       setSelectedAuditResultId("");
 
       // Reload data
-      await loadActiveSceneData(activeScene.id);
+      await Promise.all([
+        loadActiveSceneData(activeScene.id),
+        fetch(`${BACKEND_URL}/annotations/${id}`).then(res => res.json()).then(setAllAnnotations).catch(console.error)
+      ]);
       alert("Anotasi audit berhasil ditambahkan ke arah bidikan kamera!");
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
+    } catch (err) {
+      alert(`Error: ${getErrorMessage(err)}`);
     } finally {
       setIsAddingAnnotation(false);
     }
@@ -466,10 +505,13 @@ export default function BuildingTourPage() {
       }
 
       // Reload data
-      await loadActiveSceneData(activeScene.id);
+      await Promise.all([
+        loadActiveSceneData(activeScene.id),
+        fetch(`${BACKEND_URL}/annotations/${id}`).then(res => res.json()).then(setAllAnnotations).catch(console.error)
+      ]);
       alert("Anotasi berhasil dihapus.");
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
+    } catch (err) {
+      alert(`Error: ${getErrorMessage(err)}`);
     }
   };
 
@@ -552,7 +594,7 @@ export default function BuildingTourPage() {
             {/* Mode Switcher Toggle */}
             {isAuditOwner && (
               <button
-                onClick={() => setEditMode(!editMode)}
+                onClick={() => setEditModeState(!editModeState)}
                 className={`inline-flex items-center justify-center gap-2 font-sans text-xs font-semibold px-4 py-2.5 rounded-md border transition-all cursor-pointer ${
                   editMode
                     ? "bg-ink text-white border-ink hover:bg-ink/90"
@@ -627,7 +669,7 @@ export default function BuildingTourPage() {
             ) : (
               isAuditOwner && (
                 <button
-                  onClick={() => setEditMode(true)}
+                  onClick={() => setEditModeState(true)}
                   className="bg-accent text-white px-5 py-2.5 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer"
                 >
                   Mulai Unggah di Mode Edit
@@ -646,7 +688,7 @@ export default function BuildingTourPage() {
                   <div className="flex justify-between items-center bg-surface border border-line px-4 py-2.5 rounded-md">
                     <span className="font-sans font-semibold text-xs text-ink flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-accent animate-ping" />
-                      Titik Aktif: <strong className="text-accent">{activeScene.label || "Tanpa Nama"}</strong>
+                      Titik Aktif: <strong className="text-accent">{getSceneLabel(activeScene)}</strong>
                     </span>
                     {editMode && (
                       <button
@@ -657,10 +699,39 @@ export default function BuildingTourPage() {
                       </button>
                     )}
                   </div>
+
+                  {/* Category Filter Chips */}
+                  <div className="flex items-center gap-2 py-1 select-none flex-wrap">
+                    <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider mr-2">
+                      Filter Kriteria:
+                    </span>
+                    {["Semua", "Mobilitas", "Netra", "Rungu"].map((cat) => {
+                      const isActive = selectedCategory === cat;
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setSelectedCategory(cat)}
+                          className={`px-3.5 py-1 rounded-full text-xs font-sans font-semibold tracking-wide transition-all border cursor-pointer ${
+                            isActive
+                              ? "bg-accent border-accent text-white shadow-xs"
+                              : "bg-surface border-line text-ink-muted hover:bg-bg/40"
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      );
+                    })}
+                  </div>
+
                   <TourViewer
                     pannellumRef={pannellumRef}
                     fallbackImageUrl={activeScene.file_url}
-                    annotations={annotations}
+                    annotations={annotations.filter((ann) => {
+                      if (selectedCategory === "Semua") return true;
+                      const catLower = selectedCategory.toLowerCase();
+                      return ann.audit_results?.audit_criteria?.category?.toLowerCase() === catLower;
+                    })}
                     hotspots={hotspots}
                     onNavigateToScene={handleNavigateToScene}
                     editMode={editMode}
@@ -674,231 +745,370 @@ export default function BuildingTourPage() {
 
             {/* Sidebar Controls (1/4 width) */}
             <div className="space-y-6">
-              {/* Scene Switcher List */}
-              <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
-                <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
-                  Daftar Area / Ruangan
-                </h3>
-                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-                  {scenes.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setActiveScene(s)}
-                      className={`w-full text-left font-sans text-xs px-3 py-2 rounded transition-all cursor-pointer flex justify-between items-center ${
-                        activeScene?.id === s.id
-                          ? "bg-accent/10 border-l-4 border-accent text-accent font-semibold"
-                          : "bg-bg/20 text-ink-muted hover:bg-bg/60 border-l-4 border-transparent"
-                      }`}
-                    >
-                      <span className="truncate">{s.label || "Tanpa Nama"}</span>
-                      {activeScene?.id === s.id && <span className="text-[9px] font-mono">AKTIF</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Edit Mode Controls */}
-              {editMode && activeScene && (
-                <>
-                  {/* Create Hotspot Panel */}
-                  <div className="bg-surface border border-line rounded-md p-4 space-y-3.5 shadow-sm">
-                    <div>
-                      <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
-                        Tambah Hotspot Navigasi
-                      </h3>
-                      <p className="text-[10px] text-ink-muted mt-1 leading-relaxed">
-                        Arahkan kamera 360° di sebelah kiri ke objek pintu/jalan tujuan, lalu isi form di bawah:
-                      </p>
-                    </div>
-
-                    <form onSubmit={handleCreateHotspot} className="space-y-3">
-                      <div>
-                        <label className="block text-[9px] font-bold text-ink uppercase mb-1">Target Ruangan Tujuan</label>
-                        <select
-                          value={targetSceneId}
-                          onChange={(e) => setTargetSceneId(e.target.value)}
-                          className="w-full bg-bg/40 border border-line rounded p-2 text-xs font-sans text-ink focus:outline-none focus:border-accent cursor-pointer"
-                          required
+              {!editMode ? (
+                /* Viewer Mode: Only show Scene Switcher List */
+                <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
+                  <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
+                    Daftar Area / Ruangan
+                  </h3>
+                  <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+                    {scenes.map((s) => {
+                      const annotationCount = allAnnotations.filter((ann) => ann.scene_id === s.id).length;
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => setActiveScene(s)}
+                          className={`w-full text-left font-sans text-xs px-3 py-2.5 rounded transition-all cursor-pointer flex items-center ${
+                            activeScene?.id === s.id
+                              ? "bg-accent/10 border-l-4 border-accent text-accent font-semibold"
+                              : "bg-bg/20 text-ink-muted hover:bg-bg/60 border-l-4 border-transparent"
+                          }`}
                         >
-                          <option value="">-- Pilih Ruangan --</option>
-                          {scenes
-                            .filter((s) => s.id !== activeScene.id)
-                            .map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.label || "Tanpa Nama"}
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] font-bold text-ink uppercase mb-1">Label Hotspot (Opsional)</label>
-                        <input
-                          type="text"
-                          placeholder="Contoh: Ke Toilet, Masuk Koridor"
-                          value={hotspotLabel}
-                          onChange={(e) => setHotspotLabel(e.target.value)}
-                          className="w-full bg-bg/40 border border-line rounded p-2 text-xs font-sans text-ink focus:outline-none focus:border-accent"
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={isAddingHotspot}
-                        className="w-full bg-accent text-white py-2 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {isAddingHotspot ? "Menyimpan..." : "Pasang di Arah Bidikan"}
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Hotspots List Manager */}
-                  <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
-                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
-                      Hotspot di Ruangan Ini
-                    </h3>
-                    {hotspots.length === 0 ? (
-                      <p className="text-[10px] text-ink-muted italic">Belum ada hotspot navigasi di area ini.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                        {hotspots.map((h) => {
-                          const targetScene = scenes.find((s) => s.id === h.target_scene_id);
-                          return (
-                            <div
-                              key={h.id}
-                              className="flex justify-between items-center bg-bg/30 border border-line/60 p-2 rounded text-xs font-sans"
-                            >
-                              <div className="truncate pr-2">
-                                <span className="font-semibold text-ink">{h.label || "Navigasi"}</span>
-                                <span className="block text-[9px] text-ink-muted truncate">
-                                  Tujuan: {targetScene?.label || "Area Lain"}
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => handleDeleteHotspot(h.id)}
-                                className="text-[10px] text-status-not-met hover:underline font-semibold cursor-pointer shrink-0"
-                              >
-                                Hapus
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Create Annotation Panel */}
-                  <div className="bg-surface border border-line rounded-md p-4 space-y-3.5 shadow-sm">
-                    <div>
-                      <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
-                        Tambah Anotasi Audit
-                      </h3>
-                      <p className="text-[10px] text-ink-muted mt-1 leading-relaxed">
-                        Arahkan kamera 360° ke objek fitur yang dimaksud, pilih kriteria audit, lalu pasang:
-                      </p>
-                    </div>
-
-                    <form onSubmit={handleCreateAnnotation} className="space-y-3">
-                      <div>
-                        <label className="block text-[9px] font-bold text-ink uppercase mb-1">Pilih Kriteria Audit</label>
-                        <select
-                          value={selectedAuditResultId}
-                          onChange={(e) => setSelectedAuditResultId(e.target.value)}
-                          className="w-full bg-bg/40 border border-line rounded p-2 text-xs font-sans text-ink focus:outline-none focus:border-accent cursor-pointer"
-                          required
-                        >
-                          <option value="">-- Pilih Kriteria --</option>
-                          {auditResults.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.audit_criteria?.short_label || r.audit_criteria?.code} ({r.status === "met" ? "Terpenuhi" : "Tidak Terpenuhi"})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={isAddingAnnotation}
-                        className="w-full bg-accent text-white py-2 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {isAddingAnnotation ? "Menyimpan..." : "Pasang di Arah Bidikan"}
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Annotations List Manager */}
-                  <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
-                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
-                      Anotasi di Ruangan Ini
-                    </h3>
-                    {annotations.length === 0 ? (
-                      <p className="text-[10px] text-ink-muted italic">Belum ada anotasi audit di area ini.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                        {annotations.map((ann) => (
-                          <div
-                            key={ann.id}
-                            className="flex justify-between items-center bg-bg/30 border border-line/60 p-2 rounded text-xs font-sans"
-                          >
-                            <div className="truncate pr-2">
-                              <span className="font-semibold text-ink">
-                                {ann.audit_results?.audit_criteria?.short_label || ann.audit_results?.audit_criteria?.code || ann.label}
-                              </span>
-                              <span className="block text-[9px] text-ink-muted truncate">
-                                Status: {ann.audit_results?.status === "met" ? "Terpenuhi" : "Tidak Terpenuhi"}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => handleDeleteAnnotation(ann.id)}
-                              className="text-[10px] text-status-not-met hover:underline font-semibold cursor-pointer shrink-0"
-                            >
-                              Hapus
-                            </button>
+                          <div className="w-[50px] h-[50px] rounded overflow-hidden shrink-0 border border-line mr-3 bg-bg flex items-center justify-center">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                              src={s.file_url} 
+                              alt={`Pratinjau untuk area ${getSceneLabel(s)}`}
+                              className="w-full h-full object-cover" 
+                            />
                           </div>
-                        ))}
+
+                          <div className="flex-1 min-w-0 flex flex-col space-y-1">
+                            <span className="truncate font-semibold text-ink leading-tight">
+                              {getSceneLabel(s)}
+                            </span>
+                            <span className="text-[10px] text-ink-muted font-medium flex items-center gap-1">
+                              <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                              </svg>
+                              {annotationCount} anotasi
+                            </span>
+                          </div>
+                          {activeScene?.id === s.id && (
+                            <span className="text-[9px] font-mono text-accent shrink-0 font-bold ml-2">AKTIF</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* Edit Mode: Show Tab Interface */
+                <div className="space-y-6">
+                  {/* Progress Indicator Card */}
+                  {(() => {
+                    const annotatedCriteriaCodes = new Set(
+                      allAnnotations
+                        .map((ann) => ann.audit_results?.audit_criteria?.code)
+                        .filter(Boolean)
+                    );
+                    const annotatedCount = annotatedCriteriaCodes.size;
+                    const totalCount = 12;
+                    const progressPercent = Math.min(100, Math.round((annotatedCount / totalCount) * 100));
+
+                    return (
+                      <div className="bg-surface border border-line rounded-md p-4 space-y-2.5 shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider">
+                            Progress Audit
+                          </span>
+                          <span className="text-xs font-sans font-semibold text-accent">
+                            {annotatedCount} dari {totalCount} Kriteria
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-line rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-accent rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
                       </div>
-                    )}
+                    );
+                  })()}
+
+                  {/* Tabs bar */}
+                  <div className="flex border-b border-line select-none">
+                    {[
+                      { id: "navigasi" as const, label: "Navigasi" },
+                      { id: "audit" as const, label: "Audit" },
+                      { id: "kelola" as const, label: "Kelola Area" }
+                    ].map((tab) => {
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`flex-1 pb-2 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer ${
+                            isActive
+                              ? "border-accent text-accent"
+                              : "border-transparent text-ink-muted hover:text-ink"
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Upload New Scene Form */}
-                  <div className="bg-surface border border-line rounded-md p-4 space-y-3.5 shadow-sm">
-                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
-                      Unggah Area Baru
-                    </h3>
-                    <form onSubmit={handleUploadScene} className="space-y-3">
-                      <div>
-                        <label className="block text-[9px] font-bold text-ink uppercase mb-1">Nama Area / Label</label>
-                        <input
-                          type="text"
-                          placeholder="Contoh: Koridor Utama, Ramp Depan"
-                          value={uploadLabel}
-                          onChange={(e) => setUploadLabel(e.target.value)}
-                          className="w-full bg-bg/40 border border-line rounded p-2 text-xs font-sans text-ink focus:outline-none focus:border-accent"
-                          required
-                        />
+                  {/* Tab Contents */}
+                  {activeTab === "navigasi" && activeScene && (
+                    <div className="space-y-6">
+                      {/* Create Hotspot Panel */}
+                      <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
+                        <div>
+                          <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
+                            Tambah Hotspot Navigasi
+                          </h3>
+                          <p className="text-[10px] text-ink-muted mt-1 leading-relaxed">
+                            Arahkan kamera 360° di sebelah kiri ke objek pintu/jalan tujuan, lalu isi form di bawah:
+                          </p>
+                        </div>
+
+                        <form onSubmit={handleCreateHotspot} className="space-y-3">
+                          <div>
+                            <label className="block text-[9px] font-bold text-ink uppercase mb-1">Target Ruangan Tujuan</label>
+                            <select
+                              value={targetSceneId}
+                              onChange={(e) => setTargetSceneId(e.target.value)}
+                              className="w-full bg-bg/40 border border-line rounded p-2 text-xs font-sans text-ink focus:outline-none focus:border-accent cursor-pointer"
+                              required
+                            >
+                              <option value="">-- Pilih Ruangan --</option>
+                              {scenes
+                                .filter((s) => s.id !== activeScene.id)
+                                .map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {getSceneLabel(s)}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[9px] font-bold text-ink uppercase mb-1">Label Hotspot (Opsional)</label>
+                            <input
+                              type="text"
+                              placeholder="Contoh: Ke Toilet, Masuk Koridor"
+                              value={hotspotLabel}
+                              onChange={(e) => setHotspotLabel(e.target.value)}
+                              className="w-full bg-bg/40 border border-line rounded p-2 text-xs font-sans text-ink focus:outline-none focus:border-accent"
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={isAddingHotspot}
+                            className="w-full bg-accent text-white py-2 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            {isAddingHotspot ? "Menyimpan..." : "Pasang di Arah Bidikan"}
+                          </button>
+                        </form>
                       </div>
 
-                      <div>
-                        <label className="block text-[9px] font-bold text-ink uppercase mb-1">File Foto 360°</label>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                          className="w-full text-xs font-sans text-ink-muted cursor-pointer"
-                          required
-                        />
+                      {/* Hotspots List Manager */}
+                      <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
+                        <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
+                          Hotspot di Ruangan Ini
+                        </h3>
+                        {hotspots.length === 0 ? (
+                          <p className="text-[10px] text-ink-muted italic">Belum ada hotspot navigasi di area ini.</p>
+                        ) : (
+                          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                            {hotspots.map((h) => {
+                              const targetScene = scenes.find((s) => s.id === h.target_scene_id);
+                              return (
+                                <div
+                                  key={h.id}
+                                  className="flex justify-between items-center bg-bg/30 border border-line/60 p-2 rounded text-xs font-sans"
+                                >
+                                  <div className="truncate pr-2">
+                                    <span className="font-semibold text-ink">{h.label || "Navigasi"}</span>
+                                    <span className="block text-[9px] text-ink-muted truncate">
+                                      Tujuan: {getSceneLabel(targetScene)}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleDeleteHotspot(h.id)}
+                                    className="text-[10px] text-status-not-met hover:underline font-semibold cursor-pointer shrink-0"
+                                  >
+                                    Hapus
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "audit" && activeScene && (
+                    <div className="space-y-6">
+                      {/* Create Annotation Panel */}
+                      <div className="bg-surface border border-line rounded-md p-4 space-y-3.5 shadow-sm">
+                        <div>
+                          <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
+                            Tambah Anotasi Audit
+                          </h3>
+                          <p className="text-[10px] text-ink-muted mt-1 leading-relaxed">
+                            Arahkan kamera 360° ke objek fitur yang dimaksud, pilih kriteria audit, lalu pasang:
+                          </p>
+                        </div>
+
+                        <form onSubmit={handleCreateAnnotation} className="space-y-3">
+                          <div>
+                            <label className="block text-[9px] font-bold text-ink uppercase mb-1">Pilih Kriteria Audit</label>
+                            <select
+                              value={selectedAuditResultId}
+                              onChange={(e) => setSelectedAuditResultId(e.target.value)}
+                              className="w-full bg-bg/40 border border-line rounded p-2 text-xs font-sans text-ink focus:outline-none focus:border-accent cursor-pointer"
+                              required
+                            >
+                              <option value="">-- Pilih Kriteria --</option>
+                              {auditResults.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.audit_criteria?.short_label || r.audit_criteria?.code} ({r.status === "met" ? "Terpenuhi" : "Tidak Terpenuhi"})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={isAddingAnnotation}
+                            className="w-full bg-accent text-white py-2 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            {isAddingAnnotation ? "Menyimpan..." : "Pasang di Arah Bidikan"}
+                          </button>
+                        </form>
                       </div>
 
-                      <button
-                        type="submit"
-                        disabled={isUploadingScene}
-                        className="w-full bg-accent text-white py-2 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {isUploadingScene ? "Mengunggah..." : "Unggah & Tambah Area"}
-                      </button>
-                    </form>
-                  </div>
-                </>
+                      {/* Annotations List Manager */}
+                      <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
+                        <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
+                          Anotasi di Ruangan Ini
+                        </h3>
+                        {annotations.length === 0 ? (
+                          <p className="text-[10px] text-ink-muted italic">Belum ada anotasi audit di area ini.</p>
+                        ) : (
+                          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                            {annotations.map((ann) => (
+                              <div
+                                key={ann.id}
+                                className="flex justify-between items-center bg-bg/30 border border-line/60 p-2 rounded text-xs font-sans"
+                              >
+                                <div className="truncate pr-2">
+                                  <span className="font-semibold text-ink">
+                                    {ann.audit_results?.audit_criteria?.short_label || ann.audit_results?.audit_criteria?.code || ann.label}
+                                  </span>
+                                  <span className="block text-[9px] text-ink-muted truncate">
+                                    Status: {ann.audit_results?.status === "met" ? "Terpenuhi" : "Tidak Terpenuhi"}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteAnnotation(ann.id)}
+                                  className="text-[10px] text-status-not-met hover:underline font-semibold cursor-pointer shrink-0"
+                                >
+                                  Hapus
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "kelola" && activeScene && (
+                    <div className="space-y-6">
+                      {/* List of Area Switcher */}
+                      <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
+                        <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
+                          Daftar Area / Ruangan
+                        </h3>
+                        <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                          {scenes.map((s) => {
+                            const annotationCount = allAnnotations.filter((ann) => ann.scene_id === s.id).length;
+                            return (
+                              <button
+                                key={s.id}
+                                onClick={() => setActiveScene(s)}
+                                className={`w-full text-left font-sans text-xs px-3 py-2.5 rounded transition-all cursor-pointer flex items-center ${
+                                  activeScene?.id === s.id
+                                    ? "bg-accent/10 border-l-4 border-accent text-accent font-semibold"
+                                    : "bg-bg/20 text-ink-muted hover:bg-bg/60 border-l-4 border-transparent"
+                                }`}
+                              >
+                                <div className="w-[50px] h-[50px] rounded overflow-hidden shrink-0 border border-line mr-3 bg-bg flex items-center justify-center">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img 
+                                    src={s.file_url} 
+                                    alt={`Pratinjau untuk area ${getSceneLabel(s)}`}
+                                    className="w-full h-full object-cover" 
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0 flex flex-col space-y-1">
+                                  <span className="truncate font-semibold text-ink leading-tight">
+                                    {getSceneLabel(s)}
+                                  </span>
+                                  <span className="text-[10px] text-ink-muted font-medium flex items-center gap-1">
+                                    <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                    </svg>
+                                    {annotationCount} anotasi
+                                  </span>
+                                </div>
+                                {activeScene?.id === s.id && (
+                                  <span className="text-[9px] font-mono text-accent shrink-0 font-bold ml-2">AKTIF</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Upload New Area/Scene Form */}
+                      <div className="bg-surface border border-line rounded-md p-4 space-y-3.5 shadow-sm">
+                        <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
+                          Unggah Area Baru
+                        </h3>
+                        <form onSubmit={handleUploadScene} className="space-y-3">
+                          <div>
+                            <label className="block text-[9px] font-bold text-ink uppercase mb-1">Nama Area / Label</label>
+                            <input
+                              type="text"
+                              placeholder="Contoh: Koridor Utama, Ramp Depan"
+                              value={uploadLabel}
+                              onChange={(e) => setUploadLabel(e.target.value)}
+                              className="w-full bg-bg/40 border border-line rounded p-2 text-xs font-sans text-ink focus:outline-none focus:border-accent"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[9px] font-bold text-ink uppercase mb-1">File Foto 360°</label>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                              className="w-full text-xs font-sans text-ink-muted cursor-pointer"
+                              required
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={isUploadingScene}
+                            className="w-full bg-accent text-white py-2 rounded text-xs font-semibold hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            {isUploadingScene ? "Mengunggah..." : "Unggah & Tambah Area"}
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
