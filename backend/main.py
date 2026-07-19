@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
+import os
 from app.routers import buildings, audit, geocode, annotations, scenes, trust, auth_users, developers
 from app.routers.admin import admin_router, public_router
 
@@ -8,12 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="Aksesibilitas Audit API")
 
 # Configure CORS (allow_origins must not be '*' when allow_credentials is True)
+allowed_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+if os.getenv("ALLOWED_ORIGINS"):
+    allowed_origins.extend([origin.strip() for origin in os.getenv("ALLOWED_ORIGINS").split(",")])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
