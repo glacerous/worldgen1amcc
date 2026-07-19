@@ -103,7 +103,6 @@ export default function BuildingTourPage() {
 
   // Building-wide analytics & visual filters
   const [allAnnotations, setAllAnnotations] = useState<Annotation[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("Semua");
   const [activeTab, setActiveTab] = useState<"navigasi" | "audit" | "kelola">("navigasi");
 
   // Edit Mode states
@@ -570,37 +569,36 @@ export default function BuildingTourPage() {
       <Navbar />
 
       <main className="flex-1 px-6 py-10 md:py-12 max-w-7xl mx-auto w-full">
-        <Link
-          href={`/buildings/${building.id}`}
-          className="inline-flex items-center text-xs font-sans text-ink-muted hover:text-accent transition-colors mb-4"
-        >
-          <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Kembali ke Detail Gedung
-        </Link>
-
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 pb-5 border-b border-line/45">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 pb-3 border-b border-line/45">
           <div>
-            <div className="flex items-center flex-wrap gap-2">
-              <span className="text-[10px] font-sans font-bold text-accent uppercase tracking-wider">
+            <Link
+              href={`/buildings/${building.id}`}
+              className="inline-flex items-center text-xs font-sans text-ink-muted hover:text-accent transition-colors mb-3"
+            >
+              <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              Kembali ke Detail Gedung
+            </Link>
+            <div className="flex items-center flex-wrap gap-3">
+              <span className="text-[11px] font-sans font-medium text-[#0F5C5C] uppercase tracking-[0.15em]">
                 Tur Virtual Street-View 360°
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-accent/20 bg-accent/5 rounded-md text-[9px] font-sans font-semibold text-accent uppercase tracking-wider">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-accent/20 bg-accent/5 rounded-md text-[9px] font-sans font-semibold text-accent uppercase tracking-wider ml-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
                 {scenes.length} Titik Panorama
               </span>
             </div>
-            <h1 className="font-display text-2xl md:text-3xl font-normal text-ink mt-1.5 leading-tight">
+            <h1 className="font-display text-2xl md:text-3xl font-normal text-ink mt-3 leading-tight">
               {building.name}
             </h1>
-            <p className="font-sans text-xs text-ink-muted mt-1">
+            <p className="font-sans text-sm text-ink-muted/90 mt-2.5">
               {building.address || "Alamat belum ditambahkan."}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 md:self-center">
             {/* Mode Switcher Toggle */}
             {isAuditOwner && (
               <button
@@ -694,54 +692,10 @@ export default function BuildingTourPage() {
             <div className="lg:col-span-3 space-y-4">
               {activeScene && (
                 <>
-                  {/* Current Active Scene Banner */}
-                  <div className="flex justify-between items-center bg-surface border border-line px-4 py-2.5 rounded-md">
-                    <span className="font-sans font-semibold text-xs text-ink flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-accent animate-ping" />
-                      Titik Aktif: <strong className="text-accent">{getSceneLabel(activeScene)}</strong>
-                    </span>
-                    {editMode && (
-                      <button
-                        onClick={handleDeleteActiveScene}
-                        className="text-[10px] font-bold text-status-not-met hover:underline cursor-pointer"
-                      >
-                        Hapus Ruangan Ini
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Category Filter Chips */}
-                  <div className="flex items-center gap-2 py-1 select-none flex-wrap">
-                    <span className="text-[10px] font-sans font-bold text-ink-muted uppercase tracking-wider mr-2">
-                      Filter Kriteria:
-                    </span>
-                    {["Semua", "Mobilitas", "Netra", "Rungu"].map((cat) => {
-                      const isActive = selectedCategory === cat;
-                      return (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setSelectedCategory(cat)}
-                          className={`px-3.5 py-1 rounded-full text-xs font-sans font-semibold tracking-wide transition-all border cursor-pointer ${
-                            isActive
-                              ? "bg-accent border-accent text-white shadow-xs"
-                              : "bg-surface border-line text-ink-muted hover:bg-bg/40"
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      );
-                    })}
-                  </div>
-
                   <TourViewer
                     pannellumRef={pannellumRef}
                     fallbackImageUrl={activeScene.file_url}
-                    annotations={annotations.filter((ann) => {
-                      if (selectedCategory === "Semua") return true;
-                      const catLower = selectedCategory.toLowerCase();
-                      return ann.audit_results?.audit_criteria?.category?.toLowerCase() === catLower;
-                    })}
+                    annotations={annotations}
                     hotspots={hotspots}
                     onNavigateToScene={handleNavigateToScene}
                     editMode={editMode}
@@ -1034,9 +988,18 @@ export default function BuildingTourPage() {
                     <div className="space-y-6">
                       {/* List of Area Switcher */}
                       <div className="bg-surface border border-line rounded-md p-4 space-y-3 shadow-sm">
-                        <h3 className="text-xs font-bold text-ink uppercase tracking-wider border-b border-line pb-1.5">
-                          Daftar Area / Ruangan
-                        </h3>
+                        <div className="flex justify-between items-center border-b border-line pb-1.5">
+                          <h3 className="text-xs font-bold text-ink uppercase tracking-wider">
+                            Daftar Area / Ruangan
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={handleDeleteActiveScene}
+                            className="text-[10px] font-bold text-status-not-met hover:underline cursor-pointer"
+                          >
+                            Hapus Area Aktif
+                          </button>
+                        </div>
                         <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
                           {scenes.map((s) => {
                             const annotationCount = allAnnotations.filter((ann) => ann.scene_id === s.id).length;
