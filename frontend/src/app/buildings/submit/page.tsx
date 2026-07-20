@@ -890,7 +890,7 @@ export default function SubmitBuildingPage() {
 
         {/* AI analysis disclaimer text */}
         <p className="font-sans text-[10px] text-ink-muted leading-relaxed">
-          * Hasil akan dianalisis otomatis oleh AI dan langsung tayang, ditandai sebagai kontribusi komunitas hingga diverifikasi tim kami.
+          * Hasil analisis ini dibuat dengan bantuan AI dan dapat mengandung ketidakakuratan atau kesalahan. Harap lakukan verifikasi lebih lanjut sebelum menjadikannya sebagai dasar pengambilan keputusan atau referensi.
         </p>
 
         <div className="pt-4 flex items-center justify-between gap-4 border-t border-line/50">

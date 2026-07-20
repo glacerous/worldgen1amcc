@@ -110,7 +110,7 @@ def run_panorama_agent(panorama_url: str) -> List[Dict[str, Any]]:
     message = HumanMessage(content=message_content)
 
     llm = ChatGroq(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        model=settings.GROQ_VISION_MODEL,
         groq_api_key=settings.GROQ_API_KEY,
         temperature=0.0
     )

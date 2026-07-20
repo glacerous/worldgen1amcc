@@ -132,7 +132,7 @@ def run_visual_agent(photos: List[str]) -> List[Dict[str, Any]]:
     
     # Initialize Groq model
     llm = ChatGroq(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        model=settings.GROQ_VISION_MODEL,
         groq_api_key=settings.GROQ_API_KEY,
         temperature=0.0
     )

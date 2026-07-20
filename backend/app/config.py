@@ -11,6 +11,8 @@ class Settings:
     SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", "")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_VISION_MODEL: str = os.getenv("GROQ_VISION_MODEL", "llama-3.2-11b-vision-preview")
+    GROQ_TEXT_MODEL: str = os.getenv("GROQ_TEXT_MODEL", "llama-3.3-70b-versatile")
     JWT_SECRET: str = os.getenv("JWT_SECRET", "super-secret-key-aksesibel")
     IP_HASH_SALT: str = os.getenv("IP_HASH_SALT", "default-ip-salt-value-for-security")
     MIN_VOTES_FOR_TRUSTED: int = int(os.getenv("MIN_VOTES_FOR_TRUSTED", "5"))

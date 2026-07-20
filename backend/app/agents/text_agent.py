@@ -77,7 +77,7 @@ def run_text_agent(building_name: str, building_address: str) -> List[Dict[str, 
     
     # Initialize Groq model
     llm = ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model=settings.GROQ_TEXT_MODEL,
         groq_api_key=settings.GROQ_API_KEY,
         temperature=0.0
     )
