@@ -1,4 +1,6 @@
 import os
+import re
+import json
 import base64
 import time
 import random
@@ -7,7 +9,7 @@ from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 import httpx
 from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -16,7 +18,7 @@ logger = logging.getLogger(__name__)
 if settings.GROQ_API_KEY:
     os.environ["GROQ_API_KEY"] = settings.GROQ_API_KEY
 
-def retry_with_backoff(retries=3, backoff_in_seconds=2):
+def retry_with_backoff(retries=3, backoff_in_seconds=5):
     def decorator(func):
         def wrapper(*args, **kwargs):
             x = 0
@@ -25,10 +27,10 @@ def retry_with_backoff(retries=3, backoff_in_seconds=2):
                     return func(*args, **kwargs)
                 except Exception as e:
                     err_str = str(e)
-                    is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower() or "rate limit" in err_str.lower()
+                    is_rate_limit = any(k in err_str.lower() for k in ["429", "413", "rate_limit", "rate limit", "tpm", "tokens per minute", "request too large"])
                     if is_rate_limit and x < retries:
-                        sleep_time = (backoff_in_seconds * (2 ** x)) + random.uniform(0, 1)
-                        logger.warning(f"Rate limit hit (429). Retrying in {sleep_time:.2f} seconds... Error: {err_str}")
+                        sleep_time = max((backoff_in_seconds * (2 ** x)) + random.uniform(1, 2), 7.0)
+                        logger.warning(f"Rate limit / TPM hit ({err_str[:100]}). Retrying in {sleep_time:.2f} seconds...")
                         time.sleep(sleep_time)
                         x += 1
                     else:
@@ -81,7 +83,9 @@ def run_panorama_agent(panorama_url: str) -> List[Dict[str, Any]]:
         "- label: Nama fitur aksesibilitas\n"
         "- x_percent: Persentase posisi horizontal dari kiri (0.0 - 100.0)\n"
         "- y_percent: Persentase posisi vertikal dari atas (0.0 - 100.0)\n"
-        "- status: Evaluasi kelayakan ('met' atau 'not_met')"
+        "- status: Evaluasi kelayakan ('met' atau 'not_met')\n\n"
+        "Kembalikan HANYA format JSON murni berikut tanpa penjelasan ekstra:\n"
+        '{\n  "features": [\n    {"label": "Nama Fitur", "x_percent": 50.0, "y_percent": 50.0, "status": "met"}\n  ]\n}'
     )
 
     try:
@@ -98,6 +102,7 @@ def run_panorama_agent(panorama_url: str) -> List[Dict[str, Any]]:
         }
     ]
 
+    sys_msg = SystemMessage(content="You are a strict JSON generator. Be extremely concise in thinking (maximum 1 short sentence inside <think>). Respond immediately with valid JSON.")
     message = HumanMessage(content=message_content)
 
     llm = ChatGroq(
@@ -106,22 +111,36 @@ def run_panorama_agent(panorama_url: str) -> List[Dict[str, Any]]:
         temperature=0.0
     )
 
-    structured_llm = llm.with_structured_output(PanoramaDetectionResult)
-
-    @retry_with_backoff(retries=3, backoff_in_seconds=2)
+    @retry_with_backoff(retries=3, backoff_in_seconds=5)
     def invoke_with_retry():
-        return structured_llm.invoke([message])
+        return llm.invoke([sys_msg, message])
 
     try:
-        result: PanoramaDetectionResult = invoke_with_retry()
+        res = invoke_with_retry()
+        raw_text = res.content if isinstance(res.content, str) else str(res.content)
+        
+        # Clean think tags and markdown code blocks
+        if "</think>" in raw_text:
+            json_part = raw_text.split("</think>")[-1].strip()
+        else:
+            json_part = raw_text.strip()
+
+        cleaned = re.sub(r"^```json\s*", "", json_part, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+
+        match = re.search(r"(\{.*\})", cleaned, re.DOTALL)
+        if match:
+            cleaned = match.group(1)
+        
+        data = json.loads(cleaned)
         return [
             {
-                "label": item.label,
-                "x_percent": item.x_percent,
-                "y_percent": item.y_percent,
-                "status": item.status
+                "label": item.get("label", ""),
+                "x_percent": float(item.get("x_percent", 0.0)),
+                "y_percent": float(item.get("y_percent", 0.0)),
+                "status": item.get("status", "met")
             }
-            for item in result.features
+            for item in data.get("features", [])
         ]
     except Exception as e:
         print(f"Error running panorama_agent: {str(e)}")
