@@ -38,17 +38,14 @@ def retry_with_backoff(retries=3, backoff_in_seconds=2):
 
 def get_image_base64(image_source: str) -> str:
     """
-    Downloads image from URL or reads it locally, and converts it to a base64 data URI.
+    Returns direct URL for HTTP/HTTPS images, or converts local files to base64 data URI.
     """
     if image_source.startswith("http://") or image_source.startswith("https://"):
-        with httpx.Client(timeout=15.0) as client:
-            response = client.get(image_source)
-            response.raise_for_status()
-            content = response.content
-    else:
-        with open(image_source, "rb") as f:
-            content = f.read()
-            
+        return image_source
+
+    with open(image_source, "rb") as f:
+        content = f.read()
+        
     encoded = base64.b64encode(content).decode("utf-8")
     
     lower_source = image_source.lower()
@@ -70,7 +67,7 @@ class DetectedFeature(BaseModel):
     status: str = Field(description="Status kelayakan fitur aksesibilitas tersebut berdasarkan analisis gambar 360°, harus bernilai 'met' (layak/memenuhi kriteria) atau 'not_met' (tidak layak/tidak memenuhi syarat/rusak/terhalang)")
 
 class PanoramaDetectionResult(BaseModel):
-    features: List[DetectedFeature]
+    features: list[DetectedFeature]
 
 def run_panorama_agent(panorama_url: str) -> List[Dict[str, Any]]:
     """
@@ -78,19 +75,13 @@ def run_panorama_agent(panorama_url: str) -> List[Dict[str, Any]]:
     Returns a list of detected features with their relative position percentages.
     """
     prompt = (
-        "Anda adalah AI asisten audit aksesibilitas bangunan.\n"
         "Analisis gambar panorama 360 derajat (equirectangular) berikut.\n"
-        "Temukan semua fitur aksesibilitas fisik penting (seperti ramp kursi roda, tangga akses, ubin pemandu/tactile paving, toilet khusus disabilitas, pegangan tangan/grab bars, lift, pintu otomatis, dll.).\n\n"
-        "Untuk setiap fitur yang dideteksi, tentukan posisinya sebagai koordinat titik tengah fitur tersebut dalam persentase, serta kelayakan aksesibilitasnya:\n"
-        "- x_percent: Persentase horizontal (0.0 - 100.0), dihitung dari sisi paling kiri gambar ke kanan.\n"
-        "- y_percent: Persentase vertikal (0.0 - 100.0), dihitung dari sisi paling atas gambar ke bawah.\n"
-        "Untuk menentukan koordinat x_percent dan y_percent secara akurat, bayangkan grid 100x100 di atas gambar (0,0 adalah kiri-atas, 100,100 adalah kanan-bawah):\n"
-        "1. Cari pusat visual (centroid) dari fitur tersebut secara presisi.\n"
-        "2. Garis horizon (tengah gambar secara vertikal) berada pada y_percent = 50.0%.\n"
-        "3. Fitur di lantai berjarak menengah (seperti anak tangga atau ramp) biasanya memiliki y_percent antara 52.0% hingga 58.0%. Jangan menaruh y_percent terlalu besar (misal > 60.0%) untuk objek jarak menengah karena penanda akan meleset ke lantai kosong terdekat di bawah kamera.\n"
-        "4. Tempatkan koordinat tepat pada fisik objeknya, bukan di lantai kosong sebelum objek.\n\n"
-        "- status: Evaluasi kelayakan fitur tersebut berdasarkan standar aksesibilitas dasar yang terlihat, bernilai 'met' (layak/memenuhi kriteria) atau 'not_met' (tidak layak/tidak memenuhi syarat/rusak/terhalang).\n\n"
-        "Lakukan analisis secara cermat dan kembalikan seluruh fitur yang terdeteksi dalam satu respon."
+        "Temukan semua fitur aksesibilitas fisik penting (seperti ramp kursi roda, tangga akses, ubin pemandu/tactile paving, toilet khusus disabilitas, pegangan tangan/grab bars, lift, pintu otomatis).\n"
+        "Untuk setiap fitur yang dideteksi, tentukan:\n"
+        "- label: Nama fitur aksesibilitas\n"
+        "- x_percent: Persentase posisi horizontal dari kiri (0.0 - 100.0)\n"
+        "- y_percent: Persentase posisi vertikal dari atas (0.0 - 100.0)\n"
+        "- status: Evaluasi kelayakan ('met' atau 'not_met')"
     )
 
     try:

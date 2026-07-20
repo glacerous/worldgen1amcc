@@ -39,17 +39,14 @@ def retry_with_backoff(retries=3, backoff_in_seconds=2):
 
 def get_image_base64(image_source: str) -> str:
     """
-    Downloads image from URL or reads it locally, and converts it to a base64 data URI.
+    Returns direct URL for HTTP/HTTPS images, or converts local files to base64 data URI.
     """
     if image_source.startswith("http://") or image_source.startswith("https://"):
-        with httpx.Client(timeout=15.0) as client:
-            response = client.get(image_source)
-            response.raise_for_status()
-            content = response.content
-    else:
-        with open(image_source, "rb") as f:
-            content = f.read()
-            
+        return image_source
+
+    with open(image_source, "rb") as f:
+        content = f.read()
+        
     encoded = base64.b64encode(content).decode("utf-8")
     
     lower_source = image_source.lower()
@@ -68,10 +65,10 @@ class CriteriaEvaluation(BaseModel):
     criteria_code: str = Field(description="Kode kriteria, contoh: SNI-8201-M1")
     status: str = Field(description="Status evaluasi: harus salah satu dari 'met', 'not_met', 'unknown', 'na'")
     reasoning: str = Field(description="Alasan evaluasi berdasarkan analisis visual dari foto")
-    evidence_photo_index: Optional[int] = Field(None, description="Indeks foto (1-based, yaitu 1 untuk foto pertama, 2 untuk foto kedua, dst.) yang menjadi bukti utama kriteria ini. Gunakan null jika tidak ada.")
+    evidence_photo_index: int = Field(0, description="Indeks foto (1-based, yaitu 1 untuk foto pertama, 2 untuk foto kedua, dst.) yang menjadi bukti utama kriteria ini. Gunakan 0 jika tidak ada.")
 
 class VisualAgentResult(BaseModel):
-    evaluations: List[CriteriaEvaluation]
+    evaluations: list[CriteriaEvaluation]
 
 def run_visual_agent(photos: List[str]) -> List[Dict[str, Any]]:
     """
@@ -95,21 +92,16 @@ def run_visual_agent(photos: List[str]) -> List[Dict[str, Any]]:
         f"- {c['code']} ({c['category']}): {c['description']}" for c in CRITERIA_SEED
     ])
     
-    # Prompt instruction
     system_instruction = (
-        "Anda adalah Visual Agent dalam sistem audit aksesibilitas gedung.\n"
-        "Tugas Anda adalah mendeteksi elemen aksesibilitas dalam rangkaian FOTO bukti yang dilampirkan.\n\n"
-        f"Daftar kriteria yang harus dievaluasi:\n{criteria_str}\n\n"
-        "Panduan Evaluasi:\n"
-        "- Gunakan status 'met' jika Anda melihat bukti visual yang sangat jelas bahwa kriteria tersebut dipenuhi.\n"
-        "- Gunakan status 'not_met' jika Anda melihat bukti visual yang bertentangan (tidak terpenuhi).\n"
-        "- Gunakan status 'na' jika kriteria tidak relevan atau tidak berlaku pada tipe area/elemen yang difoto.\n"
-        "- Gunakan status 'unknown' jika bukti visual pada foto tidak cukup jelas, terpotong, atau tidak menunjukkan elemen tersebut sama sekali. JANGAN menebak jika bukti tidak terlihat di foto.\n\n"
-        "PENTING UNTUK REASONING (ANALISIS PENALARAN):\n"
-        "- Tuliskan analisis penalaran (reasoning) secara spesifik, objektif, dan faktual berdasarkan apa yang terlihat langsung di foto. Jelaskan kondisi objek, bentuk, atau kekurangannya.\n"
-        "- JANGAN PERNAH menyalin, mengulang, atau menjiplak teks deskripsi kriteria sebagai isi reasoning Anda. Reasoning harus berupa deskripsi hasil pengamatan visual Anda terhadap foto!\n"
-        "- Untuk status 'not_met', jelaskan secara detail rintangan atau ketidaksesuaian yang Anda amati di foto (misalnya: 'Hanya terdapat tangga masuk utama tanpa adanya ramp landai untuk kursi roda, hanya ada rel logam sempit yang terlalu curam').\n"
-        "- Hindari penggunaan kata-kata spekulatif seperti 'biasanya', 'mungkin', 'sepertinya', atau 'kemungkinan besar' karena terdengar meragukan dan tidak profesional. Berbicaralah secara tegas berdasarkan bukti visual yang ada."
+        "Anda adalah Visual Agent audit aksesibilitas gedung.\n"
+        "Evaluasi kriteria aksesibilitas berikut berdasarkan foto bukti yang diberikan:\n\n"
+        f"{criteria_str}\n\n"
+        "Aturan evaluasi:\n"
+        "- 'met': Terdapat bukti visual yang jelas bahwa kriteria terpenuhi.\n"
+        "- 'not_met': Terdapat bukti visual bahwa kriteria tidak terpenuhi.\n"
+        "- 'unknown': Bukti visual tidak terlihat jelas atau tidak mencakup kriteria ini.\n"
+        "- 'na': Kriteria tidak relevan dengan tipe lokasi.\n"
+        "Berikan reasoning faktual berdasarkan pengamatan foto tanpa menyalin deskripsi kriteria."
     )
     
     # Formulate message content

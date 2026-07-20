@@ -153,7 +153,7 @@ def visual_node(state: BuildingAuditState) -> dict:
 
 def resolver_node(state: BuildingAuditState) -> dict:
     """
-    Node 3: Resolves remaining 'unknown' criteria using Groq (Llama-3.3-70b-versatile).
+    Node 3: Resolves remaining 'unknown' criteria using Groq (openai/gpt-oss-120b).
     """
     # 1. Merge text and visual results to see current status
     merged_results = merge_evaluations(state.criteria_results)

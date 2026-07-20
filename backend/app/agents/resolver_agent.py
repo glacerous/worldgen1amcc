@@ -50,7 +50,7 @@ def run_resolver_agent(
     unknown_codes: List[str]
 ) -> List[Dict[str, Any]]:
     """
-    Tries to resolve criteria that are still 'unknown' using Groq's Llama-3.3-70b-versatile model.
+    Tries to resolve criteria that are still 'unknown' using Groq's openai/gpt-oss-120b model.
     """
     # If there are no unknown criteria, return empty list immediately
     if not unknown_codes:
