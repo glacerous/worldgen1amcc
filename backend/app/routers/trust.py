@@ -25,6 +25,7 @@ class VoteType(str, Enum):
 
 class VoteRequest(BaseModel):
     vote_type: Optional[VoteType] = None
+    audit_run_id: Optional[UUID] = None
 
 class ReportRequest(BaseModel):
     reason: str
@@ -92,6 +93,7 @@ def get_anonymous_id(request: Request, response: Response, anonymous_id: Optiona
 
 # Router definition
 router = APIRouter(prefix="/buildings", tags=["trust"])
+audit_runs_trust_router = APIRouter(prefix="/audit-runs", tags=["audit-runs-trust"])
 
 # 3. Helper function: recalculate_trust_status
 def recalculate_trust_status(building_id: str, db_building: Optional[Dict[str, Any]] = None):
@@ -154,55 +156,165 @@ def recalculate_trust_status(building_id: str, db_building: Optional[Dict[str, A
     building["vote_count_cache"] = vote_count
     return building
 
-# 4. Core Endpoints
 
-@router.get("/{id}/vote-status", response_model=dict)
-def get_user_vote_status(id: UUID, anonymous_id: str = Depends(get_anonymous_id)):
-    """
-    Returns if the current anonymous user has voted on the building and what vote type.
-    This also initializes the anonymous_id cookie on page load.
-    """
-    building_id = str(id)
-    try:
-        res = supabase.table("votes") \
-            .select("vote_type") \
+# Helpers for vote status & processing per target
+def fetch_vote_status_for_target(building_id: str, audit_run_id: Optional[str], anonymous_id: str):
+    if audit_run_id:
+        try:
+            res = supabase.table("votes") \
+                .select("vote_type") \
+                .eq("audit_run_id", audit_run_id) \
+                .eq("anonymous_id", anonymous_id) \
+                .execute()
+            has_voted = False
+            vote_type = None
+            if res.data:
+                has_voted = True
+                vote_type = res.data[0]["vote_type"]
+
+            res_votes = supabase.table("votes").select("vote_type").eq("audit_run_id", audit_run_id).execute()
+            votes = res_votes.data or []
+            up_count = sum(1 for v in votes if v.get("vote_type") == "up")
+            down_count = sum(1 for v in votes if v.get("vote_type") == "down")
+            vote_count = len(votes)
+            trust_score = (up_count / vote_count) if vote_count > 0 else None
+
+            return {
+                "has_voted": has_voted,
+                "vote_type": vote_type,
+                "trust_score": trust_score,
+                "vote_count": vote_count,
+                "up_count": up_count,
+                "down_count": down_count
+            }
+        except Exception:
+            pass
+
+    # Fallback/default to building_id
+    res = supabase.table("votes") \
+        .select("vote_type") \
+        .eq("building_id", building_id) \
+        .eq("anonymous_id", anonymous_id) \
+        .execute()
+    has_voted = False
+    vote_type = None
+    if res.data:
+        has_voted = True
+        vote_type = res.data[0]["vote_type"]
+
+    build_res = supabase.table("buildings") \
+        .select("trust_score_cache, vote_count_cache") \
+        .eq("id", building_id) \
+        .execute()
+    
+    trust_score = None
+    vote_count = 0
+    if build_res.data:
+        trust_score = build_res.data[0].get("trust_score_cache")
+        vote_count = build_res.data[0].get("vote_count_cache") or 0
+
+    res_votes = supabase.table("votes").select("vote_type").eq("building_id", building_id).execute()
+    votes = res_votes.data or []
+    up_count = sum(1 for v in votes if v.get("vote_type") == "up")
+    down_count = sum(1 for v in votes if v.get("vote_type") == "down")
+
+    return {
+        "has_voted": has_voted,
+        "vote_type": vote_type,
+        "trust_score": trust_score,
+        "vote_count": vote_count,
+        "up_count": up_count,
+        "down_count": down_count
+    }
+
+
+def process_vote(building_id: str, audit_run_id: Optional[str], vote_type: Optional[str], anonymous_id: str):
+    processed_run = False
+    if audit_run_id:
+        try:
+            existing_vote = supabase.table("votes") \
+                .select("id") \
+                .eq("audit_run_id", audit_run_id) \
+                .eq("anonymous_id", anonymous_id) \
+                .execute()
+                
+            if vote_type is None:
+                if existing_vote.data:
+                    supabase.table("votes") \
+                        .delete() \
+                        .eq("id", existing_vote.data[0]["id"]) \
+                        .execute()
+            else:
+                if existing_vote.data:
+                    supabase.table("votes") \
+                        .update({"vote_type": vote_type}) \
+                        .eq("id", existing_vote.data[0]["id"]) \
+                        .execute()
+                else:
+                    supabase.table("votes").insert({
+                        "building_id": building_id,
+                        "audit_run_id": audit_run_id,
+                        "anonymous_id": anonymous_id,
+                        "vote_type": vote_type
+                    }).execute()
+            processed_run = True
+        except Exception:
+            processed_run = False
+
+    if not processed_run:
+        existing_vote = supabase.table("votes") \
+            .select("id") \
             .eq("building_id", building_id) \
             .eq("anonymous_id", anonymous_id) \
             .execute()
-        has_voted = False
-        vote_type = None
-        if res.data:
-            has_voted = True
-            vote_type = res.data[0]["vote_type"]
+            
+        if vote_type is None:
+            if existing_vote.data:
+                supabase.table("votes") \
+                    .delete() \
+                    .eq("id", existing_vote.data[0]["id"]) \
+                    .execute()
+        else:
+            if existing_vote.data:
+                supabase.table("votes") \
+                    .update({"vote_type": vote_type}) \
+                    .eq("id", existing_vote.data[0]["id"]) \
+                    .execute()
+            else:
+                supabase.table("votes").insert({
+                    "building_id": building_id,
+                    "anonymous_id": anonymous_id,
+                    "vote_type": vote_type
+                }).execute()
 
-        # Fetch building trust stats from Supabase
-        build_res = supabase.table("buildings") \
-            .select("trust_score_cache, vote_count_cache") \
-            .eq("id", building_id) \
-            .execute()
-        
-        trust_score = None
-        vote_count = 0
-        if build_res.data:
-            trust_score = build_res.data[0].get("trust_score_cache")
-            vote_count = build_res.data[0].get("vote_count_cache") or 0
+    updated_building = recalculate_trust_status(building_id)
+    
+    stats = fetch_vote_status_for_target(building_id, audit_run_id if processed_run else None, anonymous_id)
+    return {
+        "status": "success",
+        "message": "Vote berhasil disimpan.",
+        "building": updated_building,
+        "up_count": stats["up_count"],
+        "down_count": stats["down_count"],
+        "vote_count": stats["vote_count"],
+        "trust_score": stats["trust_score"]
+    }
 
-        # Calculate vote stats from database
-        res_votes = supabase.table("votes").select("vote_type").eq("building_id", building_id).execute()
-        votes = res_votes.data or []
-        up_count = sum(1 for v in votes if v["vote_type"] == "up")
-        down_count = sum(1 for v in votes if v["vote_type"] == "down")
 
-        return {
-            "has_voted": has_voted,
-            "vote_type": vote_type,
-            "trust_score": trust_score,
-            "vote_count": vote_count,
-            "up_count": up_count,
-            "down_count": down_count
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal mengambil status vote: {str(e)}")
+# 4. Core Endpoints
+
+@router.get("/{id}/vote-status", response_model=dict)
+def get_user_vote_status(
+    id: UUID, 
+    audit_run_id: Optional[UUID] = None, 
+    anonymous_id: str = Depends(get_anonymous_id)
+):
+    """
+    Returns if the current anonymous user has voted on the building/audit run and what vote type.
+    """
+    building_id = str(id)
+    run_id_str = str(audit_run_id) if audit_run_id else None
+    return fetch_vote_status_for_target(building_id, run_id_str, anonymous_id)
 
 
 @router.post("/{id}/vote", response_model=dict)
@@ -212,63 +324,47 @@ def vote_building(
     anonymous_id: str = Depends(get_anonymous_id)
 ):
     """
-    Submit or update a vote for a building. Recalculates trust status.
+    Submit or update a vote for a building or audit run. Recalculates trust status.
     """
     building_id = str(id)
-    
-    try:
-        # Check if building exists first
-        build_res = supabase.table("buildings").select("id, manually_set_by_admin").eq("id", building_id).execute()
-        if not build_res.data:
-            raise HTTPException(status_code=404, detail="Gedung tidak ditemukan.")
-        
-        # Upsert vote (using select and insert/update)
-        existing_vote = supabase.table("votes") \
-            .select("id") \
-            .eq("building_id", building_id) \
-            .eq("anonymous_id", anonymous_id) \
-            .execute()
-            
-        if body.vote_type is None:
-            if existing_vote.data:
-                supabase.table("votes") \
-                    .delete() \
-                    .eq("id", existing_vote.data[0]["id"]) \
-                    .execute()
-        else:
-            if existing_vote.data:
-                supabase.table("votes") \
-                    .update({"vote_type": body.vote_type.value}) \
-                    .eq("id", existing_vote.data[0]["id"]) \
-                    .execute()
-            else:
-                supabase.table("votes").insert({
-                    "building_id": building_id,
-                    "anonymous_id": anonymous_id,
-                    "vote_type": body.vote_type.value
-                }).execute()
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal memproses vote: {str(e)}")
+    run_id_str = str(body.audit_run_id) if body.audit_run_id else None
+    vote_type_str = body.vote_type.value if body.vote_type else None
+    return process_vote(building_id, run_id_str, vote_type_str, anonymous_id)
 
-    # Recalculate trust status
-    updated_building = recalculate_trust_status(building_id)
-    
-    # Calculate vote stats from database
-    res_votes = supabase.table("votes").select("vote_type").eq("building_id", building_id).execute()
-    votes = res_votes.data or []
-    up_count = sum(1 for v in votes if v["vote_type"] == "up")
-    down_count = sum(1 for v in votes if v["vote_type"] == "down")
 
-    return {
-        "status": "success",
-        "message": "Vote berhasil disimpan.",
-        "building": updated_building,
-        "up_count": up_count,
-        "down_count": down_count
-    }
+@audit_runs_trust_router.get("/{audit_run_id}/vote-status", response_model=dict)
+def get_audit_run_vote_status(
+    audit_run_id: UUID,
+    anonymous_id: str = Depends(get_anonymous_id)
+):
+    """
+    Returns vote status for a specific audit run.
+    """
+    run_id_str = str(audit_run_id)
+    res = supabase.table("audit_runs").select("building_id").eq("id", run_id_str).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Audit run tidak ditemukan.")
+    building_id = res.data[0]["building_id"]
+    return fetch_vote_status_for_target(building_id, run_id_str, anonymous_id)
+
+
+@audit_runs_trust_router.post("/{audit_run_id}/vote", response_model=dict)
+def vote_audit_run(
+    audit_run_id: UUID,
+    body: VoteRequest,
+    anonymous_id: str = Depends(get_anonymous_id)
+):
+    """
+    Submit or update a vote for a specific audit run.
+    """
+    run_id_str = str(audit_run_id)
+    res = supabase.table("audit_runs").select("building_id").eq("id", run_id_str).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Audit run tidak ditemukan.")
+    building_id = res.data[0]["building_id"]
+    vote_type_str = body.vote_type.value if body.vote_type else None
+    return process_vote(building_id, run_id_str, vote_type_str, anonymous_id)
+
 
 
 @router.post("/{id}/report", response_model=dict)

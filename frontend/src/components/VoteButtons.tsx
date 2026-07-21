@@ -6,10 +6,11 @@ import { BACKEND_URL } from "@/config";
 
 interface VoteButtonsProps {
   buildingId: string;
+  auditRunId?: string | null;
   onVoteSuccess?: () => void;
 }
 
-export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsProps) {
+export default function VoteButtons({ buildingId, auditRunId, onVoteSuccess }: VoteButtonsProps) {
   const [activeVote, setActiveVote] = useState<"up" | "down" | null>(null);
   const [voteStats, setVoteStats] = useState<{
     trustScore: number | null;
@@ -37,15 +38,17 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
         if (id) {
           headers["X-Anonymous-ID"] = id;
         }
-        const res = await fetch(`${BACKEND_URL}/buildings/${buildingId}/vote-status`, {
+        const endpoint = auditRunId
+          ? `${BACKEND_URL}/audit-runs/${auditRunId}/vote-status`
+          : `${BACKEND_URL}/buildings/${buildingId}/vote-status`;
+
+        const res = await fetch(endpoint, {
           headers,
           credentials: "include",
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.has_voted) {
-            setActiveVote(data.vote_type);
-          }
+          setActiveVote(data.has_voted ? data.vote_type : null);
           setVoteStats({
             trustScore: data.trust_score !== undefined ? data.trust_score : null,
             voteCount: data.vote_count !== undefined ? data.vote_count : 0,
@@ -57,8 +60,11 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
         console.error("Failed to load user vote status:", err);
       }
     }
+
+    setActiveVote(null);
+    setVoteStats(null);
     fetchVoteStatus();
-  }, [buildingId]);
+  }, [buildingId, auditRunId]);
 
   const handleVote = async (type: "up" | "down") => {
     if (isLoading) return;
@@ -79,10 +85,14 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
       if (id) {
         headers["X-Anonymous-ID"] = id;
       }
-      const res = await fetch(`${BACKEND_URL}/buildings/${buildingId}/vote`, {
+      const endpoint = auditRunId
+        ? `${BACKEND_URL}/audit-runs/${auditRunId}/vote`
+        : `${BACKEND_URL}/buildings/${buildingId}/vote`;
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers,
-        body: JSON.stringify({ vote_type: targetVoteType }),
+        body: JSON.stringify({ vote_type: targetVoteType, audit_run_id: auditRunId }),
         credentials: "include", // Ensure session cookies are sent/received
       });
 
@@ -93,14 +103,12 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
       const data = await res.json();
       setActiveVote(targetVoteType);
 
-      if (data.building) {
-        setVoteStats({
-          trustScore: data.building.trust_score_cache ?? null,
-          voteCount: data.building.vote_count_cache ?? 0,
-          upCount: data.up_count ?? 0,
-          downCount: data.down_count ?? 0,
-        });
-      }
+      setVoteStats({
+        trustScore: data.trust_score ?? data.building?.trust_score_cache ?? null,
+        voteCount: data.vote_count ?? data.building?.vote_count_cache ?? 0,
+        upCount: data.up_count ?? 0,
+        downCount: data.down_count ?? 0,
+      });
 
       if (onVoteSuccess) {
         onVoteSuccess();

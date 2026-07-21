@@ -7,9 +7,10 @@ import ReportModal from "./ReportModal";
 
 interface BuildingDetailActionsProps {
   buildingId: string;
+  auditRunId?: string | null;
 }
 
-export default function BuildingDetailActions({ buildingId }: BuildingDetailActionsProps) {
+export default function BuildingDetailActions({ buildingId, auditRunId }: BuildingDetailActionsProps) {
   const router = useRouter();
   const [isReportOpen, setIsReportOpen] = useState(false);
 
@@ -22,6 +23,7 @@ export default function BuildingDetailActions({ buildingId }: BuildingDetailActi
     <div className="flex items-center gap-3 select-none">
       <VoteButtons 
         buildingId={buildingId} 
+        auditRunId={auditRunId}
         onVoteSuccess={handleSuccess} 
       />
       

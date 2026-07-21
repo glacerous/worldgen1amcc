@@ -397,7 +397,7 @@ export default function BuildingDetailPage({
 
             {/* Actions Toolbar (Vote + Report + 360 Tour Button) */}
             <div className="flex items-center gap-4 flex-wrap">
-              <BuildingDetailActions buildingId={building.id} />
+              <BuildingDetailActions buildingId={building.id} auditRunId={selectedRunId} />
 
               <Link
                 href={`/buildings/${building.id}/tour`}
