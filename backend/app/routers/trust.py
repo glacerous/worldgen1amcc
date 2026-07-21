@@ -114,10 +114,6 @@ def recalculate_trust_status(building_id: str, db_building: Optional[Dict[str, A
     if building.get("manually_set_by_admin", False):
         return building
 
-    # If it is currently REPORTED, automatic voting recalculation does NOT change it.
-    if building.get("trust_status") == TrustStatus.REPORTED.value:
-        return building
-
     # Calculate vote stats from database
     res_votes = supabase.table("votes").select("vote_type").eq("building_id", building_id).execute()
     votes = res_votes.data or []
@@ -140,6 +136,10 @@ def recalculate_trust_status(building_id: str, db_building: Optional[Dict[str, A
             new_status = TrustStatus.TRUSTED
         else:
             new_status = TrustStatus.DOUBTFUL
+
+    # If building is currently REPORTED, retain the REPORTED status badge, but still update vote cache
+    if building.get("trust_status") == TrustStatus.REPORTED.value:
+        new_status = TrustStatus.REPORTED
 
     # Save cache updates
     update_res = supabase.table("buildings").update({

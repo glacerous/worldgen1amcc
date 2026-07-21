@@ -102,7 +102,7 @@ def get_building_audit_runs(building_id: UUID):
     """
     try:
         response = supabase.table("audit_runs") \
-            .select("*, users(display_name, avatar_url), buildings(trust_score_cache)") \
+            .select("*, users(display_name, avatar_url), buildings(trust_score_cache, vote_count_cache)") \
             .eq("building_id", str(building_id)) \
             .execute()
         
@@ -110,6 +110,17 @@ def get_building_audit_runs(building_id: UUID):
         if not runs:
             return []
             
+        # Fetch votes for this building to calculate per-run trust scores
+        votes_res = supabase.table("votes") \
+            .select("vote_type, audit_run_id") \
+            .eq("building_id", str(building_id)) \
+            .execute()
+        votes_by_run = {}
+        for v in (votes_res.data or []):
+            r_id = v.get("audit_run_id")
+            if r_id:
+                votes_by_run.setdefault(str(r_id), []).append(v.get("vote_type"))
+                
         # Fetch fallback photos for all runs of this building to parse
         results_res = supabase.table("audit_results") \
             .select("evidence_url, audit_run_id") \
@@ -128,10 +139,13 @@ def get_building_audit_runs(building_id: UUID):
             building_data = run.get("buildings") or {}
             run_id_str = str(run["id"])
             
-            # Trust score resolution (fallback to buildings.trust_score_cache if not directly present in run)
-            trust_score = run.get("trust_score")
-            if trust_score is None:
-                trust_score = building_data.get("trust_score_cache")
+            # Trust score resolution: check votes for this specific run first
+            run_votes = votes_by_run.get(run_id_str)
+            if run_votes:
+                up_count = sum(1 for vt in run_votes if vt == "up")
+                trust_score = up_count / len(run_votes)
+            else:
+                trust_score = None
                 
             raw_contrib = run.get("contributor_name")
             fallback_photos = list(set(fallback_photos_by_run.get(run_id_str, [])))
@@ -174,7 +188,7 @@ def get_audit_run_detail(audit_run_id: UUID):
     """
     try:
         response = supabase.table("audit_runs") \
-            .select("*, users(display_name, avatar_url)") \
+            .select("*, users(display_name, avatar_url), buildings(trust_score_cache, vote_count_cache)") \
             .eq("id", str(audit_run_id)) \
             .single() \
             .execute()
@@ -186,6 +200,24 @@ def get_audit_run_detail(audit_run_id: UUID):
 
     run = response.data
     user_data = run.get("users") or {}
+    building_data = run.get("buildings") or {}
+
+    # Calculate trust score for this audit run from votes table
+    try:
+        votes_res = supabase.table("votes") \
+            .select("vote_type") \
+            .eq("audit_run_id", str(audit_run_id)) \
+            .execute()
+        run_votes = votes_res.data or []
+    except Exception as e:
+        print(f"[warn] Failed to fetch votes for audit run detail: {e}")
+        run_votes = []
+
+    if run_votes:
+        up_count = sum(1 for v in run_votes if v.get("vote_type") == "up")
+        trust_score = up_count / len(run_votes)
+    else:
+        trust_score = None
 
     # Fetch fallback photos for this run
     fallback_photos = []
@@ -212,7 +244,7 @@ def get_audit_run_detail(audit_run_id: UUID):
         "building_id": run["building_id"],
         "user_id": run.get("user_id"),
         "contributor_name": c_name,
-        "trust_score": run.get("trust_score"),
+        "trust_score": trust_score,
         "created_at": run["created_at"],
         "display_name": user_data.get("display_name"),
         "avatar_url": user_data.get("avatar_url"),
