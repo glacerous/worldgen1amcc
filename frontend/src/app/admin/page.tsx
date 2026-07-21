@@ -570,13 +570,6 @@ export default function AdminDashboardPage() {
                             <h4 className="font-display text-lg font-medium text-ink">
                               {building.name}
                             </h4>
-                            <span className={`inline-flex px-2 py-0.5 border rounded-md text-[8px] font-sans font-semibold uppercase tracking-wider ${
-                              building.verified 
-                                ? "bg-accent/10 text-accent border-accent/20" 
-                                : "bg-bg text-ink-muted border-line"
-                            }`}>
-                              {building.verified ? "Diverifikasi" : "Komunitas"}
-                            </span>
                             {building.gps_mismatch && (
                               <span className="inline-flex px-2 py-0.5 border rounded-md text-[8px] font-sans font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-700 border-amber-500/20">
                                 GPS Tidak Cocok
@@ -593,12 +586,14 @@ export default function AdminDashboardPage() {
                           </p>
                         </div>
 
-                        <Link
-                          href={`/buildings/${building.id}`}
-                          className="flex-shrink-0 inline-flex items-center justify-center border border-line bg-surface hover:bg-bg/40 text-ink hover:text-accent font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all cursor-pointer"
-                        >
-                          Tinjau Kriteria
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/buildings/${building.id}`}
+                            className="flex-shrink-0 inline-flex items-center justify-center border border-line bg-surface hover:bg-bg/40 text-ink hover:text-accent font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all cursor-pointer"
+                          >
+                            Buka Detail Gedung
+                          </Link>
+                        </div>
                       </div>
                     ))}
                   </div>

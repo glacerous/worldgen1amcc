@@ -588,22 +588,13 @@ export default function BuildingsPage() {
 
                           {/* Status Container */}
                           <div className="flex-shrink-0 flex items-center justify-end gap-3">
-                            {building.status_summary === "review" && (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded text-[10px] font-sans font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-600 border border-amber-500/20 gap-1.5 shadow-xs">
-                                <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                Review
-                              </span>
-                            )}
-
                             {building.status_summary === "no_audit" && (
                               <span className="px-2.5 py-1 bg-status-unknown/10 text-status-unknown border border-status-unknown/20 rounded text-[10px] font-sans font-medium whitespace-nowrap">
                                 No Audit
                               </span>
                             )}
 
-                            {(building.status_summary === "active" || building.status_summary === "review") && building.compliance_score !== null && building.compliance_score !== undefined && (
+                            {building.status_summary === "active" && building.compliance_score !== null && building.compliance_score !== undefined && (
                               <div className="flex flex-col items-end">
                                 <span className={`font-display text-3xl sm:text-4xl font-extrabold ${getComplianceColorClass(building.compliance_score)}`}>
                                   {building.compliance_score === "N/A" ? "N/A" : `${building.compliance_score}%`}

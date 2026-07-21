@@ -740,9 +740,7 @@ def get_buildings():
                 primary_results = []
 
             # Determine status summary
-            if has_dispute or b_id in open_report_building_ids:
-                status_summary = "review"
-            elif run_count == 0:
+            if run_count == 0:
                 status_summary = "no_audit"
             else:
                 status_summary = "active"
@@ -860,9 +858,7 @@ def get_building(id: UUID):
                 break
 
         # 4. Determine status summary and score
-        if has_dispute or has_open_reports:
-            status_summary = "review"
-        elif run_count == 0:
+        if run_count == 0:
             status_summary = "no_audit"
         else:
             status_summary = "active"
