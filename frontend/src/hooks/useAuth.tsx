@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { BACKEND_URL } from "@/config";
 
 export interface User {
   id: string;
@@ -47,8 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [dyslexiaFont, setDyslexiaFontState] = useState(false);
   const [largeTargets, setLargeTargetsState] = useState(false);
   const [underlineLinks, setUnderlineLinksState] = useState(false);
-
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
   useEffect(() => {
     if (typeof window !== "undefined") {

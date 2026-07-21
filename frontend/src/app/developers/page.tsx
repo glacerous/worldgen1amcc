@@ -6,6 +6,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/hooks/useAuth";
+import { BACKEND_URL } from "@/config";
 
 interface APIKeyData {
   api_key: string;
@@ -35,7 +36,7 @@ function DevelopersPageContent() {
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string | null>(null);
 
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
 
   // Fetch API key details on load if logged in
   useEffect(() => {

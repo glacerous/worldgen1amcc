@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import CountUpNumber from "./CountUpNumber";
+import { BACKEND_URL } from "@/config";
 
 interface VoteButtonsProps {
   buildingId: string;
@@ -36,7 +37,7 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
         if (id) {
           headers["X-Anonymous-ID"] = id;
         }
-        const res = await fetch(`http://127.0.0.1:8000/buildings/${buildingId}/vote-status`, {
+        const res = await fetch(`${BACKEND_URL}/buildings/${buildingId}/vote-status`, {
           headers,
           credentials: "include",
         });
@@ -78,7 +79,7 @@ export default function VoteButtons({ buildingId, onVoteSuccess }: VoteButtonsPr
       if (id) {
         headers["X-Anonymous-ID"] = id;
       }
-      const res = await fetch(`http://127.0.0.1:8000/buildings/${buildingId}/vote`, {
+      const res = await fetch(`${BACKEND_URL}/buildings/${buildingId}/vote`, {
         method: "POST",
         headers,
         body: JSON.stringify({ vote_type: targetVoteType }),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { BACKEND_URL } from "@/config";
 
 interface ReportModalProps {
   buildingId: string;
@@ -46,7 +47,7 @@ export default function ReportModal({
     setError(null);
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/buildings/${buildingId}/report`, {
+      const res = await fetch(`${BACKEND_URL}/buildings/${buildingId}/report`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

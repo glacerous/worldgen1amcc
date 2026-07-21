@@ -2,14 +2,13 @@
 
 import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { BACKEND_URL } from "@/config";
 
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const redirect = searchParams.get("redirect");
-
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
   useEffect(() => {
     if (!token) {

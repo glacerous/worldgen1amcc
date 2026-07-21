@@ -10,8 +10,9 @@ import dynamic from "next/dynamic";
 import CountUpNumber from "@/components/CountUpNumber";
 import { motion, AnimatePresence } from "framer-motion";
 import Footer from "@/components/Footer";
+import { BACKEND_URL } from "@/config";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+
 
 const DetailMap = dynamic(() => import("@/components/DetailMap"), {
   ssr: false,

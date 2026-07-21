@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import { BACKEND_URL } from "@/config";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function AdminLoginPage() {
     }
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/login", {
+      const res = await fetch(`${BACKEND_URL}/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
+import { BACKEND_URL } from "@/config";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+
 
 interface AuditRun {
   id: string;

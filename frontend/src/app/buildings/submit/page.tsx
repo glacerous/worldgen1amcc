@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/hooks/useAuth";
 import AuditLoadingOverlay from "@/components/AuditLoadingOverlay";
+import { BACKEND_URL } from "@/config";
 
 interface NearbyBuilding {
   id: string;
@@ -44,7 +45,7 @@ const DetailMap = dynamic(() => import("@/components/DetailMap"), {
   ),
 });
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+
 
 export default function SubmitBuildingPage() {
   const router = useRouter();

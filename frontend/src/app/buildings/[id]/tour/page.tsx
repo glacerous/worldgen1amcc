@@ -6,8 +6,9 @@ import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/hooks/useAuth";
+import { BACKEND_URL } from "@/config";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+
 
 // Dynamically import TourViewer to avoid server-side pre-rendering errors with Pannellum
 const TourViewer = dynamic(() => import("@/components/TourViewer"), {

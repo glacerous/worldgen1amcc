@@ -6,6 +6,7 @@ import Link from "next/link";
 import TrustBadge from "@/components/TrustBadge";
 import { motion, AnimatePresence } from "framer-motion";
 import Footer from "@/components/Footer";
+import { BACKEND_URL } from "@/config";
 
 interface AuditCriteria {
   category: string;
@@ -37,7 +38,7 @@ interface Building {
   created_at?: string;
 }
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+
 
 function calculateHaversineDistance(
   lat1: number,

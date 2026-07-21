@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { BACKEND_URL } from "@/config";
 
 interface ToggleRowProps {
   label: string;
@@ -95,7 +96,6 @@ export default function SettingsPage() {
     setIsUpdating(true);
     setUpdateMessage(null);
     try {
-      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
       const response = await fetch(`${BACKEND_URL}/auth/me`, {
         method: "PUT",
         headers: {

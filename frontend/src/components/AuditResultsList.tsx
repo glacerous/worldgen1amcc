@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { BACKEND_URL } from "@/config";
 
 interface AuditResult {
   criteria_code: string;
@@ -120,7 +121,7 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
     setReportSuccess(false);
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/audit-results/${reportResultId}/report`, {
+      const res = await fetch(`${BACKEND_URL}/audit-results/${reportResultId}/report`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
