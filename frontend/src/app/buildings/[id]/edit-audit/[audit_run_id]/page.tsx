@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import { BACKEND_URL } from "@/config";
+import AuditLoadingOverlay from "@/components/AuditLoadingOverlay";
 
 
 
@@ -33,6 +34,8 @@ export default function EditAuditPage({
   const [loadingRun, setLoadingRun] = useState(true);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [successTargetUrl, setSuccessTargetUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
@@ -167,6 +170,8 @@ export default function EditAuditPage({
     }
 
     setIsSubmitting(true);
+    setIsSuccess(false);
+    setSuccessTargetUrl(null);
     setError(null);
 
     const formData = new FormData();
@@ -187,13 +192,10 @@ export default function EditAuditPage({
         throw new Error(data.detail || "Gagal memperbarui audit.");
       }
 
-      setSuccessMessage("Audit berhasil diperbarui");
-      setTimeout(() => {
-        router.push(`/buildings/${buildingId}?updated=1`);
-      }, 1500);
+      setIsSuccess(true);
+      setSuccessTargetUrl(`/buildings/${buildingId}?updated=1`);
     } catch (err: any) {
       setError(err.message || "Terjadi kesalahan koneksi server.");
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -479,6 +481,17 @@ export default function EditAuditPage({
         onConfirm={executeDeleteAudit}
         onClose={() => {
           if (!isDeleting) setShowDeleteModal(false);
+        }}
+      />
+
+      <AuditLoadingOverlay
+        isVisible={isSubmitting}
+        isSuccess={isSuccess}
+        mode="edit"
+        onComplete={() => {
+          if (successTargetUrl) {
+            router.push(successTargetUrl);
+          }
         }}
       />
     </div>

@@ -66,6 +66,8 @@ export default function SubmitBuildingPage() {
   const [isDraggingPhotos, setIsDraggingPhotos] = useState(false);
   const [isDraggingPanoramas, setIsDraggingPanoramas] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [successTargetUrl, setSuccessTargetUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [warningDistance, setWarningDistance] = useState<number | null>(null);
@@ -295,6 +297,8 @@ export default function SubmitBuildingPage() {
 
   const performSubmit = async (confirmLocation: boolean) => {
     setIsLoading(true);
+    setIsSuccess(false);
+    setSuccessTargetUrl(null);
     setError(null);
 
     const isExistingBuilding = userSelection === "existing" && selectedNearbyBuildingId;
@@ -365,8 +369,9 @@ export default function SubmitBuildingPage() {
         throw new Error("Gagal memperoleh ID gedung hasil submit.");
       }
 
-      // Success redirect to the detail results page immediately
-      router.push(`/buildings/${targetBuildingId}`);
+      // Transition to success state in overlay, then redirect when complete
+      setSuccessTargetUrl(`/buildings/${targetBuildingId}`);
+      setIsSuccess(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan koneksi server.");
       setIsLoading(false);
@@ -1160,7 +1165,16 @@ export default function SubmitBuildingPage() {
         </div>
       )}
       
-      <AuditLoadingOverlay isVisible={isLoading} />
+      <AuditLoadingOverlay
+        isVisible={isLoading}
+        isSuccess={isSuccess}
+        mode="create"
+        onComplete={() => {
+          if (successTargetUrl) {
+            router.push(successTargetUrl);
+          }
+        }}
+      />
     </div>
   );
 }
