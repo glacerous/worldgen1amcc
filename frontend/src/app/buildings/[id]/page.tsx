@@ -434,28 +434,62 @@ export default function BuildingDetailPage({
               {building.address || "Alamat belum ditambahkan."}
             </p>
 
-            {/* Contributor switcher */}
+            {/* Contributor switcher & Audit history */}
             {!loadingRuns && auditRuns.length > 0 && selectedRun && (
-              <div className="relative inline-block text-xs font-sans text-ink-muted mt-1">
-                <span>
-                  Dilihat: Audit oleh{" "}
-                  <span className="font-semibold text-ink">
-                    {selectedRun.contributor_name || "Anonim"}
-                  </span>{" "}
-                  ({new Date(selectedRun.created_at).toLocaleDateString("id-ID", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })})
-                </span>
+              <div className="text-xs font-sans mt-1">
+                {/* Baris 1: Info audit aktif & Tombol Edit/Hapus */}
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-ink-muted">
+                  <span>
+                    Dilihat: Audit oleh{" "}
+                    <span className="font-semibold text-ink">
+                      {selectedRun.contributor_name || "Anonim"}
+                    </span>{" "}
+                    ({new Date(selectedRun.created_at).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })})
+                  </span>
 
+                  {/* Edit & Delete buttons for current run if owned by logged-in user */}
+                  {user?.id && selectedRun.user_id === user.id && (
+                    <div className="inline-flex items-center gap-1.5">
+                      <Link
+                        href={`/buildings/${id}/edit-audit/${selectedRunId}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-sans font-semibold rounded-md border border-accent text-accent hover:bg-accent hover:text-white transition-all bg-surface"
+                        title="Edit audit run milik Anda"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+                        </svg>
+                        Edit Audit
+                      </Link>
+                      <button
+                        onClick={() => setShowDeleteModal(true)}
+                        disabled={isDeletingAudit}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-sans font-semibold rounded-md border border-status-not-met text-status-not-met hover:bg-status-not-met hover:text-white transition-all bg-surface cursor-pointer disabled:opacity-50"
+                        title="Hapus audit run milik Anda"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                        </svg>
+                        Hapus Audit
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Baris 2: Link "Lihat N audit lainnya" */}
                 {auditRuns.length > 1 && (
-                  <div className="inline-block ml-2 relative">
+                  <div className="relative inline-block mt-1.5">
                     <button
                       onClick={() => setShowAllRunsDropdown(!showAllRunsDropdown)}
-                      className="text-accent hover:underline font-semibold focus:outline-none cursor-pointer"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:underline focus:outline-none cursor-pointer group"
                     >
-                      Lihat {auditRuns.length - 1} audit lainnya
+                      <svg className="w-3 h-3 text-accent transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                      </svg>
+                      <span>Lihat {auditRuns.length - 1} audit lainnya</span>
                     </button>
 
                     {showAllRunsDropdown && (
@@ -508,33 +542,6 @@ export default function BuildingDetailPage({
                         </div>
                       </>
                     )}
-                  </div>
-                )}
-
-                {/* Edit & Delete buttons for current run if owned by logged-in user */}
-                {user?.id && selectedRun.user_id === user.id && (
-                  <div className="inline-flex items-center gap-1.5 ml-2">
-                    <Link
-                      href={`/buildings/${id}/edit-audit/${selectedRunId}`}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-sans font-semibold rounded-md border border-accent text-accent hover:bg-accent hover:text-white transition-all bg-surface"
-                      title="Edit audit run milik Anda"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-                      </svg>
-                      Edit Audit
-                    </Link>
-                    <button
-                      onClick={() => setShowDeleteModal(true)}
-                      disabled={isDeletingAudit}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-sans font-semibold rounded-md border border-status-not-met text-status-not-met hover:bg-status-not-met hover:text-white transition-all bg-surface cursor-pointer disabled:opacity-50"
-                      title="Hapus audit run milik Anda"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                      </svg>
-                      Hapus Audit
-                    </button>
                   </div>
                 )}
               </div>
