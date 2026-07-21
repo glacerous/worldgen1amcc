@@ -244,3 +244,48 @@ def resolve_report(report_id: UUID, token: str = Depends(require_admin)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal menyelesaikan laporan: {str(e)}")
+
+@admin_router.delete("/building-reports/{report_id}", response_model=dict)
+def delete_building_report(report_id: UUID, token: str = Depends(require_admin)):
+    """
+    Protected admin endpoint to delete/resolve a building report.
+    """
+    try:
+        res = supabase.table("building_reports").delete().eq("id", str(report_id)).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Laporan gedung tidak ditemukan.")
+        return {"status": "success", "message": "Laporan gedung berhasil diselesaikan/dihapus."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal menghapus laporan gedung: {str(e)}")
+
+@admin_router.delete("/audit-runs/{audit_run_id}", response_model=dict)
+def admin_delete_audit_run(audit_run_id: UUID, token: str = Depends(require_admin)):
+    """
+    Protected admin endpoint allowing an admin to delete ANY audit run and its associated results & storage photos.
+    """
+    run_id_str = str(audit_run_id)
+    try:
+        run_res = supabase.table("audit_runs").select("*").eq("id", run_id_str).execute()
+        if not run_res.data:
+            raise HTTPException(status_code=404, detail="Audit run tidak ditemukan.")
+
+        audit_run = run_res.data[0]
+        photos = audit_run.get("photos") or []
+        for photo_url in photos:
+            if isinstance(photo_url, str) and "/photos/" in photo_url:
+                try:
+                    filename = photo_url.split("/")[-1]
+                    supabase.storage.from_("photos").remove([filename])
+                except Exception as err:
+                    print(f"[warn] Gagal menghapus foto dari storage: {photo_url}. Error: {err}")
+
+        supabase.table("audit_results").delete().eq("audit_run_id", run_id_str).execute()
+        supabase.table("audit_runs").delete().eq("id", run_id_str).execute()
+        return {"status": "success", "message": "Audit run berhasil dihapus oleh admin."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal menghapus audit run oleh admin: {str(e)}")
+

@@ -4,13 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import Toast, { ToastMessage } from "@/components/Toast";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import { BACKEND_URL } from "@/config";
 
 interface Building {
   id: string;
   name: string;
   address: string | null;
-  verified: boolean;
   gps_mismatch?: boolean;
   edit_history_count?: number;
 }
@@ -34,10 +35,6 @@ interface Report {
       description: string;
       category: string;
     } | null;
-    audit_runs?: {
-      gps_mismatch: boolean;
-      gps_distance_meters: number | null;
-    } | null;
   } | null;
 }
 
@@ -52,27 +49,44 @@ interface BuildingReport {
     id: string;
     name: string;
     address: string | null;
-    trust_status: string;
-    manually_set_by_admin: boolean;
   } | null;
 }
 
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
-  
+
   // Dashboard state
-  const [activeTab, setActiveTab] = useState<"reports" | "disputed" | "moderation">("reports");
+  const [activeTab, setActiveTab] = useState<"reports" | "disputed">("reports");
   const [reports, setReports] = useState<Report[]>([]);
   const [buildingReports, setBuildingReports] = useState<BuildingReport[]>([]);
   const [disputedBuildings, setDisputedBuildings] = useState<Building[]>([]);
-  const [moderationBuildings, setModerationBuildings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Action state
+
+  // Toast notifications state
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Modal deletion state
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "building" | "building_report" | "report";
+    id: string;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
-  const [expandedIds, setExpandedIds] = useState<string[]>([]);
+
+  const addToast = (type: "success" | "error" | "info", message: string) => {
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id: toastId, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== toastId));
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Authenticate and fetch initial data
   useEffect(() => {
@@ -89,23 +103,18 @@ export default function AdminDashboardPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const headers = {
-        Authorization: `Bearer ${sessionToken}`,
-      };
+      const headers = { Authorization: `Bearer ${sessionToken}` };
 
-      // Fetch reports, disputed buildings, moderation queue, and building reports in parallel
-      const [reportsRes, disputedRes, moderationRes, buildingReportsRes] = await Promise.all([
+      const [reportsRes, disputedRes, buildingReportsRes] = await Promise.all([
         fetch(`${BACKEND_URL}/admin/reports`, { headers, cache: "no-store" }),
         fetch(`${BACKEND_URL}/admin/disputed`, { headers, cache: "no-store" }),
-        fetch(`${BACKEND_URL}/admin/moderation-queue`, { headers, cache: "no-store" }),
         fetch(`${BACKEND_URL}/admin/building-reports`, { headers, cache: "no-store" }),
       ]);
 
-      if (!reportsRes.ok || !disputedRes.ok || !moderationRes.ok || !buildingReportsRes.ok) {
+      if (!reportsRes.ok || !disputedRes.ok || !buildingReportsRes.ok) {
         if (
-          reportsRes.status === 401 || 
-          disputedRes.status === 401 || 
-          moderationRes.status === 401 ||
+          reportsRes.status === 401 ||
+          disputedRes.status === 401 ||
           buildingReportsRes.status === 401
         ) {
           sessionStorage.removeItem("admin_token");
@@ -118,12 +127,10 @@ export default function AdminDashboardPage() {
 
       const reportsData = await reportsRes.json();
       const disputedData = await disputedRes.json();
-      const moderationData = await moderationRes.json();
       const buildingReportsData = await buildingReportsRes.json();
 
       setReports(reportsData);
       setDisputedBuildings(disputedData);
-      setModerationBuildings(moderationData);
       setBuildingReports(buildingReportsData);
     } catch (err: any) {
       setError(err.message || "Terjadi kesalahan saat memuat data.");
@@ -132,7 +139,7 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleResolveReport = async (reportId: string) => {
+  const handleResolveCriteriaReport = async (reportId: string) => {
     if (!token) return;
     setResolvingId(reportId);
 
@@ -146,93 +153,63 @@ export default function AdminDashboardPage() {
       });
 
       if (!res.ok) {
-        throw new Error("Gagal menyelesaikan laporan.");
+        throw new Error("Gagal menyelesaikan laporan poin kriteria.");
       }
 
-      // Re-fetch data to reflect changes
-      await fetchData(token);
+      setReports((prev) => prev.map((r) => (r.id === reportId ? { ...r, status: "resolved" } : r)));
+      addToast("success", "Laporan kriteria berhasil diselesaikan.");
     } catch (err: any) {
-      alert(err.message || "Terjadi kesalahan saat memperbarui laporan.");
+      addToast("error", err.message || "Terjadi kesalahan saat memproses.");
     } finally {
       setResolvingId(null);
     }
   };
 
-  const handleSetTrustStatus = async (buildingId: string, status: string) => {
+  const handleResolveBuildingReport = async (reportId: string) => {
     if (!token) return;
-    setIsLoading(true);
+    setResolvingId(reportId);
+
     try {
-      const res = await fetch(`${BACKEND_URL}/admin/buildings/${buildingId}/trust-status`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Gagal merubah status kepercayaan.");
-      }
-
-      await fetchData(token);
-      alert(`Berhasil menetapkan status gedung menjadi ${status.toUpperCase()}.`);
-    } catch (err: any) {
-      alert(err.message || "Terjadi kesalahan.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResetToAuto = async (buildingId: string) => {
-    if (!token) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch(`${BACKEND_URL}/admin/buildings/${buildingId}/reset-to-auto`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error("Gagal mengembalikan status ke perhitungan otomatis.");
-      }
-
-      await fetchData(token);
-      alert("Berhasil mengembalikan status gedung ke perhitungan otomatis.");
-    } catch (err: any) {
-      alert(err.message || "Terjadi kesalahan.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteBuilding = async (buildingId: string, buildingName: string) => {
-    if (!token) return;
-    if (!confirm(`Apakah Anda yakin ingin menghapus gedung "${buildingName}" secara permanen? Semua data audit, foto, dan hotspot terkait akan dihapus.`)) {
-      return;
-    }
-    
-    setIsLoading(true);
-    try {
-      const res = await fetch(`${BACKEND_URL}/admin/buildings/${buildingId}`, {
+      const res = await fetch(`${BACKEND_URL}/admin/building-reports/${reportId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        throw new Error("Gagal menghapus/menyelesaikan laporan gedung.");
+      }
+
+      setBuildingReports((prev) => prev.filter((r) => r.id !== reportId));
+      addToast("success", "Laporan gedung berhasil diselesaikan.");
+    } catch (err: any) {
+      addToast("error", err.message || "Terjadi kesalahan saat memproses.");
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const executeDeleteBuilding = async () => {
+    if (!token || !deleteTarget || deleteTarget.type !== "building") return;
+    setIsDeleting(true);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/admin/buildings/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!res.ok) {
         throw new Error("Gagal menghapus gedung.");
       }
 
-      await fetchData(token);
-      alert("Gedung berhasil dihapus.");
+      setDisputedBuildings((prev) => prev.filter((b) => b.id !== deleteTarget.id));
+      setBuildingReports((prev) => prev.filter((r) => r.building_id !== deleteTarget.id));
+      addToast("success", `Gedung "${deleteTarget.name}" berhasil dihapus.`);
+      setDeleteTarget(null);
     } catch (err: any) {
-      alert(err.message || "Terjadi kesalahan.");
+      addToast("error", err.message || "Terjadi kesalahan saat menghapus gedung.");
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -242,9 +219,7 @@ export default function AdminDashboardPage() {
     router.push("/admin/login");
   };
 
-  // Filter open reports
   const openReports = reports.filter((r) => r.status === "open");
-  const resolvedReports = reports.filter((r) => r.status === "resolved");
 
   const statusLabels: Record<string, string> = {
     met: "Terpenuhi",
@@ -252,8 +227,6 @@ export default function AdminDashboardPage() {
     unknown: "Tidak Diketahui",
     na: "Tidak Relevan",
   };
-
-
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
@@ -263,18 +236,23 @@ export default function AdminDashboardPage() {
         {/* Admin Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-line pb-6 mb-8 gap-4">
           <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-sans font-bold bg-accent text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Panel Kontrol
+              </span>
+            </div>
             <h1 className="font-display text-3xl md:text-4xl font-normal text-ink">
-              Dashboard Panel Admin
+              Dashboard Admin
             </h1>
             <p className="font-sans text-xs text-ink-muted mt-1">
-              Pantau laporan kontradiktif dari audit otomatis AI dan tinjau aduan komunitas.
+              Moderasi laporan komunitas dan kelola sengketa hasil audit gedung.
             </p>
           </div>
           <button
             onClick={handleLogout}
             className="self-start sm:self-center border border-line bg-surface hover:bg-bg/40 text-ink hover:text-accent font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all cursor-pointer"
           >
-            Keluar
+            Keluar Admin
           </button>
         </div>
 
@@ -295,7 +273,7 @@ export default function AdminDashboardPage() {
                 : "border-transparent text-ink-muted hover:text-ink"
             }`}
           >
-            Laporan Masuk ({openReports.length + buildingReports.length})
+            Laporan Komunitas ({buildingReports.length + openReports.length})
           </button>
           <button
             onClick={() => setActiveTab("disputed")}
@@ -305,17 +283,7 @@ export default function AdminDashboardPage() {
                 : "border-transparent text-ink-muted hover:text-ink"
             }`}
           >
-            Hasil Beragam ({disputedBuildings.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("moderation")}
-            className={`font-sans text-sm font-semibold pb-3 px-4 -mb-px transition-colors cursor-pointer border-b-2 ${
-              activeTab === "moderation"
-                ? "border-accent text-accent"
-                : "border-transparent text-ink-muted hover:text-ink"
-            }`}
-          >
-            Antrian Moderasi ({moderationBuildings.length})
+            Audit Bersengketa ({disputedBuildings.length})
           </button>
         </div>
 
@@ -326,24 +294,24 @@ export default function AdminDashboardPage() {
           </div>
         ) : (
           <>
-            {/* Tab content 1: Reports List */}
+            {/* TAB 1: LAPORAN KOMUNITAS */}
             {activeTab === "reports" && (
               <div className="space-y-12">
-                {/* 1. Seksi Laporan Umum Gedung */}
+                {/* Laporan Umum Gedung */}
                 <div className="space-y-6">
                   <div>
                     <h3 className="font-display text-xl font-normal text-ink">
-                      Laporan Umum Gedung ({buildingReports.length})
+                      Laporan Gedung ({buildingReports.length})
                     </h3>
                     <p className="font-sans text-xs text-ink-muted mt-1">
-                      Laporan tingkat gedung (dari fitur vote / ketidaksesuaian umum).
+                      Aduan ketidaksesuaian umum dari pengguna pada tingkat gedung.
                     </p>
                   </div>
 
                   {buildingReports.length === 0 ? (
                     <div className="bg-surface border border-line rounded-md p-8 text-center">
                       <p className="font-sans text-xs text-ink-muted italic">
-                        Tidak ada laporan umum gedung saat ini.
+                        Tidak ada laporan gedung saat ini.
                       </p>
                     </div>
                   ) : (
@@ -351,31 +319,22 @@ export default function AdminDashboardPage() {
                       {buildingReports.map((bReport) => {
                         const buildingName = bReport.buildings?.name || "Gedung Tidak Diketahui";
                         const buildingId = bReport.building_id;
-                        const buildingAddress = bReport.buildings?.address || "Alamat tidak tersedia";
-                        const trustStatus = bReport.buildings?.trust_status || "neutral";
 
                         return (
-                          <div key={bReport.id} className="bg-surface border border-line rounded-md p-5 flex flex-col md:flex-row justify-between gap-6 hover:border-line/80 transition-colors">
+                          <div
+                            key={bReport.id}
+                            className="bg-surface border border-line rounded-md p-5 flex flex-col md:flex-row justify-between gap-6 hover:border-line/80 transition-colors"
+                          >
                             <div className="flex-1 space-y-3">
-                              {/* Metadata */}
                               <div className="flex flex-wrap items-center gap-2 text-[10px] font-sans text-ink-muted">
-                                <Link 
+                                <Link
                                   href={`/buildings/${buildingId}`}
-                                  className="font-bold text-accent hover:underline"
+                                  className="font-bold text-accent hover:underline text-xs"
                                 >
                                   {buildingName}
                                 </Link>
-                                <span>•</span>
-                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-sans font-semibold uppercase tracking-wider ${
-                                  trustStatus === "trusted" ? "bg-status-met/10 text-status-met border border-status-met/20" :
-                                  trustStatus === "reported" ? "bg-status-not-met/10 text-status-not-met border border-status-not-met/20" :
-                                  "bg-bg text-ink-muted border-line"
-                                }`}>
-                                  Status: {trustStatus.toUpperCase()}
-                                </span>
                               </div>
 
-                              {/* Reported Reason */}
                               <div className="bg-bg/40 p-3 rounded border border-line/30">
                                 <span className="block text-[9px] font-sans font-bold text-ink-muted uppercase tracking-wider mb-1">
                                   Alasan Komunitas:
@@ -391,25 +350,26 @@ export default function AdminDashboardPage() {
                               </div>
                             </div>
 
-                            {/* Action Buttons for building status override directly */}
-                            <div className="flex flex-wrap md:flex-col md:items-end justify-center gap-2">
+                            <div className="flex flex-col sm:flex-row md:flex-col justify-center gap-2 flex-shrink-0">
                               <button
-                                onClick={() => handleSetTrustStatus(buildingId, "trusted")}
-                                className="inline-flex items-center justify-center bg-status-met/10 text-status-met hover:bg-status-met hover:text-white border border-status-met/20 font-sans text-[10px] font-semibold px-2.5 py-1.5 rounded transition-all cursor-pointer"
+                                onClick={() => handleResolveBuildingReport(bReport.id)}
+                                disabled={resolvingId === bReport.id}
+                                className="inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all disabled:opacity-50 cursor-pointer"
                               >
-                                Set Trusted
+                                {resolvingId === bReport.id ? "Memproses..." : "Selesaikan Laporan"}
                               </button>
+
                               <button
-                                onClick={() => handleSetTrustStatus(buildingId, "doubtful")}
-                                className="inline-flex items-center justify-center bg-amber-500/10 text-amber-700 hover:bg-amber-500 hover:text-white border border-amber-500/20 font-sans text-[10px] font-semibold px-2.5 py-1.5 rounded transition-all cursor-pointer"
+                                onClick={() =>
+                                  setDeleteTarget({
+                                    type: "building",
+                                    id: buildingId,
+                                    name: buildingName,
+                                  })
+                                }
+                                className="inline-flex items-center justify-center bg-status-not-met/10 text-status-not-met hover:bg-status-not-met hover:text-white border border-status-not-met/20 font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all cursor-pointer"
                               >
-                                Set Doubtful
-                              </button>
-                              <button
-                                onClick={() => handleResetToAuto(buildingId)}
-                                className="inline-flex items-center justify-center border border-line bg-surface hover:bg-bg/40 text-ink font-sans text-[10px] font-semibold px-2.5 py-1.5 rounded transition-all cursor-pointer"
-                              >
-                                Reset to Auto
+                                Hapus Gedung
                               </button>
                             </div>
                           </div>
@@ -419,14 +379,14 @@ export default function AdminDashboardPage() {
                   )}
                 </div>
 
-                {/* 2. Seksi Laporan Poin Kriteria */}
+                {/* Laporan Poin Kriteria */}
                 <div className="space-y-6 pt-6 border-t border-line/60">
                   <div>
                     <h3 className="font-display text-xl font-normal text-ink">
                       Laporan Poin Kriteria ({openReports.length})
                     </h3>
                     <p className="font-sans text-xs text-ink-muted mt-1">
-                      Laporan tingkat kriteria spesifik (terhubung ke audit_result_id).
+                      Aduan ketidakakuratan hasil analisis AI untuk kriteria spesifik.
                     </p>
                   </div>
 
@@ -444,53 +404,44 @@ export default function AdminDashboardPage() {
                         const critCode = report.audit_results?.audit_criteria?.code || "N/A";
                         const critDesc = report.audit_results?.audit_criteria?.description || "Kriteria tidak diketahui";
                         const evalStatus = report.audit_results?.status || "unknown";
-                        const hasGpsMismatch = report.audit_results?.audit_runs?.gps_mismatch || false;
 
                         return (
-                          <div key={report.id} className="bg-surface border border-line rounded-md p-5 flex flex-col md:flex-row justify-between gap-6 hover:border-line/80 transition-colors">
+                          <div
+                            key={report.id}
+                            className="bg-surface border border-line rounded-md p-5 flex flex-col md:flex-row justify-between gap-6 hover:border-line/80 transition-colors"
+                          >
                             <div className="flex-1 space-y-3">
-                              {/* Metadata */}
                               <div className="flex flex-wrap items-center gap-2 text-[10px] font-sans text-ink-muted">
                                 {buildId ? (
-                                  <Link 
+                                  <Link
                                     href={`/buildings/${buildId}`}
-                                    className="font-bold text-accent hover:underline"
+                                    className="font-bold text-accent hover:underline text-xs"
                                   >
                                     {buildName}
                                   </Link>
                                 ) : (
-                                  <span className="font-bold">{buildName}</span>
+                                  <span className="font-bold text-xs">{buildName}</span>
                                 )}
                                 <span>•</span>
-                                <span className="font-mono bg-bg px-1.5 py-0.5 border border-line rounded">
+                                <span className="font-mono bg-bg px-1.5 py-0.5 border border-line rounded font-bold text-accent">
                                   {critCode}
                                 </span>
                                 <span>•</span>
                                 <span>
                                   Hasil Audit: <strong className="text-ink font-semibold">{statusLabels[evalStatus] || evalStatus}</strong>
                                 </span>
-                                {hasGpsMismatch && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-sans font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-700 border border-amber-500/20">
-                                      GPS Tidak Cocok
-                                    </span>
-                                  </>
-                                )}
                               </div>
 
-                              {/* Criteria Description */}
                               <h4 className="font-display text-base text-ink leading-relaxed font-medium">
                                 "{critDesc}"
                               </h4>
 
-                              {/* Reported Reason */}
                               <div className="bg-bg/40 p-3 rounded border border-line/30">
                                 <span className="block text-[9px] font-sans font-bold text-ink-muted uppercase tracking-wider mb-1">
                                   Alasan Komunitas:
                                 </span>
                                 <p className="font-sans text-xs text-ink italic leading-relaxed">
-                                  {report.reason ? `"${report.reason}"` : "Tidak ada alasan tertulis yang disertakan."}
+                                  {report.reason ? `"${report.reason}"` : "Tidak ada alasan tertulis."}
                                 </p>
                               </div>
 
@@ -501,7 +452,7 @@ export default function AdminDashboardPage() {
 
                             <div className="flex items-center md:justify-end">
                               <button
-                                onClick={() => handleResolveReport(report.id)}
+                                onClick={() => handleResolveCriteriaReport(report.id)}
                                 disabled={resolvingId === report.id}
                                 className="w-full md:w-auto inline-flex items-center justify-center bg-accent text-white hover:opacity-90 font-sans text-xs font-semibold px-4 py-2 rounded-md transition-all disabled:opacity-50 cursor-pointer"
                               >
@@ -514,57 +465,37 @@ export default function AdminDashboardPage() {
                     </div>
                   )}
                 </div>
-
-                {/* 3. Laporan yang Telah Diselesaikan (Criteria Reports) */}
-                {resolvedReports.length > 0 && (
-                  <div className="pt-8 border-t border-line/60">
-                    <h3 className="font-display text-lg font-normal text-ink-muted mb-4">
-                      Laporan yang Telah Diselesaikan ({resolvedReports.length})
-                    </h3>
-                    <div className="space-y-3 opacity-60">
-                      {resolvedReports.slice(0, 5).map((report) => (
-                        <div key={report.id} className="bg-surface/60 border border-line/50 rounded-md p-4 flex justify-between gap-4 text-xs font-sans text-ink-muted">
-                          <div>
-                            <span className="font-bold">{report.audit_results?.buildings?.name || "Gedung"}</span>
-                            <span className="mx-2">•</span>
-                            <span className="font-mono bg-bg px-1 rounded border border-line/40">{report.audit_results?.audit_criteria?.code}</span>
-                            <span className="mx-2">•</span>
-                            <span className="italic">"{report.reason || "Tanpa alasan"}"</span>
-                          </div>
-                          <span className="text-[10px] text-status-met font-semibold uppercase">Resolved</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
-            {/* Tab content 2: Disputed Buildings */}
+            {/* TAB 2: AUDIT BERSENGKETA */}
             {activeTab === "disputed" && (
               <div className="space-y-6">
                 <div>
                   <h3 className="font-display text-xl font-normal text-ink">
-                    Gedung dengan Hasil Beragam ({disputedBuildings.length})
+                    Gedung dengan Audit Bersengketa ({disputedBuildings.length})
                   </h3>
                   <p className="font-sans text-xs text-ink-muted mt-1">
-                    Gedung-gedung di bawah ini memiliki setidaknya satu kriteria audit dengan penilaian yang tidak konsisten antar sesi audit (sengketa konsensus).
+                    Gedung dengan penilaian kriteria yang tidak konsisten antar sesi audit.
                   </p>
                 </div>
 
                 {disputedBuildings.length === 0 ? (
                   <div className="bg-surface border border-line rounded-md p-10 text-center">
                     <p className="font-display italic text-lg text-ink-muted mb-1">
-                      "Semua konsensus berjalan konsisten."
+                      "Tidak ada sengketa audit."
                     </p>
                     <p className="font-sans text-xs text-ink-muted">
-                      Tidak ditemukan perbedaan evaluasi pada kriteria gedung publik saat ini.
+                      Semua hasil evaluasi kriteria berjalan konsisten.
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
                     {disputedBuildings.map((building) => (
-                      <div key={building.id} className="bg-surface border border-line rounded-md p-5 flex items-center justify-between gap-4 hover:border-accent/40 transition-colors">
+                      <div
+                        key={building.id}
+                        className="bg-surface border border-line rounded-md p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-accent/40 transition-colors"
+                      >
                         <div>
                           <div className="flex items-center gap-2">
                             <h4 className="font-display text-lg font-medium text-ink">
@@ -573,11 +504,6 @@ export default function AdminDashboardPage() {
                             {building.gps_mismatch && (
                               <span className="inline-flex px-2 py-0.5 border rounded-md text-[8px] font-sans font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-700 border-amber-500/20">
                                 GPS Tidak Cocok
-                              </span>
-                            )}
-                            {building.edit_history_count !== undefined && building.edit_history_count > 0 && (
-                              <span className="inline-flex px-2 py-0.5 border rounded-md text-[8px] font-sans font-semibold uppercase tracking-wider bg-accent/10 text-accent border-accent/20">
-                                Riwayat Edit ({building.edit_history_count})
                               </span>
                             )}
                           </div>
@@ -593,6 +519,19 @@ export default function AdminDashboardPage() {
                           >
                             Buka Detail Gedung
                           </Link>
+
+                          <button
+                            onClick={() =>
+                              setDeleteTarget({
+                                type: "building",
+                                id: building.id,
+                                name: building.name,
+                              })
+                            }
+                            className="flex-shrink-0 inline-flex items-center justify-center bg-status-not-met/10 text-status-not-met hover:bg-status-not-met hover:text-white border border-status-not-met/20 font-sans text-xs font-semibold px-3 py-2 rounded-md transition-all cursor-pointer"
+                          >
+                            Hapus Gedung
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -600,152 +539,21 @@ export default function AdminDashboardPage() {
                 )}
               </div>
             )}
-
-            {activeTab === "moderation" && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-display text-xl font-normal text-ink">
-                    Antrian Moderasi Gedung Dilaporkan ({moderationBuildings.length})
-                  </h3>
-                  <p className="font-sans text-xs text-ink-muted mt-1">
-                    Gedung-gedung di bawah ini ditandai sebagai "Dilaporkan" oleh komunitas karena melampaui ambang batas laporan.
-                  </p>
-                </div>
-
-                {moderationBuildings.length === 0 ? (
-                  <div className="bg-surface border border-line rounded-md p-10 text-center">
-                    <p className="font-display italic text-lg text-ink-muted mb-1">
-                      "Antrian moderasi kosong."
-                    </p>
-                    <p className="font-sans text-xs text-ink-muted">
-                      Tidak ada gedung dengan status 'Dilaporkan' saat ini.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {moderationBuildings.map((building) => {
-                      const isExpanded = expandedIds.includes(building.id);
-                      const reportList = building.building_reports || [];
-                      
-                      return (
-                        <div key={building.id} className="bg-surface border border-line rounded-md p-5 space-y-4 hover:border-line/80 transition-colors">
-                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <Link 
-                                  href={`/buildings/${building.id}`}
-                                  className="font-display text-lg font-medium text-ink hover:text-accent hover:underline"
-                                >
-                                  {building.name}
-                                </Link>
-                                <span className="bg-status-not-met/10 text-status-not-met border border-status-not-met/20 inline-flex px-2 py-0.5 rounded-md text-[8px] font-sans font-semibold uppercase tracking-wider">
-                                  Dilaporkan ({reportList.length})
-                                </span>
-                              </div>
-                              <p className="font-sans text-xs text-ink-muted mt-1">
-                                {building.address || "Alamat belum diisi."}
-                              </p>
-                            </div>
-                            
-                            {/* Action Buttons */}
-                            <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                onClick={() => handleSetTrustStatus(building.id, "trusted")}
-                                className="inline-flex items-center justify-center bg-status-met/10 text-status-met hover:bg-status-met hover:text-white border border-status-met/20 font-sans text-xs font-semibold px-3 py-1.5 rounded-md transition-all cursor-pointer"
-                                title="Override status menjadi Dipercaya"
-                              >
-                                Set Trusted
-                              </button>
-                              <button
-                                onClick={() => handleSetTrustStatus(building.id, "doubtful")}
-                                className="inline-flex items-center justify-center bg-amber-500/10 text-amber-700 hover:bg-amber-500 hover:text-white border border-amber-500/20 font-sans text-xs font-semibold px-3 py-1.5 rounded-md transition-all cursor-pointer"
-                                title="Override status menjadi Meragukan"
-                              >
-                                Set Doubtful
-                              </button>
-                              <button
-                                onClick={() => handleResetToAuto(building.id)}
-                                className="inline-flex items-center justify-center border border-line bg-surface hover:bg-bg/40 text-ink font-sans text-xs font-semibold px-3 py-1.5 rounded-md transition-all cursor-pointer"
-                                title="Reset override admin dan hitung otomatis berdasarkan vote"
-                              >
-                                Reset to Auto
-                              </button>
-                              <button
-                                onClick={() => handleDeleteBuilding(building.id, building.name)}
-                                className="inline-flex items-center justify-center bg-status-not-met/10 text-status-not-met hover:bg-status-not-met hover:text-white border border-status-not-met/20 font-sans text-xs font-semibold px-3 py-1.5 rounded-md transition-all cursor-pointer"
-                                title="Hapus gedung secara permanen"
-                              >
-                                Hapus Gedung
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Expand details toggler */}
-                          <div className="pt-2 border-t border-line/40 flex items-center justify-between">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const id = building.id;
-                                setExpandedIds((prev) => 
-                                  prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-                                );
-                              }}
-                              className="text-xs font-semibold font-sans text-accent hover:underline inline-flex items-center cursor-pointer"
-                            >
-                              {isExpanded ? "Sembunyikan Laporan" : "Lihat Semua Laporan Komunitas"}
-                              <svg 
-                                className={`w-3.5 h-3.5 ml-1 transition-transform ${isExpanded ? "rotate-180" : ""}`} 
-                                fill="none" 
-                                stroke="currentColor" 
-                                strokeWidth="2" 
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            <span className="text-[10px] text-ink-muted font-sans font-medium">
-                              {building.manually_set_by_admin ? "Override Manual Admin Aktif" : "Perhitungan Status Otomatis"}
-                            </span>
-                          </div>
-
-                          {/* Expanded list of reports */}
-                          {isExpanded && (
-                            <div className="bg-bg/30 border border-line/30 p-4 rounded space-y-3">
-                              <span className="block text-[9px] font-sans font-bold text-ink-muted uppercase tracking-wider">
-                                Rincian Laporan Komunitas:
-                              </span>
-                              
-                              {reportList.length === 0 ? (
-                                <p className="text-xs font-sans text-ink-muted italic">
-                                  Tidak ada detail laporan tersimpan (mungkin dimasukkan lewat mock).
-                                </p>
-                              ) : (
-                                <div className="space-y-2 divide-y divide-line/20">
-                                  {reportList.map((rep: any, idx: number) => (
-                                    <div key={rep.id || idx} className="text-xs font-sans space-y-1 py-1">
-                                      <div className="flex items-center justify-between text-[10px] text-ink-muted">
-                                        <span>Anonim: <strong className="font-mono">{rep.anonymous_id?.substring(0, 8) || "N/A"}...</strong></span>
-                                        <span>{new Date(rep.created_at).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}</span>
-                                      </div>
-                                      <p className="text-ink italic bg-surface/40 p-2 rounded border border-line/20 leading-relaxed">
-                                        "{rep.reason || "Tanpa alasan tertulis."}"
-                                      </p>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
           </>
         )}
       </main>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={!!deleteTarget}
+        description={`Apakah Anda yakin ingin menghapus gedung "${deleteTarget?.name}" secara permanen? Semua data audit, foto, dan hotspot terkait akan dihapus secara permanen.`}
+        isDeleting={isDeleting}
+        onConfirm={executeDeleteBuilding}
+        onClose={() => setDeleteTarget(null)}
+      />
+
+      {/* Custom Toast Notifications */}
+      <Toast toasts={toasts} onDismiss={removeToast} />
     </div>
   );
 }

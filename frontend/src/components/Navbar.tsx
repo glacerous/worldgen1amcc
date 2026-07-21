@@ -1,10 +1,29 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Navbar() {
-  const { user, login, logout, loading } = useAuth();
+  const { user, logout, loading } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const adminToken = sessionStorage.getItem("admin_token");
+    setIsAdminLoggedIn(!!adminToken);
+  }, [pathname]);
+
+  const handleAdminLogout = () => {
+    sessionStorage.removeItem("admin_token");
+    document.cookie = "admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; samesite=lax";
+    setIsAdminLoggedIn(false);
+    router.push("/admin/login");
+  };
+
+  const isAdminRoute = pathname?.startsWith("/admin");
 
   return (
     <nav className="sticky top-2 sm:top-4 z-50 mx-2 sm:mx-4 md:mx-12 my-2 bg-surface border border-line rounded-full py-2.5 sm:py-3.5 px-4 sm:px-6 md:px-8 flex items-center justify-between shadow-sm transition-all">
@@ -15,6 +34,11 @@ export default function Navbar() {
           <img src="/logo.png" alt="Aksesibel Logo" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
           <span className="font-display text-lg sm:text-2xl font-bold text-ink group-hover:text-accent transition-all hidden sm:inline">Aksesibel</span>
         </Link>
+        {isAdminRoute && (
+          <span className="ml-3 bg-accent text-white text-[9px] font-sans font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+            Admin Panel
+          </span>
+        )}
       </div>
 
       {/* Center: Nav links */}
@@ -25,11 +49,30 @@ export default function Navbar() {
         >
           Cari Gedung
         </Link>
+        {isAdminLoggedIn && !isAdminRoute && (
+          <Link 
+            href="/admin" 
+            className="font-sans text-sm font-semibold text-accent hover:underline transition-colors"
+          >
+            Dashboard Admin
+          </Link>
+        )}
       </div>
 
       {/* Right: Action button & Auth info */}
       <div className="flex items-center space-x-2 sm:space-x-4 md:space-x-6">
-        {!loading ? (
+        {isAdminRoute ? (
+          <button 
+            onClick={handleAdminLogout}
+            className="inline-flex items-center gap-1 font-sans text-xs sm:text-sm font-semibold text-status-not-met hover:opacity-80 transition-all cursor-pointer focus:outline-none"
+            title="Keluar Admin"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+            </svg>
+            <span>Keluar Admin</span>
+          </button>
+        ) : !loading ? (
           user ? (
             <div className="flex items-center space-x-1.5 sm:space-x-3">
               <svg 
