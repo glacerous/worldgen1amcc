@@ -36,7 +36,7 @@ def retry_with_backoff(retries=3, backoff_in_seconds=2):
     return decorator
 
 class CriteriaEvaluation(BaseModel):
-    criteria_code: str = Field(description="Kode kriteria, contoh: SNI-8201-M1")
+    criteria_code: str = Field(description="Kode kriteria, contoh: PUPR-14-M1")
     status: str = Field(description="Status evaluasi: harus salah satu dari 'met', 'not_met', 'unknown', 'na'")
     reasoning: str = Field(description="Alasan evaluasi berdasarkan analisis teks nama/alamat gedung")
 

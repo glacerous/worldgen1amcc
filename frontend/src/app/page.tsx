@@ -61,7 +61,7 @@ export default function Home() {
                   12 kriteria
                 </div>
                 <div className="font-sans text-[10px] tracking-wider text-ink-muted uppercase">
-                  berdasarkan SNI 8201:2015 & PP 42/2020
+                  berdasarkan Permen PUPR 14/2017 & PP 42/2020
                 </div>
               </div>
               

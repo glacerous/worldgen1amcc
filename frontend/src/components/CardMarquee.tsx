@@ -2,7 +2,7 @@
 
 const sampleCards = [
   {
-    code: "SNI-8201-M1",
+    code: "PUPR-14-M1",
     description: "Ramp dengan kemiringan wajar (maksimal 8 derajat) dan dilengkapi dengan handrail.",
     statusLabel: "Terpenuhi",
     statusBg: "rgba(47,111,78,0.10)",
@@ -11,7 +11,7 @@ const sampleCards = [
     agent: "visual_agent",
   },
   {
-    code: "SNI-8201-M2",
+    code: "PUPR-14-M2",
     description: "Lebar pintu masuk utama bersih minimal 90 cm tanpa anak tangga menghalangi.",
     statusLabel: "Terpenuhi",
     statusBg: "rgba(47,111,78,0.10)",
@@ -20,7 +20,7 @@ const sampleCards = [
     agent: "visual_agent",
   },
   {
-    code: "SNI-8201-M4",
+    code: "PUPR-14-M4",
     description: "Toilet khusus dengan ruang putar kursi roda, pintu geser, dan grab bars.",
     statusLabel: "Tidak Terpenuhi",
     statusBg: "rgba(179,70,50,0.10)",
@@ -29,7 +29,7 @@ const sampleCards = [
     agent: "visual_agent",
   },
   {
-    code: "SNI-8201-N1",
+    code: "PUPR-14-N1",
     description: "Ubin pengarah dan ubin peringatan terpasang menerus dari luar hingga lobby utama.",
     statusLabel: "Terpenuhi",
     statusBg: "rgba(47,111,78,0.10)",
@@ -38,7 +38,7 @@ const sampleCards = [
     agent: "text_agent",
   },
   {
-    code: "SNI-8201-N3",
+    code: "PUPR-14-N3",
     description: "Tombol kontrol lift dilengkapi huruf Braille timbul dan sistem pandu suara aktif.",
     statusLabel: "Tidak Diketahui",
     statusBg: "rgba(138,133,120,0.10)",
@@ -47,7 +47,7 @@ const sampleCards = [
     agent: "resolver_agent",
   },
   {
-    code: "SNI-8201-R1",
+    code: "PUPR-14-R1",
     description: "Terdapat sistem alarm kebakaran visual berupa lampu strobo di area toilet.",
     statusLabel: "Tidak Relevan",
     statusBg: "rgba(74,111,165,0.10)",

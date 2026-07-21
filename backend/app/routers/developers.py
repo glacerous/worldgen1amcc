@@ -395,7 +395,7 @@ class PublicBuildingResponse(BaseModel):
     lng: Optional[float] = Field(default=None, description="Longitude coordinate (WGS84).")
 
 class PublicAuditResult(BaseModel):
-    code: str = Field(description="SNI accessibility criteria code, e.g. 'SNI-8201-M1'.")
+    code: str = Field(description="Accessibility criteria code, e.g. 'PUPR-14-M1'.")
     description: str = Field(description="Human-readable description of the criteria requirement.")
     category: str = Field(description="Accessibility category, e.g. 'mobilitas', 'komunikasi', 'orientasi'.")
     status: str = Field(description="Consensus status: 'met', 'not_met', or 'not_applicable'.")
@@ -411,7 +411,7 @@ class PublicAuditResponse(BaseModel):
     results: List[PublicAuditResult] = Field(description="List of criteria evaluations from the primary audit run.")
 
 class PublicCriteriaDetail(BaseModel):
-    code: str = Field(description="SNI accessibility criteria code.")
+    code: str = Field(description="Accessibility criteria code.")
     description: str = Field(description="Human-readable description of the criteria requirement.")
     category: str = Field(description="Accessibility category of the criteria.")
     status: str = Field(description="Evaluated status for this criteria: 'met', 'not_met', or 'not_applicable'.")
@@ -525,7 +525,7 @@ def get_public_buildings(
         "  \"created_at\": \"2026-07-15T00:00:00Z\",\n"
         "  \"results\": [\n"
         "    {\n"
-        "      \"code\": \"SNI-8201-M1\",\n"
+        "      \"code\": \"PUPR-14-M1\",\n"
         "      \"description\": \"Tersedia ramp landai\",\n"
         "      \"category\": \"mobilitas\",\n"
         "      \"status\": \"met\",\n"
@@ -666,7 +666,7 @@ def get_public_building_audit(
         "          \"pitch\": -12.5,\n"
         "          \"yaw\": 45.2,\n"
         "          \"criteria\": {\n"
-        "            \"code\": \"SNI-8201-M1\",\n"
+        "            \"code\": \"PUPR-14-M1\",\n"
         "            \"description\": \"Tersedia ramp landai\",\n"
         "            \"category\": \"mobilitas\",\n"
         "            \"status\": \"met\"\n"

@@ -64,7 +64,7 @@ def get_image_base64(image_source: str) -> str:
     return f"data:{mime};base64,{encoded}"
 
 class CriteriaEvaluation(BaseModel):
-    criteria_code: str = Field(description="Kode kriteria, contoh: SNI-8201-M1")
+    criteria_code: str = Field(description="Kode kriteria, contoh: PUPR-14-M1")
     status: str = Field(description="Status evaluasi: harus salah satu dari 'met', 'not_met', 'unknown', 'na'")
     reasoning: str = Field(description="Alasan evaluasi berdasarkan analisis visual dari foto")
     evidence_photo_index: int = Field(0, description="Indeks foto (1-based, yaitu 1 untuk foto pertama, 2 untuk foto kedua, dst.) yang menjadi bukti utama kriteria ini. Gunakan 0 jika tidak ada.")

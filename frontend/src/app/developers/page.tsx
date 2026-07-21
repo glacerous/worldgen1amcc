@@ -663,7 +663,7 @@ function DevelopersPageContent() {
                             Format Response (200 OK)
                           </span>
                           <div className="bg-ink/5 border border-line/65 rounded p-3 font-mono text-[11px] text-ink overflow-x-auto max-h-72">
-                            <pre>{`{\n  "building_id": "8374691d-b2fb-421f-ba6c-d5717adde2b6",\n  "building_name": "MRT Bundaran HI",\n  "audit_run_id": "cca3589c-4deb-4462-a565-f94e2747edad",\n  "created_at": "2026-07-15T13:32:38.171281Z",\n  "results": [\n    {\n      "code": "SNI-8201-M1",\n      "description": "Ramp dengan kemiringan wajar (maksimal 8 derajat)...",\n      "category": "mobilitas",\n      "status": "met",\n      "is_disputed": false\n    }\n  ]\n}`}</pre>
+                            <pre>{`{\n  "building_id": "8374691d-b2fb-421f-ba6c-d5717adde2b6",\n  "building_name": "MRT Bundaran HI",\n  "audit_run_id": "cca3589c-4deb-4462-a565-f94e2747edad",\n  "created_at": "2026-07-15T13:32:38.171281Z",\n  "results": [\n    {\n      "code": "PUPR-14-M1",\n      "description": "Ramp dengan kemiringan wajar (maksimal 8 derajat)...",\n      "category": "mobilitas",\n      "status": "met",\n      "is_disputed": false\n    }\n  ]\n}`}</pre>
                           </div>
                         </div>
                       </div>
@@ -713,7 +713,7 @@ function DevelopersPageContent() {
                             Format Response (200 OK)
                           </span>
                           <div className="bg-ink/5 border border-line/65 rounded p-3 font-mono text-[11px] text-ink overflow-x-auto max-h-72">
-                            <pre>{`{\n  "building_id": "8374691d-b2fb-421f-ba6c-d5717adde2b6",\n  "building_name": "MRT Bundaran HI",\n  "audit_run_id": "cca3589c-4deb-4462-a565-f94e2747edad",\n  "scenes": [\n    {\n      "id": "b5405a1b-cf38-4755-8e72-1574cdb78a48",\n      "label": "Lobby Entrance",\n      "file_url": "https://...",\n      "type": "panorama_360",\n      "created_at": "2026-07-15T13:32:38.776045Z",\n      "annotations": [\n        {\n          "id": "a3a73356-c8c2-4d63-9fae-b590cdcaf8a5",\n          "label": "Tangga Akses",\n          "pitch": -7.2,\n          "yaw": -82.8,\n          "criteria": {\n            "code": "SNI-8201-N2",\n            "description": "Tersedia kontras warna...",\n            "category": "netra",\n            "status": "met"\n          }\n        }\n      ]\n    }\n  ]\n}`}</pre>
+                            <pre>{`{\n  "building_id": "8374691d-b2fb-421f-ba6c-d5717adde2b6",\n  "building_name": "MRT Bundaran HI",\n  "audit_run_id": "cca3589c-4deb-4462-a565-f94e2747edad",\n  "scenes": [\n    {\n      "id": "b5405a1b-cf38-4755-8e72-1574cdb78a48",\n      "label": "Lobby Entrance",\n      "file_url": "https://...",\n      "type": "panorama_360",\n      "created_at": "2026-07-15T13:32:38.776045Z",\n      "annotations": [\n        {\n          "id": "a3a73356-c8c2-4d63-9fae-b590cdcaf8a5",\n          "label": "Tangga Akses",\n          "pitch": -7.2,\n          "yaw": -82.8,\n          "criteria": {\n            "code": "PUPR-14-N2",\n            "description": "Tersedia kontras warna...",\n            "category": "netra",\n            "status": "met"\n          }\n        }\n      ]\n    }\n  ]\n}`}</pre>
                           </div>
                         </div>
                       </div>

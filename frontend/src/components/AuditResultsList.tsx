@@ -85,9 +85,9 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
   };
 
   const categoryTooltips: Record<string, string> = {
-    mobilitas: "Diatur dalam SNI 8201:2015 dan Permen PUPR No. 14/2017 tentang Persyaratan Kemudahan Bangunan Gedung, sebagai turunan dari PP No. 42/2020 dan UU No. 8 Tahun 2016 tentang Penyandang Disabilitas.",
-    netra: "Diatur dalam SNI 8201:2015 dan PP No. 42/2020 tentang Aksesibilitas bagi Penyandang Disabilitas Sensorik Netra, sebagai turunan dari UU No. 8 Tahun 2016 tentang Penyandang Disabilitas.",
-    rungu: "Diatur dalam SNI 8201:2015 dan PP No. 42/2020 tentang Aksesibilitas bagi Penyandang Disabilitas Sensorik Rungu, sebagai turunan dari UU No. 8 Tahun 2016 tentang Penyandang Disabilitas.",
+    mobilitas: "Diatur dalam Permen PUPR No. 14/2017 tentang Persyaratan Kemudahan Bangunan Gedung, sebagai turunan dari PP No. 42/2020 dan UU No. 8 Tahun 2016 tentang Penyandang Disabilitas.",
+    netra: "Diatur dalam Permen PUPR No. 14/2017 tentang Persyaratan Kemudahan Bangunan Gedung dan PP No. 42/2020 tentang Aksesibilitas bagi Penyandang Disabilitas Sensorik Netra, sebagai turunan dari UU No. 8 Tahun 2016 tentang Penyandang Disabilitas.",
+    rungu: "Diatur dalam Permen PUPR No. 14/2017 tentang Persyaratan Kemudahan Bangunan Gedung dan PP No. 42/2020 tentang Aksesibilitas bagi Penyandang Disabilitas Sensorik Rungu, sebagai turunan dari UU No. 8 Tahun 2016 tentang Penyandang Disabilitas.",
   };
 
   const getReferenceText = (category: string) => {
@@ -109,7 +109,7 @@ export default function AuditResultsList({ auditResults }: AuditResultsListProps
     } else if (category === "rungu") {
       return "PP No. 42/2020";
     }
-    return "SNI 8201:2015";
+    return "Permen PUPR No. 14/2017";
   };
 
   const handleReportSubmit = async (e: React.FormEvent) => {

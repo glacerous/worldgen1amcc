@@ -99,7 +99,7 @@ def main():
         existing_res = text_results if "text_agent" in report_results and report_results["text_agent"]["status"] == "SUCCESS" else []
         unknown_codes = [r["criteria_code"] for r in existing_res if r.get("status") == "unknown"]
         if not unknown_codes:
-            unknown_codes = ["SNI-8201-M1", "SNI-8201-N2", "SNI-8201-F3"]
+            unknown_codes = ["PUPR-14-M1", "PUPR-14-N2", "PUPR-14-R3"]
         
         resolver_results = run_resolver_agent(
             building_name=building_name,
