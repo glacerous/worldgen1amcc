@@ -572,3 +572,65 @@ async def patch_audit_run(
         "photos": final_photos
     }
 
+
+@audit_runs_router.delete("/{run_id}")
+def delete_audit_run(
+    run_id: UUID,
+    current_user = Depends(get_current_user)
+):
+    """
+    Allows a user to delete an audit run that they created.
+    """
+    run_id_str = str(run_id)
+
+    # 1. Fetch audit run and check ownership
+    try:
+        run_res = supabase.table("audit_runs").select("*").eq("id", run_id_str).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil data audit run: {str(e)}")
+
+    if not run_res.data:
+        raise HTTPException(status_code=404, detail="Audit run tidak ditemukan.")
+
+    audit_run = run_res.data[0]
+    run_user_id = audit_run.get("user_id")
+
+    if not run_user_id or str(run_user_id) != str(current_user["user_id"]):
+        raise HTTPException(
+            status_code=403,
+            detail="Anda tidak memiliki izin untuk menghapus audit run ini."
+        )
+
+    # 2. Storage cleanup for uploaded photos in photos bucket
+    photos = audit_run.get("photos") or []
+    for photo_url in photos:
+        if isinstance(photo_url, str) and "/photos/" in photo_url:
+            try:
+                filename = photo_url.split("/")[-1]
+                supabase.storage.from_("photos").remove([filename])
+            except Exception as err:
+                print(f"[warn] Gagal menghapus foto dari storage: {photo_url}. Error: {err}")
+
+    # 3. Delete related audit_results explicitly
+    try:
+        supabase.table("audit_results").delete().eq("audit_run_id", run_id_str).execute()
+    except Exception as e:
+        print(f"[warn] Gagal menghapus audit_results: {e}")
+
+    # 4. Delete audit_run record
+    try:
+        supabase.table("audit_runs").delete().eq("id", run_id_str).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal menghapus audit run: {str(e)}")
+
+    return {"status": "success", "message": "Audit run berhasil dihapus."}
+
+
+@router.delete("/runs/{audit_run_id}")
+def delete_audit_run_legacy_path(
+    audit_run_id: UUID,
+    current_user = Depends(get_current_user)
+):
+    return delete_audit_run(audit_run_id, current_user)
+
+
