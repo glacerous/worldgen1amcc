@@ -30,6 +30,9 @@ export default function EditAuditPage({
   const router = useRouter();
   const { user, token, loading: authLoading } = useAuth();
 
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [adminToken, setAdminToken] = useState<string | null>(null);
+
   const [auditRun, setAuditRun] = useState<AuditRun | null>(null);
   const [loadingRun, setLoadingRun] = useState(true);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -43,15 +46,29 @@ export default function EditAuditPage({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  useEffect(() => {
+    const admTok = sessionStorage.getItem("admin_token");
+    if (admTok) {
+      setAdminToken(admTok);
+      setIsAdminLoggedIn(true);
+    }
+  }, []);
+
   const executeDeleteAudit = async () => {
-    if (!auditRunId || !token) return;
+    const admTok = sessionStorage.getItem("admin_token");
+    const activeToken = admTok || token;
+    if (!auditRunId || !activeToken) return;
 
     setIsDeleting(true);
     setError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/audit-runs/${auditRunId}`, {
+      const deleteEndpoint = admTok
+        ? `${BACKEND_URL}/admin/audit-runs/${auditRunId}`
+        : `${BACKEND_URL}/audit-runs/${auditRunId}`;
+
+      const res = await fetch(deleteEndpoint, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${activeToken}` },
       });
 
       if (!res.ok) {
@@ -70,9 +87,10 @@ export default function EditAuditPage({
     }
   };
 
-  // Auth guard: redirect to login if not logged in
+  // Auth guard: redirect to login if not logged in (neither user nor admin)
   useEffect(() => {
-    if (!authLoading && !user) {
+    const admTok = sessionStorage.getItem("admin_token");
+    if (!authLoading && !user && !admTok) {
       router.push(`/login?redirect=/buildings/${buildingId}/edit-audit/${auditRunId}`);
     }
   }, [authLoading, user, router, buildingId, auditRunId]);
@@ -81,11 +99,16 @@ export default function EditAuditPage({
 
   // Fetch audit run detail + ownership check
   useEffect(() => {
-    if (authLoading || !user || !auditRunId || !UUID_REGEX.test(auditRunId)) return;
+    const admTok = sessionStorage.getItem("admin_token");
+    if (authLoading || (!user && !admTok) || !auditRunId || !UUID_REGEX.test(auditRunId)) return;
 
-    fetch(`${BACKEND_URL}/audit/runs/${auditRunId}/detail`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const activeToken = admTok || token;
+    const headers: Record<string, string> = {};
+    if (activeToken) {
+      headers["Authorization"] = `Bearer ${activeToken}`;
+    }
+
+    fetch(`${BACKEND_URL}/audit/runs/${auditRunId}/detail`, { headers })
       .then(async (res) => {
         if (!res.ok) {
           const errText = await res.text().catch(() => "");
@@ -95,8 +118,8 @@ export default function EditAuditPage({
       })
       .then((data: AuditRun) => {
         setAuditRun(data);
-        // Check ownership — redirect if not the owner
-        if (data.user_id !== user.id) {
+        // Check ownership — redirect if not the owner (skip check if admin)
+        if (!admTok && data.user_id !== user?.id) {
           router.push(`/buildings/${buildingId}`);
         }
       })
@@ -180,10 +203,21 @@ export default function EditAuditPage({
     });
     formData.append("photo_ids_to_delete", JSON.stringify(photoUrlsToDelete));
 
+    const admTok = sessionStorage.getItem("admin_token");
+    const activeToken = admTok || token;
+    const patchEndpoint = admTok
+      ? `${BACKEND_URL}/admin/audit-runs/${auditRunId}`
+      : `${BACKEND_URL}/audit-runs/${auditRunId}`;
+
     try {
-      const res = await fetch(`${BACKEND_URL}/audit-runs/${auditRunId}`, {
+      const headers: Record<string, string> = {};
+      if (activeToken) {
+        headers["Authorization"] = `Bearer ${activeToken}`;
+      }
+
+      const res = await fetch(patchEndpoint, {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         body: formData,
       });
 
@@ -201,7 +235,7 @@ export default function EditAuditPage({
   };
 
   // Loading states
-  if (authLoading || !user || loadingRun) {
+  if (authLoading || (!user && !isAdminLoggedIn) || loadingRun) {
     return (
       <div className="min-h-screen flex flex-col bg-bg">
         <Navbar />

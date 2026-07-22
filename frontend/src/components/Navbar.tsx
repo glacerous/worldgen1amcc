@@ -49,7 +49,7 @@ export default function Navbar() {
         >
           Cari Gedung
         </Link>
-        {isAdminLoggedIn && !isAdminRoute && (
+        {isAdminLoggedIn && !isAdminRoute && pathname !== "/" && (
           <Link 
             href="/admin" 
             className="font-sans text-sm font-semibold text-accent hover:underline transition-colors"

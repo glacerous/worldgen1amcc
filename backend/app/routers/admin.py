@@ -1,12 +1,13 @@
 import jwt
 import bcrypt
 import datetime
-from fastapi import APIRouter, HTTPException, Header, Depends, Body
+from fastapi import APIRouter, HTTPException, Header, Depends, Body, File, UploadFile, Form
 from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel
 from app.db import supabase
 from app.config import settings
+from app.routers.audit import process_patch_audit_run
 
 # 1. Router definitions
 # admin_router for protected /admin routes
@@ -288,4 +289,18 @@ def admin_delete_audit_run(audit_run_id: UUID, token: str = Depends(require_admi
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal menghapus audit run oleh admin: {str(e)}")
+
+
+@admin_router.patch("/audit-runs/{audit_run_id}", response_model=dict)
+async def admin_patch_audit_run(
+    audit_run_id: UUID,
+    photo_ids_to_delete: Optional[str] = Form(None),
+    new_photos: Optional[List[UploadFile]] = File(None),
+    token: str = Depends(require_admin)
+):
+    """
+    Protected admin endpoint allowing an admin to edit ANY audit run.
+    """
+    return await process_patch_audit_run(audit_run_id, photo_ids_to_delete, new_photos)
+
 

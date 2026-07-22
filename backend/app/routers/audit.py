@@ -434,16 +434,14 @@ def get_audit_run_results_new_path(run_id: UUID):
     return get_run_results(run_id)
 
 
-@audit_runs_router.patch("/{run_id}")
-async def patch_audit_run(
+async def process_patch_audit_run(
     run_id: UUID,
-    photo_ids_to_delete: Optional[str] = Form(None), # JSON-encoded list of urls to delete
-    new_photos: Optional[List[UploadFile]] = File(None),
-    current_user = Depends(get_current_user)
+    photo_ids_to_delete: Optional[str] = None,
+    new_photos: Optional[List[UploadFile]] = None
 ):
     run_id_str = str(run_id)
     
-    # 1. Fetch audit run and check ownership
+    # 1. Fetch audit run
     try:
         run_res = supabase.table("audit_runs").select("*").eq("id", run_id_str).execute()
     except Exception as e:
@@ -453,14 +451,6 @@ async def patch_audit_run(
         raise HTTPException(status_code=404, detail="Audit run tidak ditemukan.")
     
     audit_run = run_res.data[0]
-    run_user_id = audit_run.get("user_id")
-    
-    if not run_user_id or str(run_user_id) != str(current_user["user_id"]):
-        raise HTTPException(
-            status_code=401,
-            detail="Anda tidak memiliki izin untuk mengedit audit run ini."
-        )
-        
     building_id = audit_run["building_id"]
     
     # 2. Fetch current audit results for snapshot
@@ -603,6 +593,36 @@ async def patch_audit_run(
         "audit_run_id": run_id_str,
         "photos": final_photos
     }
+
+
+@audit_runs_router.patch("/{run_id}")
+async def patch_audit_run(
+    run_id: UUID,
+    photo_ids_to_delete: Optional[str] = Form(None), # JSON-encoded list of urls to delete
+    new_photos: Optional[List[UploadFile]] = File(None),
+    current_user = Depends(get_current_user)
+):
+    run_id_str = str(run_id)
+    
+    # 1. Fetch audit run and check ownership
+    try:
+        run_res = supabase.table("audit_runs").select("*").eq("id", run_id_str).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil data audit run: {str(e)}")
+        
+    if not run_res.data:
+        raise HTTPException(status_code=404, detail="Audit run tidak ditemukan.")
+    
+    audit_run = run_res.data[0]
+    run_user_id = audit_run.get("user_id")
+    
+    if not run_user_id or str(run_user_id) != str(current_user["user_id"]):
+        raise HTTPException(
+            status_code=401,
+            detail="Anda tidak memiliki izin untuk mengedit audit run ini."
+        )
+        
+    return await process_patch_audit_run(run_id, photo_ids_to_delete, new_photos)
 
 
 @audit_runs_router.delete("/{run_id}")
