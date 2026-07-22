@@ -79,14 +79,82 @@ let globalPermissionDenied = false;
 export default function BuildingsPage() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLocationLoading, setIsLocationLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"terbaru" | "skor_tertinggi" | "nama_az">("terbaru");
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(() => {
+    if (typeof window === "undefined") return null;
+    let cachedLoc = globalUserLocation;
+    if (!cachedLoc) {
+      try {
+        const stored = sessionStorage.getItem("user_location");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed.latitude === "number" && typeof parsed.longitude === "number") {
+            cachedLoc = parsed;
+            globalUserLocation = parsed;
+          }
+        }
+      } catch (e) {
+        console.error("Error reading location from sessionStorage:", e);
+      }
+    }
+    return cachedLoc;
+  });
+  const [isLocationLoading, setIsLocationLoading] = useState(() => {
+    if (typeof window === "undefined") return true;
+    if (globalUserLocation) return false;
+    try {
+      const stored = sessionStorage.getItem("user_location");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.latitude === "number" && typeof parsed.longitude === "number") {
+          return false;
+        }
+      }
+    } catch (e) {}
+    if (globalPermissionDenied) return false;
+    return true;
+  });
   const [isExpandedNearby, setIsExpandedNearby] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const getFreshLocation = (isBackgroundUpdate = false) => {
+      if (!navigator.geolocation) {
+        setIsLocationLoading(false);
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (timer) clearTimeout(timer);
+          const loc = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+          globalUserLocation = loc;
+          try {
+            sessionStorage.setItem("user_location", JSON.stringify(loc));
+          } catch (e) {}
+          setUserLocation(loc);
+          setIsLocationLoading(false);
+        },
+        (error) => {
+          if (timer) clearTimeout(timer);
+          console.log("Geolocation error or denied:", error);
+          if (error.code === error.PERMISSION_DENIED) {
+            globalPermissionDenied = true;
+          }
+          if (!isBackgroundUpdate) {
+            setIsLocationLoading(false);
+          }
+        },
+        { timeout: 15000, enableHighAccuracy: true }
+      );
+    };
 
     // 1. Try to load location from cache or sessionStorage immediately on mount (client-side)
     let cachedLoc = globalUserLocation;
@@ -105,86 +173,53 @@ export default function BuildingsPage() {
       }
     }
 
-    if (cachedLoc) {
-      setUserLocation(cachedLoc);
-      setIsLocationLoading(false);
+    // Set up permission listener if permissions API is available
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: "geolocation" })
+        .then((result) => {
+          if (result.state === "denied") {
+            globalPermissionDenied = true;
+            setIsLocationLoading(false);
+          }
 
+          result.onchange = () => {
+            if (result.state === "granted") {
+              globalPermissionDenied = false;
+              setIsLocationLoading(true);
+              getFreshLocation(false);
+            } else if (result.state === "denied") {
+              globalPermissionDenied = true;
+              setIsLocationLoading(false);
+              setUserLocation(null);
+            }
+          };
+        })
+        .catch((err) => {
+          console.warn("Permissions API error:", err);
+        });
+    }
+
+    if (cachedLoc) {
       // Perform a silent update in the background to get the fresh location
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const loc = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            };
-            globalUserLocation = loc;
-            try {
-              sessionStorage.setItem("user_location", JSON.stringify(loc));
-            } catch (e) {}
-            setUserLocation(loc);
-          },
-          (error) => {
-            console.log("Silent geolocation update failed:", error);
-          },
-          { timeout: 10000 }
-        );
-      }
+      getFreshLocation(true);
       return;
     }
 
     // 2. If we don't have cached location and know permission is denied, skip loading geolocation
     if (globalPermissionDenied) {
-      setIsLocationLoading(false);
       return;
     }
 
     // 3. Otherwise, query geolocation and request permission
-    if (navigator.geolocation) {
-      // Query permission status if supported to fail-fast if denied
-      if (navigator.permissions && navigator.permissions.query) {
-        navigator.permissions.query({ name: "geolocation" })
-          .then((result) => {
-            if (result.state === "denied") {
-              globalPermissionDenied = true;
-              setIsLocationLoading(false);
-            }
-          })
-          .catch((err) => {
-            console.warn("Permissions API error:", err);
-          });
-      }
-
-      const timer = setTimeout(() => {
-        setIsLocationLoading(false);
-      }, 1000); // 1s timeout to check location before fallback
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          clearTimeout(timer);
-          const loc = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          };
-          globalUserLocation = loc;
-          try {
-            sessionStorage.setItem("user_location", JSON.stringify(loc));
-          } catch (e) {}
-          setUserLocation(loc);
-          setIsLocationLoading(false);
-        },
-        (error) => {
-          clearTimeout(timer);
-          console.log("Geolocation error or denied:", error);
-          if (error.code === error.PERMISSION_DENIED) {
-            globalPermissionDenied = true;
-          }
-          setIsLocationLoading(false);
-        },
-        { timeout: 4000 }
-      );
-    } else {
+    timer = setTimeout(() => {
       setIsLocationLoading(false);
-    }
+    }, 1000); // 1s timeout to check location before fallback
+
+    getFreshLocation(false);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -439,7 +474,7 @@ export default function BuildingsPage() {
               </svg>
             </div>
             <p className="font-display italic text-lg text-ink mb-2">
-              "Gedung yang Anda cari tidak ditemukan."
+              &ldquo;Gedung yang Anda cari tidak ditemukan.&rdquo;
             </p>
             <p className="font-sans text-xs text-ink-muted mb-6 max-w-sm mx-auto leading-relaxed">
               Kami belum memiliki data untuk kriteria pencarian ini. Bantu kami melengkapi database dengan mengusulkan gedung baru.
