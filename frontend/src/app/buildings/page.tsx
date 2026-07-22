@@ -72,6 +72,9 @@ function getComplianceColorClass(score: number | "N/A" | null | undefined): stri
   }
   return "text-accent";
 }
+// Global in-memory cache to prevent delays and layout shifts during client-side navigation
+let globalUserLocation: { latitude: number; longitude: number } | null = null;
+let globalPermissionDenied = false;
 
 export default function BuildingsPage() {
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -83,7 +86,74 @@ export default function BuildingsPage() {
   const [isExpandedNearby, setIsExpandedNearby] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && navigator.geolocation) {
+    if (typeof window === "undefined") return;
+
+    // 1. Try to load location from cache or sessionStorage immediately on mount (client-side)
+    let cachedLoc = globalUserLocation;
+    if (!cachedLoc) {
+      try {
+        const stored = sessionStorage.getItem("user_location");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed.latitude === "number" && typeof parsed.longitude === "number") {
+            cachedLoc = parsed;
+            globalUserLocation = parsed;
+          }
+        }
+      } catch (e) {
+        console.error("Error reading location from sessionStorage:", e);
+      }
+    }
+
+    if (cachedLoc) {
+      setUserLocation(cachedLoc);
+      setIsLocationLoading(false);
+
+      // Perform a silent update in the background to get the fresh location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const loc = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            };
+            globalUserLocation = loc;
+            try {
+              sessionStorage.setItem("user_location", JSON.stringify(loc));
+            } catch (e) {}
+            setUserLocation(loc);
+          },
+          (error) => {
+            console.log("Silent geolocation update failed:", error);
+          },
+          { timeout: 10000 }
+        );
+      }
+      return;
+    }
+
+    // 2. If we don't have cached location and know permission is denied, skip loading geolocation
+    if (globalPermissionDenied) {
+      setIsLocationLoading(false);
+      return;
+    }
+
+    // 3. Otherwise, query geolocation and request permission
+    if (navigator.geolocation) {
+      // Query permission status if supported to fail-fast if denied
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: "geolocation" })
+          .then((result) => {
+            if (result.state === "denied") {
+              globalPermissionDenied = true;
+              setIsLocationLoading(false);
+            }
+          })
+          .catch((err) => {
+            console.warn("Permissions API error:", err);
+          });
+      }
+
       const timer = setTimeout(() => {
         setIsLocationLoading(false);
       }, 1000); // 1s timeout to check location before fallback
@@ -91,15 +161,23 @@ export default function BuildingsPage() {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           clearTimeout(timer);
-          setUserLocation({
+          const loc = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-          });
+          };
+          globalUserLocation = loc;
+          try {
+            sessionStorage.setItem("user_location", JSON.stringify(loc));
+          } catch (e) {}
+          setUserLocation(loc);
           setIsLocationLoading(false);
         },
         (error) => {
           clearTimeout(timer);
           console.log("Geolocation error or denied:", error);
+          if (error.code === error.PERMISSION_DENIED) {
+            globalPermissionDenied = true;
+          }
           setIsLocationLoading(false);
         },
         { timeout: 4000 }
