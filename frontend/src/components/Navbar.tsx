@@ -26,7 +26,7 @@ export default function Navbar() {
   const isAdminRoute = pathname?.startsWith("/admin");
 
   return (
-    <nav className="sticky top-2 sm:top-4 z-50 mx-2 sm:mx-4 md:mx-12 my-2 bg-surface border border-line rounded-full py-2.5 sm:py-3.5 px-4 sm:px-6 md:px-8 flex items-center justify-between shadow-sm transition-all">
+    <nav className="relative sticky top-2 sm:top-4 z-50 mx-2 sm:mx-4 md:mx-12 my-2 bg-surface border border-line rounded-full py-2.5 sm:py-3.5 px-4 sm:px-6 md:px-8 flex items-center justify-between shadow-sm transition-all">
       {/* Left: Brand Logo & Title */}
       <div className="flex items-center">
         <Link href="/" className="group flex items-center gap-2">
@@ -42,17 +42,25 @@ export default function Navbar() {
       </div>
 
       {/* Center: Nav links */}
-      <div className="hidden md:flex items-center space-x-8">
+      <div className="hidden md:flex md:absolute md:left-1/2 md:-translate-x-1/2 items-center space-x-8">
         <Link 
           href="/buildings" 
-          className="font-sans text-sm font-medium text-ink-muted hover:text-ink transition-colors"
+          className={`font-sans text-sm transition-colors ${
+            pathname?.startsWith("/buildings")
+              ? "font-semibold text-accent"
+              : "font-medium text-ink-muted hover:text-ink"
+          }`}
         >
           Cari Gedung
         </Link>
-        {isAdminLoggedIn && !isAdminRoute && pathname !== "/" && (
+        {isAdminLoggedIn && pathname !== "/" && (
           <Link 
             href="/admin" 
-            className="font-sans text-sm font-semibold text-accent hover:underline transition-colors"
+            className={`font-sans text-sm transition-colors ${
+              pathname?.startsWith("/admin")
+                ? "font-semibold text-accent"
+                : "font-medium text-ink-muted hover:text-ink"
+            }`}
           >
             Dashboard Admin
           </Link>
@@ -61,7 +69,7 @@ export default function Navbar() {
 
       {/* Right: Action button & Auth info */}
       <div className="flex items-center space-x-2 sm:space-x-4 md:space-x-6">
-        {isAdminRoute ? (
+        {isAdminLoggedIn ? (
           <button 
             onClick={handleAdminLogout}
             className="inline-flex items-center gap-1 font-sans text-xs sm:text-sm font-semibold text-status-not-met hover:opacity-80 transition-all cursor-pointer focus:outline-none"
