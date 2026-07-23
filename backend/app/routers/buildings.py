@@ -401,8 +401,8 @@ async def submit_building(
             "latitude": latitude,
             "longitude": longitude,
             "source": "community",
-            "verified": False,
-            "status": "pending"
+            "verified": True,
+            "status": "approved"
         }
         # Link the building to the submitting user if logged in
         if current_user:
