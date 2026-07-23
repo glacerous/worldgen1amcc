@@ -607,7 +607,7 @@ function DevelopersPageContent() {
                             Contoh Pemanggilan (cURL)
                           </span>
                           <div className="bg-ink/5 border border-line/65 rounded p-3 font-mono text-[11px] text-ink overflow-x-auto relative select-all">
-                            <pre>{`curl -H "X-API-Key: ${currentDevKey}" \\\n  "https://aksesibel-amcc.vercel.app/v1/public/buildings?limit=10&offset=0"`}</pre>
+                            <pre>{`curl -H "X-API-Key: ${currentDevKey}" \\\n  "https://worldgen1amcc.onrender.com/v1/public/buildings?limit=10&offset=0"`}</pre>
                           </div>
                         </div>
 
@@ -654,7 +654,7 @@ function DevelopersPageContent() {
                             Contoh Pemanggilan (cURL)
                           </span>
                           <div className="bg-ink/5 border border-line/65 rounded p-3 font-mono text-[11px] text-ink overflow-x-auto relative select-all">
-                            <pre>{`curl -H "X-API-Key: ${currentDevKey}" \\\n  "${BACKEND_URL}/v1/public/buildings/8374691d-b2fb-421f-ba6c-d5717adde2b6/audit"`}</pre>
+                            <pre>{`curl -H "X-API-Key: ${currentDevKey}" \\\n  "https://worldgen1amcc.onrender.com/v1/public/buildings/8374691d-b2fb-421f-ba6c-d5717adde2b6/audit"`}</pre>
                           </div>
                         </div>
 
@@ -704,7 +704,7 @@ function DevelopersPageContent() {
                             Contoh Pemanggilan (cURL)
                           </span>
                           <div className="bg-ink/5 border border-line/65 rounded p-3 font-mono text-[11px] text-ink overflow-x-auto relative select-all">
-                            <pre>{`curl -H "X-API-Key: ${currentDevKey}" \\\n  "${BACKEND_URL}/v1/public/buildings/8374691d-b2fb-421f-ba6c-d5717adde2b6/tour"`}</pre>
+                            <pre>{`curl -H "X-API-Key: ${currentDevKey}" \\\n  "https://worldgen1amcc.onrender.com/v1/public/buildings/8374691d-b2fb-421f-ba6c-d5717adde2b6/tour"`}</pre>
                           </div>
                         </div>
 
